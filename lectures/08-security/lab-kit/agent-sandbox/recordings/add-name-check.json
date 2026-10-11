@@ -1,0 +1,116 @@
+{
+  "about": "Authored by the course team in the exact shape of Anthropic Messages API replies (content blocks and stop_reason). It is not captured model output. Replaying it tests the harness: the loop, the dispatcher, the permission layer and the stopping rule. The turns play in order whatever the tools return, so this says nothing about how a real model behaves.",
+  "task": "Goal:     Make the reservation API refuse an attendee name made only of spaces\n          (HTTP 422), the same way it already refuses an empty name.\nContext:  AfterHours, a FastAPI + SQLite app. AGENTS.md has the commands and rules.\n          The web page trims names; the API does not, so \"   \" is accepted today.\nLimits:   Change only files in app/ and tests/. Do not weaken or delete any test.\nDeliver:  A test that fails before your fix, the smallest fix, and the full test output.\nStop:     When every test passes. Or after 12 steps.\nCost cap: 60,000 tokens for the whole run.",
+  "suggested_permissions": "permissions.json",
+  "turns": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'll start with the layout of the project."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_a_01",
+          "name": "list_files",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "text",
+          "text": "The request model is in app/main.py and the existing name test is in tests/test_basics.py. Reading both."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_a_02",
+          "name": "read_file",
+          "input": {
+            "path": "app/main.py"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_a_03",
+          "name": "read_file",
+          "input": {
+            "path": "tests/test_basics.py"
+          }
+        }
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "text",
+          "text": "`attendee` has min_length=1, and a space counts as a character, so \"   \" passes. Writing a test that shows the problem first."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_a_04",
+          "name": "write_file",
+          "input": {
+            "path": "tests/test_names.py",
+            "content": "from .conftest import event_by_title\n\nESCAPE_ROOM = \"Escape Room: The Locked Lab\"   # seeded with 39 of 40 places taken\n\n\ndef test_a_name_of_only_spaces_is_refused(client):\n    event = event_by_title(client, ESCAPE_ROOM)\n    res = client.post(f\"/api/events/{event['id']}/reservations\", json={\"attendee\": \"   \"})\n    assert res.status_code == 422\n\n\ndef test_a_name_with_a_space_inside_is_accepted(client):\n    event = event_by_title(client, ESCAPE_ROOM)\n    res = client.post(f\"/api/events/{event['id']}/reservations\", json={\"attendee\": \"Maya Chen\"})\n    assert res.status_code == 201\n"
+          }
+        }
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_a_05",
+          "name": "run_tests",
+          "input": {
+            "path": "tests/test_names.py"
+          }
+        }
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "text",
+          "text": "The spaces-only test fails (201 instead of 422), as expected. Smallest fix: the field also needs at least one non-space character."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_a_06",
+          "name": "write_file",
+          "input": {
+            "path": "app/main.py",
+            "content": "\"\"\"AfterHours — the campus festival platform (starter, Week 1).\n\nRun it:   uvicorn app.main:app\nThen open http://127.0.0.1:8000\n\"\"\"\n\nimport logging\nfrom pathlib import Path\n\nfrom fastapi import FastAPI, HTTPException\nfrom fastapi.responses import FileResponse\nfrom pydantic import BaseModel, Field\n\nfrom . import db, reservations\n\nSTATIC = Path(__file__).with_name(\"static\")\n\nlog = logging.getLogger(\"afterhours\")\nif not log.handlers:\n    handler = logging.StreamHandler()\n    handler.setFormatter(logging.Formatter(\"%(asctime)s.%(msecs)03d  %(message)s\", \"%H:%M:%S\"))\n    log.addHandler(handler)\n    log.setLevel(logging.INFO)\n\n\nclass NewEvent(BaseModel):\n    title: str = Field(min_length=1, max_length=120)\n    venue: str = Field(min_length=1, max_length=120)\n    starts_at: str = Field(description=\"ISO 8601 local time, e.g. 2026-10-09T20:00\")\n    capacity: int = Field(gt=0)\n\n\nclass ReservationRequest(BaseModel):\n    attendee: str = Field(min_length=1, max_length=80, pattern=r\"\\S\")  # needs a non-space character\n\n\nEVENT_SQL = \"\"\"\n    SELECT e.id, e.title, e.venue, e.starts_at, e.capacity,\n           COUNT(r.id) AS reserved\n    FROM events e LEFT JOIN reservations r ON r.event_id = e.id\n\"\"\"\n\n\ndef _event_json(row) -> dict:\n    return {\n        \"id\": row[\"id\"],\n        \"title\": row[\"title\"],\n        \"venue\": row[\"venue\"],\n        \"starts_at\": row[\"starts_at\"],\n        \"capacity\": row[\"capacity\"],\n        \"reserved\": row[\"reserved\"],\n        \"places_left\": row[\"capacity\"] - row[\"reserved\"],\n    }\n\n\ndef create_app() -> FastAPI:\n    db.init_db()\n    app = FastAPI(title=\"AfterHours\")\n\n    @app.get(\"/\", include_in_schema=False)\n    def home():\n        return FileResponse(STATIC / \"index.html\")\n\n    @app.get(\"/api/events\")\n    def list_events():\n        conn = db.connect()\n        try:\n            rows = conn.execute(EVENT_SQL + \" GROUP BY e.id ORDER BY e.starts_at\").fetchall()\n        finally:\n            conn.close()\n        return [_event_json(r) for r in rows]\n\n    @app.get(\"/api/events/{event_id}\")\n    def get_event(event_id: int):\n        conn = db.connect()\n        try:\n            row = db.query_one(conn, EVENT_SQL + \" WHERE e.id = ? GROUP BY e.id\", (event_id,))\n        finally:\n            conn.close()\n        if row is None:\n            raise HTTPException(404, \"No such event\")\n        return _event_json(row)\n\n    @app.post(\"/api/events\", status_code=201)\n    def create_event(body: NewEvent):\n        conn = db.connect()\n        try:\n            cur = conn.execute(\n                \"INSERT INTO events (title, venue, starts_at, capacity) VALUES (?, ?, ?, ?)\",\n                (body.title, body.venue, body.starts_at, body.capacity),\n            )\n        finally:\n            conn.close()\n        return {\"id\": cur.lastrowid, **body.model_dump()}\n\n    @app.post(\"/api/events/{event_id}/reservations\", status_code=201)\n    def reserve(event_id: int, body: ReservationRequest):\n        try:\n            return reservations.reserve(event_id, body.attendee)\n        except reservations.EventNotFound:\n            raise HTTPException(404, \"No such event\")\n        except reservations.SoldOut:\n            raise HTTPException(409, \"Sorry, this event is full\")\n\n    return app\n\n\napp = create_app()\n"
+          }
+        }
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_a_07",
+          "name": "run_tests",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {
+          "type": "text",
+          "text": "Done.\n\n- app/main.py: `attendee` now also needs at least one non-space character (`pattern=r\"\\S\"`), so a name made only of spaces gets HTTP 422.\n- tests/test_names.py: two new tests (spaces only gives 422; \"Maya Chen\" gives 201).\n\nEvidence: `python -m pytest -q` gives 10 passed. The new test failed before the fix and passes after it."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Code Is Cheap. Software Isn't.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 1 · Lecture 1 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 1 · The new shape of the work</p>
+  <h1 id="page-title">Code Is Cheap. Software Isn't.</h1>
+  <p class="lede">A coding agent can build a good-looking app in an afternoon. This lecture is about the distance between an app that demos well and a system that keeps its promises, and about the engineer's job in that distance.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Starter: AfterHours</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Tell apart "the feature works" and "the system keeps its promise".</li>
+      <li>Trace one request from a tap to a database row, and name the assumption on each step.</li>
+      <li>Draw a race condition as a timeline and state the invariant it breaks.</li>
+      <li>Give an agent a bounded task and check its claims against evidence.</li>
+      <li>Judge a patch by the failure it addresses and the cost it adds, not by whether tests are green.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The last seat</span></a></li>
+    <li><a href="#promise"><span class="t">0:10</span><span>Follow the promise</span></a></li>
+    <li><a href="#race"><span class="t">0:20</span><span>Make the race visible</span></a></li>
+    <li><a href="#agent"><span class="t">0:30</span><span>Ask an agent, check the evidence</span></a></li>
+    <li><a href="#patches"><span class="t">0:45</span><span>Three patches, one question</span></a></li>
+    <li><a href="#loop"><span class="t">1:10</span><span>The engineering loop</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#cheap"><span class="t">R1</span><span>Why code got cheap</span></a></li>
+    <li><a href="#essence"><span class="t">R2</span><span>Essence and accident</span></a></li>
+    <li><a href="#slider"><span class="t">R3</span><span>How much autonomy?</span></a></li>
+    <li><a href="#bottleneck"><span class="t">R4</span><span>The bottleneck moved</span></a></li>
+    <li><a href="#vibe"><span class="t">R5</span><span>When vibe coding is fine</span></a></li>
+    <li><a href="#feel"><span class="t">R6</span><span>Feeling fast, being fast</span></a></li>
+    <li><a href="#fence"><span class="t">R7</span><span>A sign asks, a fence decides</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:10</span>
+    <h2>The last seat</h2>
+  </div>
+  <p>Meet <strong>AfterHours</strong>, the platform you will build on all semester. It runs a student festival: three nights of events, each with a limited number of places. We built the first version the way many teams now work. We described the feature to a coding agent, looked at the result, clicked around, and ran the tests.</p>
+  <p>It looks done. The page is clean. The escape room shows <em>1 place left</em>. The test suite says <code>7 passed</code>.</p>
+  <div class="callout try">
+    <span class="label">Vote</span>
+    <p>Tonight at 8 pm, 2,000 students get the link. Do you ship? Raise a hand for <strong>ship</strong> or <strong>hold</strong>, and name one piece of evidence behind your vote.</p>
+  </div>
+  <p>Now Maya and Sam, on two phones, press <em>Reserve</em> at the same moment.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 880 370" role="img" aria-label="Maya's and Sam's phones both show You're in. The escape room counter reads 41 reserved out of 40, and the test suite still reports 7 passed.">
+        <defs>
+          <filter id="r1" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#r1)">
+          <rect x="40" y="16" width="180" height="300" rx="26" class="s f-card"/>
+          <rect x="54" y="46" width="152" height="240" rx="10" class="s s-thin f-paper"/>
+          <line x1="105" y1="31" x2="155" y2="31" class="s"/>
+          <circle cx="130" cy="126" r="28" class="s s-green f-green"/>
+          <path d="M117,127 l9,10 l17,-20" class="s s-green s-thick"/>
+          <rect x="660" y="16" width="180" height="300" rx="26" class="s f-card"/>
+          <rect x="674" y="46" width="152" height="240" rx="10" class="s s-thin f-paper"/>
+          <line x1="725" y1="31" x2="775" y2="31" class="s"/>
+          <circle cx="750" cy="126" r="28" class="s s-green f-green"/>
+          <path d="M737,127 l9,10 l17,-20" class="s s-green s-thick"/>
+          <rect x="300" y="60" width="280" height="200" rx="12" class="s f-card"/>
+          <path d="M222,160 H296" class="s" marker-end="url(#a1)"/>
+          <path d="M658,160 H584" class="s" marker-end="url(#a1)"/>
+        </g>
+        <text x="130" y="76" text-anchor="middle" class="t-sm t-2">AfterHours</text>
+        <text x="130" y="188" text-anchor="middle" class="t-lg">You're in!</text>
+        <text x="130" y="214" text-anchor="middle" class="t-sm">Escape Room:</text>
+        <text x="130" y="232" text-anchor="middle" class="t-sm">The Locked Lab</text>
+        <text x="130" y="266" text-anchor="middle" class="t-mono">Reservation #228</text>
+        <text x="130" y="344" text-anchor="middle" class="t-lg">Maya</text>
+        <text x="750" y="76" text-anchor="middle" class="t-sm t-2">AfterHours</text>
+        <text x="750" y="188" text-anchor="middle" class="t-lg">You're in!</text>
+        <text x="750" y="214" text-anchor="middle" class="t-sm">Escape Room:</text>
+        <text x="750" y="232" text-anchor="middle" class="t-sm">The Locked Lab</text>
+        <text x="750" y="266" text-anchor="middle" class="t-mono">Reservation #229</text>
+        <text x="750" y="344" text-anchor="middle" class="t-lg">Sam</text>
+        <text x="259" y="148" text-anchor="middle" class="t-sm t-2">Reserve</text>
+        <text x="621" y="148" text-anchor="middle" class="t-sm t-2">Reserve</text>
+        <text x="440" y="92" text-anchor="middle" class="t-sm t-2">Escape Room · capacity 40</text>
+        <text x="428" y="178" text-anchor="end" class="t-huge t-red">41</text>
+        <text x="440" y="178" text-anchor="start" class="t-huge">/ 40</text>
+        <text x="440" y="206" text-anchor="middle" class="t-sm">places reserved</text>
+        <text x="440" y="240" text-anchor="middle" class="t-mono t-red">"places_left": -1</text>
+        <text x="440" y="300" text-anchor="middle" class="t-green">pytest: 7 passed ✓</text>
+        <text x="440" y="326" text-anchor="middle" class="t-sm t-2">(both requests arrived in the same millisecond)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.1</b> Both phones get a confirmation. The event now has 41 reservations for 40 places, and every test still passes. Reservation numbers and timings come from a real run of the starter.</figcaption>
+  </figure>
+
+  <p>Nothing crashed. No test failed. The app did exactly what its code says. The API now reports that the escape room has <code>"places_left": -1</code>.</p>
+  <div class="callout case">
+    <span class="label">About this bug</span>
+    <p>We planted this defect on purpose so it shows up on cue. It says nothing about any particular model or tool. It is a very common kind of bug, and it slips through review easily when everyone is looking at a demo that works.</p>
+  </div>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A working demo is a hypothesis.</strong> It shows the software <em>can</em> work. It does not show that the software keeps its promises.</p>
+  </div>
+</section>
+
+<!-- ============ 2. PROMISE ============ -->
+<section class="block" id="promise">
+  <div class="sechead">
+    <span class="clock">0:10 – 0:20</span>
+    <h2>Follow the promise</h2>
+  </div>
+  <p>Ask what each person now believes. Maya believes she has a place. So does Sam. The room has 40 seats, so someone will be turned away at the door after the app told them they were in.</p>
+  <p>The code returned success both times. Returning success and keeping a promise are different things. To see where they come apart, follow one request from the tap to the database.</p>
+  <p>When Maya presses <em>Reserve</em>, her browser sends an <strong>HTTP POST</strong> request to <code>/api/events/1/reservations</code> with a small JSON body, <code>{"attendee": "Maya"}</code>. FastAPI calls <code>reserve()</code> in <code>app/reservations.py</code>, which does three things in order:</p>
+  <pre><code>taken = count_reservations(event_id)     # ① check
+if taken &gt;= event.capacity:
+    raise SoldOut                         #   → HTTP 409 "event is full"
+payments.authorize(attendee)              # ② pay (about 300 ms, nothing is charged)
+insert_reservation(event_id, attendee)    # ③ save → HTTP 201 Created</code></pre>
+  <p class="handnote">Simplified from app/reservations.py. Open the real file in the lab.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 1000 360" role="img" aria-label="Request map: Maya's browser sends POST to the FastAPI route, which calls reserve. Reserve checks the count in SQLite, waits about 300 ms for payment, then saves. Sticky notes list the assumptions on each step; the one in red, that the count from step 1 is still true at step 3, is the one that breaks.">
+        <defs>
+          <filter id="r2" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#r2)">
+          <rect x="20" y="14" width="160" height="48" rx="3" class="s s-thin f-mark"/>
+          <rect x="198" y="14" width="176" height="48" rx="3" class="s s-thin f-mark"/>
+          <rect x="392" y="14" width="168" height="48" rx="3" class="s s-thin f-mark"/>
+          <rect x="672" y="8" width="306" height="60" rx="3" class="s s-red s-thick f-mark"/>
+          <path d="M100,62 V116" class="s s-thin s-dash"/>
+          <path d="M270,62 L216,146" class="s s-thin s-dash"/>
+          <path d="M440,62 L372,116" class="s s-thin s-dash"/>
+          <path d="M734,68 V126" class="s s-thin s-dash s-red"/>
+          <rect x="20" y="120" width="160" height="72" rx="10" class="s f-card"/>
+          <rect x="250" y="120" width="160" height="72" rx="10" class="s f-card"/>
+          <rect x="480" y="120" width="180" height="72" rx="10" class="s f-card"/>
+          <path d="M810,118 V198 A70,14 0 0 0 950,198 V118" class="s f-card"/>
+          <ellipse cx="880" cy="118" rx="70" ry="14" class="s f-card"/>
+          <rect x="500" y="278" width="140" height="56" rx="10" class="s s-dash f-card"/>
+          <path d="M182,150 H246" class="s" marker-end="url(#a2)"/>
+          <path d="M246,176 H184" class="s s-dash" marker-end="url(#a2)"/>
+          <path d="M410,156 H476" class="s" marker-end="url(#a2)"/>
+          <path d="M662,138 H806" class="s s-red" marker-end="url(#a2)"/>
+          <path d="M662,178 H806" class="s s-red" marker-end="url(#a2)"/>
+          <path d="M545,194 V274" class="s" marker-end="url(#a2)"/>
+          <path d="M595,276 V196" class="s s-dash" marker-end="url(#a2)"/>
+        </g>
+        <text x="100" y="44" text-anchor="middle" class="t-sm t-mark">Maya taps once</text>
+        <text x="286" y="44" text-anchor="middle" class="t-sm t-mark">the request arrives once</text>
+        <text x="476" y="44" text-anchor="middle" class="t-sm t-mark">Maya is really Maya</text>
+        <text x="825" y="32" text-anchor="middle" class="t-sm t-mark">the count from ① is still true at ③</text>
+        <text x="825" y="54" text-anchor="middle" class="t-sm t-mark">…300 ms later</text>
+        <text x="100" y="152" text-anchor="middle">Maya's browser</text>
+        <text x="100" y="175" text-anchor="middle" class="t-mono t-2">index.html</text>
+        <text x="330" y="152" text-anchor="middle">FastAPI route</text>
+        <text x="330" y="175" text-anchor="middle" class="t-mono t-2">main.py</text>
+        <text x="570" y="152" text-anchor="middle">reserve()</text>
+        <text x="570" y="175" text-anchor="middle" class="t-mono t-2">reservations.py</text>
+        <text x="880" y="162" text-anchor="middle">SQLite</text>
+        <text x="880" y="184" text-anchor="middle" class="t-mono t-2">reservations</text>
+        <text x="570" y="302" text-anchor="middle" class="t-mono">payments</text>
+        <text x="570" y="322" text-anchor="middle" class="t-sm t-2">~300 ms</text>
+        <text x="214" y="142" text-anchor="middle" class="t-mono">POST</text>
+        <text x="214" y="196" text-anchor="middle" class="t-mono t-2">201</text>
+        <text x="734" y="130" text-anchor="middle" class="t-sm t-red">① check: COUNT(*)</text>
+        <text x="734" y="170" text-anchor="middle" class="t-sm t-red">③ save: INSERT</text>
+        <text x="536" y="240" text-anchor="end" class="t-sm">② pay</text>
+        <text x="604" y="240" text-anchor="start" class="t-sm">ok</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.2</b> The request map. Every arrow rests on an assumption, written on a sticky note. Most of them hold today. The red one breaks: the count checked in step ① is treated as still true in step ③, about 300 ms later.</figcaption>
+  </figure>
+
+  <div class="callout key">
+    <span class="label">The promise, written down</span>
+    <p><code>confirmed reservations for an event ≤ its capacity</code></p>
+    <p>This is an <strong>invariant</strong>: a statement that must be true at every moment, for every possible order of events, not only at the end of one test.</p>
+  </div>
+</section>
+
+<!-- ============ 3. RACE ============ -->
+<section class="block" id="race">
+  <div class="sechead">
+    <span class="clock">0:20 – 0:30</span>
+    <h2>Make the race visible</h2>
+  </div>
+  <p>The app writes a log line at each step, with a millisecond timestamp. This is the real log from the run in Fig 1.1:</p>
+  <pre><code>21:24:31.734  [Maya] checked: 39 of 40 places taken
+21:24:31.734  [Sam] checked: 39 of 40 places taken
+21:24:32.040  [Maya] payment authorised (simulated, nothing charged)
+21:24:32.040  [Sam] payment authorised (simulated, nothing charged)
+21:24:32.042  [Maya] reservation #228 saved
+21:24:32.045  [Sam] reservation #229 saved</code></pre>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 600" role="img" aria-label="Race timeline with three lanes: Maya, the database, and Sam. At plus 0 milliseconds both check and see 39 of 40 taken, so both read the count before either saves. Both spend about 306 milliseconds paying. Maya saves at plus 308 and the count becomes 40 of 40. Sam saves at plus 311 and the count becomes 41 of 40.">
+        <defs>
+          <filter id="r3" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="a3r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#r3)">
+          <rect x="165" y="104" width="30" height="276" class="f-mark"/>
+          <rect x="705" y="134" width="30" height="306" class="f-mark"/>
+          <rect x="110" y="18" width="140" height="42" rx="8" class="s f-card"/>
+          <rect x="380" y="18" width="140" height="42" rx="8" class="s f-card"/>
+          <rect x="650" y="18" width="140" height="42" rx="8" class="s f-card"/>
+          <path d="M180,62 V540" class="s s-2 s-dash"/>
+          <path d="M450,62 V540" class="s s-2 s-dash"/>
+          <path d="M720,62 V540" class="s s-2 s-dash"/>
+          <rect x="140" y="170" width="80" height="150" rx="8" class="s f-card"/>
+          <rect x="680" y="200" width="80" height="150" rx="8" class="s f-card"/>
+          <path d="M182,104 H446" class="s" marker-end="url(#a3)"/>
+          <path d="M718,134 H454" class="s" marker-end="url(#a3)"/>
+          <path d="M182,380 H446" class="s" marker-end="url(#a3)"/>
+          <path d="M718,440 H454" class="s s-red" marker-end="url(#a3r)"/>
+          <path d="M60,104 V170 M52,180 l16,-8 M52,190 l16,-8 M60,192 V440" class="s s-thin s-2"/>
+          <rect x="362" y="218" width="176" height="68" class="f-card"/>
+          <rect x="370" y="478" width="160" height="58" rx="10" class="s s-red s-thick f-red"/>
+        </g>
+        <text x="180" y="45" text-anchor="middle" class="t-lg">Maya</text>
+        <text x="450" y="45" text-anchor="middle" class="t-lg">Database</text>
+        <text x="720" y="45" text-anchor="middle" class="t-lg">Sam</text>
+        <text x="72" y="108" class="t-mono t-2">+0</text>
+        <text x="72" y="138" class="t-mono t-2">+0</text>
+        <text x="72" y="384" class="t-mono t-2">+308</text>
+        <text x="72" y="444" class="t-mono t-2">+311 ms</text>
+        <text x="74" y="190" class="t-sm t-2">~300 ms</text>
+        <text x="314" y="96" text-anchor="middle" class="t-sm">check: 39 of 40 taken, room!</text>
+        <text x="586" y="126" text-anchor="middle" class="t-sm">check: 39 of 40 taken, room!</text>
+        <text x="180" y="236" text-anchor="middle" class="t-sm">paying</text>
+        <text x="180" y="256" text-anchor="middle" class="t-mono t-2">306 ms</text>
+        <text x="720" y="266" text-anchor="middle" class="t-sm">paying</text>
+        <text x="720" y="286" text-anchor="middle" class="t-mono t-2">306 ms</text>
+        <text x="314" y="372" text-anchor="middle" class="t-sm">save #228</text>
+        <text x="586" y="432" text-anchor="middle" class="t-sm t-red">save #229</text>
+        <text x="462" y="398" class="t-sm">now 40 of 40</text>
+        <text x="450" y="516" text-anchor="middle" class="t-lg t-red">41 of 40</text>
+        <text x="450" y="566" text-anchor="middle" class="t-sm t-2">"places_left": -1</text>
+        <text x="132" y="340" text-anchor="end" class="t-sm t-mark">Maya's</text>
+        <text x="132" y="358" text-anchor="end" class="t-sm t-mark">gap</text>
+        <text x="760" y="380" class="t-sm t-mark">Sam's</text>
+        <text x="760" y="398" class="t-sm t-mark">gap</text>
+        <text x="450" y="236" text-anchor="middle" class="t-sm t-red">both read</text>
+        <text x="450" y="256" text-anchor="middle" class="t-sm t-red">"39 of 40" before</text>
+        <text x="450" y="276" text-anchor="middle" class="t-sm t-red">either one saves</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.3</b> The race timeline, drawn from the log above. Time runs downward. The yellow band on each lane is that person's gap between checking and saving. Both people read the count before either of them saved, so both saw room and both saves went through. (The two checks share a millisecond in the log; that does not make them simultaneous. Only their order relative to the saves matters.)</figcaption>
+  </figure>
+
+  <p>Each request makes its decision from a count that the other request is about to change. This pattern is called <strong>check-then-act</strong>. When two actors check and then act, and nothing forces them to take turns, you have a <strong>race condition</strong>.</p>
+  <p>The slow payment call makes the race likely, but it does not cause it. With the payment delay set to zero, <code>race.py</code> still oversold 7 of 20 trials on a laptop. The gap between check and save is never truly zero.</p>
+
+  <div class="callout try">
+    <span class="label">Try it on paper (pairs, 6 minutes)</span>
+    <p>Take six strips: <em>Maya-check, Maya-pay, Maya-save, Sam-check, Sam-pay, Sam-save</em>. Keep each person's strips in their own order and merge them into one timeline. If a check finds the room full, that person gets a 409 and stops.</p>
+    <ol>
+      <li>Find an order that oversells.</li>
+      <li>Find an order that does not.</li>
+      <li>How many orders are possible, and how many oversell?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answer to question 3</summary>
+    <div class="inner">
+      <p>There are 20 orders: pick which 3 of the 6 time slots belong to Maya. Only 2 keep the promise, where all of one person's steps come before all of the other's. The other 18 oversell. When two people press within the same 300 ms, you get one of those 18.</p>
+    </div>
+  </details>
+
+  <p>Why did the tests miss it? Open <code>tests/test_basics.py</code>. Every test sends one request, waits for the answer, then sends the next. Tests like that only ever produce the two safe orders. The dangerous orders need two requests in flight at once, and no test in the suite does that.</p>
+  <div class="callout off">
+    <span class="label">Agent-off drill (2 minutes, no laptop)</span>
+    <p>Two places are left. Three people press <em>Reserve</em> in the same instant. With the starter code as it is, how many reservations exist afterwards? Write down your prediction. You will check it in the lab with <code>python scripts/race.py --people Maya,Sam,Lee --capacity 2</code>.</p>
+  </div>
+</section>
+
+<!-- ============ 4. AGENT ============ -->
+<section class="block" id="agent">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>Ask an agent, check the evidence</h2>
+  </div>
+  <p>Agents are good at this kind of investigation. They read every file on the path, list assumptions, and suggest fixes. They also write fluently and confidently, which makes their output easy to believe. So we give the agent a bounded task, and we treat its answer as a set of claims to check.</p>
+
+  <div class="contract">
+    <span class="cardtitle">Task contract</span>
+    <dl>
+      <dt>Goal</dt><dd>Find out whether AfterHours can confirm more reservations than an event's capacity, and why.</dd>
+      <dt>Context</dt><dd>Small FastAPI + SQLite app. Read AGENTS.md first. The promise: confirmed ≤ capacity.</dd>
+      <dt>Limits</dt><dd>Investigate only. Do not modify any file.</dd>
+      <dt>Deliver</dt><dd>The code path with file:line references. Every assumption. Whether the promise breaks, with evidence, marking what you ran versus what you inferred. The smallest repair, not applied, and what it would not fix.</dd>
+      <dt>Stop when</dt><dd>You have evidence, or you are blocked. If blocked, say what blocked you.</dd>
+    </dl>
+  </div>
+
+  <p>We gave this contract to a real coding agent (Codex CLI with the gpt-6-astra model) on a throwaway copy of the starter. Its full, unedited answer is in <code>lectures/01-code-is-cheap/demo/agent-investigation.md</code>. Here is what it claimed, and what we did with each claim.</p>
+
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>The agent claimed</th><th>Its evidence</th><th>Our check</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>The request runs index.html → main.py → reserve() → payments → INSERT.</td><td>file:line references</td><td>Read the files</td><td><span class="tag ok">verified</span></td></tr>
+        <tr><td>Nothing stops a second request from checking between the count and the insert, so the promise can break.</td><td>Inferred from reading. It said so.</td><td><code>race.py</code>: 10 of 10 trials oversold</td><td><span class="tag ok">verified by us</span></td></tr>
+        <tr><td>Double clicks and retried requests create extra reservations. There is no uniqueness rule and no idempotency key.</td><td>Inferred from reading</td><td>Not tested yet (Week 6)</td><td><span class="tag maybe">plausible</span></td></tr>
+        <tr><td>It could not run the app, because the sandbox blocked opening a network port.</td><td>The error message it got</td><td>True: the sandbox allowed no ports</td><td><span class="tag ok">verified</span></td></tr>
+        <tr><td>Repair: start <code>BEGIN IMMEDIATE</code> before reading the count and keep check and insert in that transaction. It warned this "increases contention".</td><td>None. It is a suggestion.</td><td>Became Patch C below; we measure the contention</td><td><span class="tag bad">needs checking</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Two things stand out. First, the agent separated what it ran from what it inferred, which is exactly what the contract asked for. Its main conclusion was an inference until we ran <code>race.py</code>. Second, it did not run the app because a sandbox made that impossible. The contract only <em>asked</em> it not to edit files. It complied, but a request and a guarantee are different kinds of control. Reading R7 comes back to this.</p>
+</section>
+
+<!-- ============ 5. PATCHES ============ -->
+<section class="block" id="patches">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:10</span>
+    <h2>Three patches, one question</h2>
+  </div>
+  <div class="callout">
+    <span class="label">Three facts you need before judging the patches</span>
+    <ol>
+      <li><strong>Requests really do run at the same time.</strong> FastAPI runs each plain <code>def</code> handler on a pool of worker threads, so Maya's and Sam's requests execute side by side.</li>
+      <li><strong>A transaction groups steps.</strong> The statements between <code>BEGIN</code> and <code>COMMIT</code> succeed or fail together. <code>BEGIN IMMEDIATE</code> also takes the database's write lock right away, before the first read. Plain <code>BEGIN</code> waits until the first write.</li>
+      <li><strong>SQLite allows one writer at a time, for the whole file.</strong> Another connection that wants to write waits for the lock (here for up to 5 seconds, then it fails). Readers can keep reading, because the starter uses SQLite's WAL mode.</li>
+    </ol>
+  </div>
+  <p>Here are three candidate fixes. All three keep the test suite green. The diffs below are shortened; the full versions are in <code>lectures/01-code-is-cheap/patch-cards/</code>.</p>
+
+  <div class="patches">
+    <article class="patch">
+      <header><strong>Patch A · Disable the button</strong><span>app/static/index.html · written by a teammate</span></header>
+<pre class="diff"><span class="ctx">  const attendee = document.getElementById("attendee").value.trim();</span><span class="ctx">  …</span><span class="add">+ // Stop a second click while the first request is still on its way.</span><span class="add">+ button.disabled = true;</span><span class="add">+ button.textContent = "Reserving…";</span><span class="ctx">  const res = await fetch(`/api/events/${ev.id}/reservations`, { … });</span></pre>
+      <footer>pytest: 7 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>Patch B · Check again, inside a transaction</strong><span>app/reservations.py · written by a teammate</span></header>
+<pre class="diff"><span class="ctx">  payments.authorize(attendee)</span><span class="add">+ # The first check was only a hint. Decide again, and write, in one transaction.</span><span class="add">+ conn.execute("BEGIN IMMEDIATE")        # take SQLite's write lock</span><span class="add">+ try:</span><span class="add">+     taken = count_reservations(conn, event_id)</span><span class="add">+     if taken &gt;= event["capacity"]:</span><span class="add">+         raise SoldOut(event_id)</span><span class="ctx">      cur = conn.execute("INSERT INTO reservations …")</span><span class="add">+     conn.execute("COMMIT")</span><span class="add">+ except BaseException:</span><span class="add">+     if conn.in_transaction:</span><span class="add">+         conn.execute("ROLLBACK")</span><span class="add">+     raise</span></pre>
+      <footer>pytest: 7 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>Patch C · Lock first (the agent's suggestion)</strong><span>app/reservations.py · from the investigation above</span></header>
+<pre class="diff"><span class="ctx">  conn = db.connect()</span><span class="ctx">  try:</span><span class="add">+     conn.execute("BEGIN IMMEDIATE")</span><span class="ctx">      event = …SELECT capacity…</span><span class="ctx">      taken = …SELECT COUNT(*)…</span><span class="ctx">      if taken &gt;= event["capacity"]: raise SoldOut(event_id)</span><span class="ctx">      payments.authorize(attendee)</span><span class="ctx">      cur = conn.execute("INSERT INTO reservations …")</span><span class="add">+     conn.execute("COMMIT")</span><span class="ctx">  finally:</span><span class="add">+     if conn.in_transaction:</span><span class="add">+         conn.execute("ROLLBACK")</span><span class="ctx">      conn.close()</span></pre>
+      <footer>pytest: 7 passed</footer>
+    </article>
+  </div>
+
+  <div class="callout try">
+    <span class="label">In pairs (15 minutes), then vote</span>
+    <ol>
+      <li>Which failure does each patch address: Maya double-clicking, Maya and Sam racing, or something else?</li>
+      <li>What does each patch cost? Who waits longer, and for what?</li>
+      <li>Design one check that could prove each patch wrong. Say what it sends and what you expect.</li>
+      <li>Decide: ship, hold, or ship on a condition you name.</li>
+    </ol>
+  </div>
+
+  <details class="reveal">
+    <summary>Debrief: what the checks say (open after you vote)</summary>
+    <div class="inner">
+      <p>We ran three checks against the starter and each patch. <code>race.py</code> gives one last place to two people pressing at the same instant, 10 times. <code>rush.py</code> has 20 people book 20 <em>different</em> events at once. These timings come from one laptop (classroom gate off). Yours will differ in the decimals, not in the pattern. Patch C's rush result was the same on three repeated runs.</p>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Build</th><th>pytest</th><th>race.py: one last place</th><th>rush.py: 20 people, 20 events</th></tr></thead>
+          <tbody>
+            <tr><td>Starter</td><td>7 passed</td><td><span class="tag bad">oversold 10 of 10</span></td><td>20 × 201, slowest 0.32 s</td></tr>
+            <tr><td>Patch A</td><td>7 passed</td><td><span class="tag bad">oversold 10 of 10</span></td><td>20 × 201, slowest 0.32 s</td></tr>
+            <tr><td>Patch B</td><td>7 passed</td><td><span class="tag ok">kept 10 of 10</span></td><td>20 × 201, slowest 0.35 s</td></tr>
+            <tr><td>Patch C</td><td>7 passed</td><td><span class="tag ok">kept 10 of 10</span></td><td><span class="tag bad">17 × 201, 3 × 500</span> slowest 5.34 s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 560" role="img" aria-label="Three timing diagrams for Maya and Sam booking event 1 and Lee booking event 2. Starter and Patch A: all three pay in parallel and both Maya and Sam save, overselling. Patch B: all pay in parallel, then each holds the write lock for about a millisecond to re-check and save; Sam gets 409. Patch C: Maya holds the lock for the whole 300 ms payment, Sam and Lee wait in line, and Lee finishes after about 600 ms.">
+            <defs>
+              <filter id="r4" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+              <pattern id="h4" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-red"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-red s-thin"/></pattern>
+            </defs>
+            <text x="20" y="34" class="t-lg">Starter and Patch A</text>
+            <text x="20" y="194" class="t-lg">Patch B</text>
+            <text x="20" y="354" class="t-lg">Patch C</text>
+            <g filter="url(#r4)">
+              <!-- A -->
+              <rect x="200" y="50" width="6" height="20" class="f-ink"/><rect x="206" y="50" width="290" height="20" rx="3" class="s s-thin f-pen"/><rect x="496" y="50" width="6" height="20" class="f-ink"/>
+              <rect x="200" y="82" width="6" height="20" class="f-ink"/><rect x="206" y="82" width="290" height="20" rx="3" class="s s-thin f-pen"/><rect x="499" y="82" width="6" height="20" class="f-redink"/>
+              <rect x="200" y="114" width="6" height="20" class="f-ink"/><rect x="206" y="114" width="290" height="20" rx="3" class="s s-thin f-pen"/><rect x="496" y="114" width="6" height="20" class="f-ink"/>
+              <!-- B -->
+              <rect x="200" y="210" width="6" height="20" class="f-ink"/><rect x="206" y="210" width="290" height="20" rx="3" class="s s-thin f-pen"/><rect x="496" y="210" width="8" height="20" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <rect x="200" y="242" width="6" height="20" class="f-ink"/><rect x="206" y="242" width="290" height="20" rx="3" class="s s-thin f-pen"/><path d="M496,252 H504" class="s s-thin s-dash"/><rect x="504" y="242" width="8" height="20" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <rect x="200" y="274" width="6" height="20" class="f-ink"/><rect x="206" y="274" width="290" height="20" rx="3" class="s s-thin f-pen"/><path d="M496,284 H512" class="s s-thin s-dash"/><rect x="512" y="274" width="8" height="20" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <!-- C -->
+              <rect x="200" y="370" width="298" height="20" rx="3" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <path d="M200,412 H498" class="s s-thin s-dash"/><rect x="498" y="402" width="8" height="20" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <path d="M200,444 H506" class="s s-thin s-dash"/><rect x="506" y="434" width="285" height="20" rx="3" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <!-- axis -->
+              <path d="M200,480 H860" class="s s-thin"/>
+              <path d="M200,474 V486 M295,474 V486 M390,474 V486 M485,474 V486 M580,474 V486 M675,474 V486 M770,474 V486" class="s s-thin"/>
+              <!-- legend -->
+              <rect x="200" y="520" width="34" height="16" rx="3" class="s s-thin f-pen"/>
+              <rect x="390" y="520" width="34" height="16" class="s s-thin s-red" style="fill:url(#h4)"/>
+              <path d="M620,528 H654" class="s s-thin s-dash"/>
+            </g>
+            <text x="190" y="65" text-anchor="end" class="t-sm">Maya · ev 1</text>
+            <text x="190" y="97" text-anchor="end" class="t-sm">Sam · ev 1</text>
+            <text x="190" y="129" text-anchor="end" class="t-sm">Lee · ev 2</text>
+            <text x="190" y="225" text-anchor="end" class="t-sm">Maya · ev 1</text>
+            <text x="190" y="257" text-anchor="end" class="t-sm">Sam · ev 1</text>
+            <text x="190" y="289" text-anchor="end" class="t-sm">Lee · ev 2</text>
+            <text x="190" y="385" text-anchor="end" class="t-sm">Maya · ev 1</text>
+            <text x="190" y="417" text-anchor="end" class="t-sm">Sam · ev 1</text>
+            <text x="190" y="449" text-anchor="end" class="t-sm">Lee · ev 2</text>
+            <text x="880" y="65" text-anchor="end" class="t-sm t-mono">201</text>
+            <text x="880" y="97" text-anchor="end" class="t-sm t-mono t-red">201 · oversold</text>
+            <text x="880" y="129" text-anchor="end" class="t-sm t-mono">201</text>
+            <text x="880" y="225" text-anchor="end" class="t-sm t-mono">201</text>
+            <text x="880" y="257" text-anchor="end" class="t-sm t-mono t-green">409 (full)</text>
+            <text x="880" y="289" text-anchor="end" class="t-sm t-mono">201</text>
+            <text x="880" y="385" text-anchor="end" class="t-sm t-mono">201</text>
+            <text x="880" y="417" text-anchor="end" class="t-sm t-mono t-green">409 (full)</text>
+            <text x="880" y="449" text-anchor="end" class="t-sm t-mono">201, late</text>
+            <text x="560" y="160" class="t-sm t-red">oversold: Patch A only changes the browser</text>
+            <text x="560" y="320" class="t-sm t-green">one winner · everyone answered in ~0.3 s</text>
+            <text x="540" y="410" class="t-sm t-red">everyone, at every event,</text>
+            <text x="540" y="428" class="t-sm t-red">waits in one line</text>
+            <text x="200" y="504" text-anchor="middle" class="t-mono t-sm t-2">0</text>
+            <text x="295" y="504" text-anchor="middle" class="t-mono t-sm t-2">100</text>
+            <text x="390" y="504" text-anchor="middle" class="t-mono t-sm t-2">200</text>
+            <text x="485" y="504" text-anchor="middle" class="t-mono t-sm t-2">300</text>
+            <text x="580" y="504" text-anchor="middle" class="t-mono t-sm t-2">400</text>
+            <text x="675" y="504" text-anchor="middle" class="t-mono t-sm t-2">500</text>
+            <text x="770" y="504" text-anchor="middle" class="t-mono t-sm t-2">600 ms</text>
+            <text x="242" y="533" class="t-sm">paying (300 ms)</text>
+            <text x="432" y="533" class="t-sm">holding the write lock</text>
+            <text x="662" y="533" class="t-sm">waiting for the lock</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 1.4</b> What each patch changes, drawn as time bars. Payments are drawn to scale; the ~1 ms lock slices of Patch B are widened so you can see them. Patch B holds SQLite's single write lock for about a millisecond. Patch C holds it for the whole 300 ms payment, so bookings for <em>unrelated</em> events queue behind each other. With 20 people, the last one waited 5.3 seconds, and 3 of them got a server error.</figcaption>
+      </figure>
+
+      <p><strong>Patch A</strong> guards the button. It blocks a second click while the first request and the page refresh are still on their way. After that, if places remain, the refreshed button is enabled again, and another click can book a second place. One person booking twice is a real problem, but a different one. Maya and Sam are on two phones and never touch each other's buttons, so the race is untouched.</p>
+      <p><strong>Patch B</strong> treats the first check as a hint. After payment it takes the database's write lock, checks again, and saves, all within about a millisecond. The second request waits for that millisecond, sees the room is full, and gets a 409.</p>
+      <p><strong>Patch C</strong>, the agent's suggestion, also keeps the promise. The agent itself warned that it would increase contention; <code>rush.py</code> turned that warning into a number. It holds the write lock for the whole payment, and SQLite has one write lock for the entire database. Every booking at every event waits in a single line: at most about three bookings per second for the whole festival. When a request waits more than 5 seconds for the lock, SQLite gives up and the user sees an HTTP 500.</p>
+      <div class="callout key">
+        <span class="label">Key idea</span>
+        <p>A check aimed at the bug you feared can miss the damage your fix causes. <code>race.py</code> passed Patch C. Only a second, different check showed the cost. Correct for capacity is not the same as fit for a festival rush.</p>
+      </div>
+      <p>Patch B is the one to ship, and it still leaves work, most of it for later weeks:</p>
+      <ul>
+        <li>Sam's payment was authorised, but he got no place. A real system must release that hold (Week 6).</li>
+        <li>Maya can still reserve twice from two browser tabs. Nothing makes one person's reservation unique (Week 6).</li>
+        <li>If a lock wait ever passes 5 seconds, the user gets a 500 instead of a clear message. No later week covers this one: it stays open as a production-hardening task for your team.</li>
+        <li>Anyone can reserve under someone else's name (Week 8).</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. LOOP ============ -->
+<section class="block" id="loop">
+  <div class="sechead">
+    <span class="clock">1:10 – 1:25</span>
+    <h2>The engineering loop</h2>
+  </div>
+  <p>Look back at the last hour. We worked out what the user was promised and wrote it down as an invariant. We delegated an investigation, inspected the agent's claims, verified three patches with two different checks, and decided what could be released. Writing code was the smallest part of that work.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 610" role="img" aria-label="The engineering loop: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand, with a named human owner in the centre. Dashed feedback arrows run from Verify and from Observe back to Specify. Code generation is one part of the Delegate step. Each step lists the course weeks that strengthen it.">
+        <defs>
+          <filter id="r5" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="a5p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g transform="translate(20,0)">
+          <g filter="url(#r5)">
+            <path class="s" marker-end="url(#a5)" d="M527.1,99.2 A232,232 0 0 1 594.2,136.3"/>
+            <path class="s" marker-end="url(#a5)" d="M655.7,210.6 A232,232 0 0 1 681.6,332.0"/>
+            <path class="s" marker-end="url(#a5)" d="M664.1,407.4 A232,232 0 0 1 606.2,489.6"/>
+            <path class="s" marker-end="url(#a5)" d="M473.1,548.8 A232,232 0 0 1 426.9,548.8"/>
+            <path class="s" marker-end="url(#a5)" d="M293.8,489.6 A232,232 0 0 1 235.9,407.4"/>
+            <path class="s" marker-end="url(#a5)" d="M218.4,332.0 A232,232 0 0 1 244.3,210.6"/>
+            <path class="s" marker-end="url(#a5)" d="M305.8,136.3 A232,232 0 0 1 372.9,99.2"/>
+            <path d="M390,497 Q560,420 600,204" class="s s-pen s-dash" marker-end="url(#a5p)"/>
+            <path d="M339,166 Q450,222 559,168" class="s s-pen s-dash" marker-end="url(#a5p)"/>
+            <rect x="382" y="58" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="563" y="145" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="608" y="342" width="136" height="56" rx="10" class="s s-thick f-mark"/>
+            <rect x="483" y="499" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="281" y="499" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="156" y="342" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="201" y="145" width="136" height="56" rx="10" class="s f-card"/>
+            <circle cx="450" cy="292" r="18" class="s f-card"/>
+            <path d="M414,352 Q414,318 450,316 Q486,318 486,352 Z" class="s f-card"/>
+          </g>
+          <text x="450" y="84" text-anchor="middle" class="t-lg">Understand</text>
+          <text x="450" y="104" text-anchor="middle" class="t-mono t-pen">wk 1 · 9</text>
+          <text x="631" y="171" text-anchor="middle" class="t-lg">Specify</text>
+          <text x="631" y="191" text-anchor="middle" class="t-mono t-pen">wk 2 · 4</text>
+          <text x="676" y="368" text-anchor="middle" class="t-lg t-mark">Delegate</text>
+          <text x="676" y="388" text-anchor="middle" class="t-mono t-mark">wk 3 · 10</text>
+          <text x="551" y="525" text-anchor="middle" class="t-lg">Inspect</text>
+          <text x="551" y="545" text-anchor="middle" class="t-mono t-pen">wk 7</text>
+          <text x="349" y="525" text-anchor="middle" class="t-lg">Verify</text>
+          <text x="349" y="545" text-anchor="middle" class="t-mono t-pen">wk 5 · 6 · 8</text>
+          <text x="224" y="368" text-anchor="middle" class="t-lg">Release</text>
+          <text x="224" y="388" text-anchor="middle" class="t-mono t-pen">wk 12 · 14</text>
+          <text x="269" y="171" text-anchor="middle" class="t-lg">Observe</text>
+          <text x="269" y="191" text-anchor="middle" class="t-mono t-pen">wk 11 · 13</text>
+          <text x="450" y="378" text-anchor="middle" class="t-sm">a named human</text>
+          <text x="450" y="396" text-anchor="middle" class="t-sm">owns each decision</text>
+          <text x="450" y="218" text-anchor="middle" class="t-sm t-pen">what users actually did</text>
+          <text x="522" y="446" text-anchor="middle" class="t-sm t-pen">failed check?</text>
+          <text x="522" y="464" text-anchor="middle" class="t-sm t-pen">fix the spec too</text>
+          <text x="756" y="362" class="t-sm">← code generation</text>
+          <text x="756" y="382" class="t-sm">happens here:</text>
+          <text x="756" y="402" class="t-sm">one step of seven</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.5</b> The engineering loop, and the course mapped onto it. Code generation sits inside one step, <em>Delegate</em>. The dashed arrows are feedback: a failed check or a surprise in production sends you back to the specification, not only to the code. The small numbers are the weeks that train each step.</figcaption>
+  </figure>
+
+  <p>This loop is the course. Each week strengthens one part of it, and the AfterHours project uses every part. The course has one rule:</p>
+  <div class="callout key">
+    <span class="label">The course rule</span>
+    <p>Every important claim about the software needs evidence. Every consequential decision needs an accountable human.</p>
+  </div>
+  <h3>How you will work</h3>
+  <ul>
+    <li>Teams of four build AfterHours for a festival identity you choose. Roles rotate weekly: <strong>product lead</strong>, <strong>implementer</strong>, <strong>verifier</strong>, <strong>release steward</strong>.</li>
+    <li>Agents are allowed and expected. Disclose meaningful help. You own every line and every claim you submit.</li>
+    <li>You are graded on evidence, not on lines of code or prompts. An <strong>evidence packet</strong> traces each decision: requirement → decision → change → check → result.</li>
+  </ul>
+  <p>Here is today's work as an evidence packet:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <tbody>
+        <tr><th>Requirement</th><td>Confirmed reservations for an event ≤ its capacity</td></tr>
+        <tr><th>Decision</th><td>Re-check inside a write transaction after payment (Patch B). Rejected Patch C: it holds the lock during payment.</td></tr>
+        <tr><th>Change</th><td><code>patch-b-recheck-in-transaction.diff</code></td></tr>
+        <tr><th>Check</th><td><code>race.py</code> kept the promise in 10 of 10 trials. <code>rush.py</code>: 20 × 201, slowest 0.35 s. <code>pytest</code>: 7 passed.</td></tr>
+        <tr><th>Result</th><td>Ready for staging. Open issues: releasing the loser's payment, duplicate bookings, lock-timeout message, identity.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Write one invariant for a different AfterHours feature, for example checking people in at the door.</li>
+        <li>Describe one test that could prove Patch B wrong: what it sends and what you would expect to see.</li>
+        <li>Name one thing you are still unsure about after today.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 2</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Why this course exists</h2>
+  <p>The lecture stayed with one bug. These seven short readings give the bigger picture behind it. Read them before the lab.</p>
+</div>
+
+<section class="block" id="cheap">
+  <div class="sechead"><span class="clock">R1</span><h2>Why code got cheap</h2></div>
+  <p>Programming has been automated before. The first programmers wrote machine instructions by hand. Then assemblers and compilers took over that work, and each step drew the same doubt. Grace Hopper, recalling her first compiler in a 1987 lecture, was reported as saying: <q>I had a running compiler and nobody would touch it. They told me computers could only do arithmetic.</q> John Backus, whose team built FORTRAN in the 1950s, wrote later that <q>our claims that we would produce efficient object programs were disbelieved.</q></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 450" role="img" aria-label="A staircase of six steps, each removing a kind of work: machine code in the 1940s, compilers in the 1950s, portable languages in the 1970s, managed runtimes in the 1990s, open source, search and autocomplete from about 2000 to 2021, and coding agents in 2025. Underneath runs a band that was never automated: deciding what to build, showing it works, owning it.">
+        <defs>
+          <filter id="r6" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#r6)">
+          <path d="M40,388 V330 H186 V280 H332 V230 H478 V180 H624 V130 H770 V80 H916 V388 Z" class="s f-pen"/>
+          <path d="M186,330 V388 M332,280 V388 M478,230 V388 M624,180 V388 M770,130 V388" class="s s-thin s-2"/>
+          <rect x="40" y="400" width="876" height="40" rx="6" class="s f-mark"/>
+        </g>
+        <text x="113" y="320" text-anchor="middle" class="t-sm t-pen">1940s</text>
+        <text x="113" y="350" text-anchor="middle" class="t-sm"><tspan font-weight="700">Machine code</tspan></text>
+        <text x="113" y="370" text-anchor="middle" class="t-sm t-2">every instruction</text>
+        <text x="259" y="270" text-anchor="middle" class="t-sm t-pen">1950s</text>
+        <text x="259" y="300" text-anchor="middle" class="t-sm"><tspan font-weight="700">Compilers</tspan></text>
+        <text x="259" y="320" text-anchor="middle" class="t-sm t-2">no more hand-</text>
+        <text x="259" y="338" text-anchor="middle" class="t-sm t-2">written opcodes</text>
+        <text x="405" y="220" text-anchor="middle" class="t-sm t-pen">1970s</text>
+        <text x="405" y="250" text-anchor="middle" class="t-sm"><tspan font-weight="700">Portable languages</tspan></text>
+        <text x="405" y="270" text-anchor="middle" class="t-sm t-2">no more rewriting</text>
+        <text x="405" y="288" text-anchor="middle" class="t-sm t-2">for each machine</text>
+        <text x="551" y="170" text-anchor="middle" class="t-sm t-pen">1990s</text>
+        <text x="551" y="200" text-anchor="middle" class="t-sm"><tspan font-weight="700">Managed runtimes</tspan></text>
+        <text x="551" y="220" text-anchor="middle" class="t-sm t-2">no more freeing</text>
+        <text x="551" y="238" text-anchor="middle" class="t-sm t-2">memory by hand</text>
+        <text x="697" y="120" text-anchor="middle" class="t-sm t-pen">2000s – 2021</text>
+        <text x="697" y="150" text-anchor="middle" class="t-sm"><tspan font-weight="700">Libraries, search,</tspan></text>
+        <text x="697" y="168" text-anchor="middle" class="t-sm"><tspan font-weight="700">autocomplete</tspan></text>
+        <text x="697" y="188" text-anchor="middle" class="t-sm t-2">no more writing it</text>
+        <text x="697" y="206" text-anchor="middle" class="t-sm t-2">all yourself</text>
+        <text x="843" y="70" text-anchor="middle" class="t-sm t-pen">2025</text>
+        <text x="843" y="100" text-anchor="middle" class="t-sm"><tspan font-weight="700">Coding agents</tspan></text>
+        <text x="843" y="120" text-anchor="middle" class="t-sm t-2">no more most</text>
+        <text x="843" y="138" text-anchor="middle" class="t-sm t-2">of the typing</text>
+        <text x="470" y="426" text-anchor="middle" class="t-sm t-mark">never automated away: deciding what to build · showing it works · owning it</text>
+        <text x="60" y="110" class="t-pen">each step removed work,</text>
+        <text x="60" y="134" class="t-pen">and the job moved up</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.6</b> Each step removed a kind of work people thought was the job. The yellow band under the stairs is the part no step has removed.</figcaption>
+  </figure>
+  <p>Coding agents are the newest step, and a big one: they write, run, and fix code across many files. Like every step before them, they leave you with the questions of what the program should do and how you know it does it.</p>
+</section>
+
+<section class="block" id="essence">
+  <div class="sechead"><span class="clock">R2</span><h2>Essence and accident</h2></div>
+  <p>In 1986 Fred Brooks split the difficulties of software into two kinds. In his words: <q>Following Aristotle, I divide them into essence, the difficulties inherent in the nature of software, and accidents, those difficulties that today attend its production but are not inherent.</q> The essence, he wrote, is <q>a construct of interlocking concepts: data sets, relationships among data items, algorithms, and invocations of functions.</q> His claim was specific: no single development would bring even a tenfold improvement in productivity, reliability, or simplicity <em>within a decade</em>, because the big past gains, such as high-level languages, had mostly removed accidental difficulty, and what remained was mostly essential.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 310" role="img" aria-label="Two stacked bars for one feature. Before agents: an essential part and a larger accidental part. With agents: a slightly smaller essential part and a much smaller accidental part. Illustrative proportions, not measured.">
+        <defs>
+          <filter id="r7" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="h7" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="f-card"/><line x1="4" y1="0" x2="4" y2="8" class="s s-thin s-2"/></pattern>
+        </defs>
+        <g filter="url(#r7)">
+          <rect x="220" y="60" width="240" height="56" class="s f-pen"/>
+          <rect x="460" y="60" width="360" height="56" class="s" style="fill:url(#h7)"/>
+          <rect x="220" y="178" width="210" height="56" class="s f-pen"/>
+          <rect x="430" y="178" width="90" height="56" class="s" style="fill:url(#h7)"/>
+        </g>
+        <text x="200" y="94" text-anchor="end">before agents</text>
+        <text x="200" y="212" text-anchor="end">with agents</text>
+        <text x="340" y="94" text-anchor="middle" class="t-lg">essential</text>
+        <text x="640" y="94" text-anchor="middle" class="t-lg t-2">accidental</text>
+        <text x="325" y="212" text-anchor="middle" class="t-lg">essential</text>
+        <text x="534" y="212" class="t-sm t-2">accidental</text>
+        <text x="534" y="232" class="t-sm t-pen">the essential part stays yours</text>
+        <text x="640" y="140" text-anchor="middle" class="t-sm t-2">syntax · boilerplate · API lookup · glue code</text>
+        <text x="220" y="280" class="t-sm">essential: what to build · the concepts and rules · trade-offs · why it's correct · running it</text>
+                <text x="880" y="30" text-anchor="end" class="t-sm t-2">illustrative, not measured</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.7</b> A teaching model, not a measurement. Agents remove a great deal of accidental difficulty. They can help with essential work too, but it shrinks much less, and deciding it remains your responsibility.</figcaption>
+  </figure>
+  <p>The essential part stays with you, even when an agent helps you think it through. In AfterHours, deciding that the last place goes to exactly one person, and what happens to the other person's payment, is essential. Writing the SQL is accidental.</p>
+</section>
+
+<section class="block" id="slider">
+  <div class="sechead"><span class="clock">R3</span><h2>How much autonomy?</h2></div>
+  <p>AI coding tools sit at different points on a scale. Autocomplete suggests a line. A chat assistant writes a function you paste in. An agent in your editor edits files and runs tests while you watch. A background agent works on its own and opens a pull request. Several agents can work in parallel. In a mid-2025 talk, Andrej Karpathy called this the <strong>autonomy slider</strong>: you choose how much autonomy to hand over, task by task.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 300" role="img" aria-label="A slider with five stops: autocomplete, chat, agent in your editor, background agent, many agents. Below it two wedges grow toward the right: the work done between human checks, and how far a mistake can spread before anyone looks.">
+        <defs>
+          <filter id="r8" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#r8)">
+          <path d="M80,70 H820" class="s s-thick"/>
+          <circle cx="80" cy="70" r="7" class="s f-card"/>
+          <circle cx="265" cy="70" r="7" class="s f-card"/>
+          <circle cx="450" cy="70" r="7" class="s f-card"/>
+          <circle cx="635" cy="70" r="7" class="s f-card"/>
+          <circle cx="820" cy="70" r="7" class="s f-card"/>
+          <rect x="436" y="52" width="28" height="36" rx="6" class="s s-pen f-pen"/>
+          <path d="M80,186 L820,166 L820,206 Z" class="s f-pen"/>
+          <path d="M80,256 L820,232 L820,280 Z" class="s s-red f-red"/>
+        </g>
+        <text x="80" y="112" text-anchor="middle" class="t-sm">Autocomplete</text>
+        <text x="80" y="130" text-anchor="middle" class="t-sm t-2">a line</text>
+        <text x="265" y="112" text-anchor="middle" class="t-sm">Chat</text>
+        <text x="265" y="130" text-anchor="middle" class="t-sm t-2">a function you paste</text>
+        <text x="450" y="112" text-anchor="middle" class="t-sm">Agent in your editor</text>
+        <text x="450" y="130" text-anchor="middle" class="t-sm t-2">edits, runs tests</text>
+        <text x="635" y="112" text-anchor="middle" class="t-sm">Background agent</text>
+        <text x="635" y="130" text-anchor="middle" class="t-sm t-2">opens a pull request</text>
+        <text x="820" y="112" text-anchor="middle" class="t-sm">Many agents</text>
+        <text x="820" y="130" text-anchor="middle" class="t-sm t-2">in parallel</text>
+        <text x="810" y="191" text-anchor="end" class="t-sm">work done between human checks</text>
+        <text x="810" y="262" text-anchor="end" class="t-sm t-red">how far a mistake spreads before anyone looks</text>
+        <text x="820" y="36" text-anchor="end" class="t-sm t-pen">more autonomy →</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.8</b> The autonomy slider. Moving right means more work per human check. That is the point of agents, and also the risk.</figcaption>
+  </figure>
+  <p>There is no single right setting. Renaming a variable across a project can go far to the right. Changing how payments are captured should stay to the left, with a human reading every step. Choose per task, and choose on purpose.</p>
+</section>
+
+<section class="block" id="bottleneck">
+  <div class="sechead"><span class="clock">R4</span><h2>The bottleneck moved</h2></div>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 330" role="img" aria-label="Two pipelines. Before agents, the narrowest pipe was writing code. Now writing code is the widest pipe, verification is the narrowest, and unreviewed diffs pile up in front of it.">
+        <defs>
+          <filter id="r9" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a9" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#r9)">
+          <rect x="170" y="54" width="170" height="72" class="s f-card"/>
+          <rect x="340" y="78" width="170" height="24" class="s s-red s-thick f-red"/>
+          <rect x="510" y="64" width="170" height="52" class="s f-card"/>
+          <path d="M680,90 H820" class="s s-thick" marker-end="url(#a9)"/>
+          <rect x="170" y="206" width="170" height="72" class="s f-card"/>
+          <rect x="340" y="196" width="170" height="92" class="s f-pen"/>
+          <rect x="510" y="232" width="170" height="20" class="s s-red s-thick f-red"/>
+          <path d="M680,242 H820" class="s s-thick" marker-end="url(#a9)"/>
+          <rect x="468" y="180" width="30" height="20" class="s s-thin f-card" transform="rotate(-8 483 190)"/>
+          <rect x="474" y="164" width="30" height="20" class="s s-thin f-card" transform="rotate(6 489 174)"/>
+          <rect x="466" y="148" width="30" height="20" class="s s-thin f-card" transform="rotate(-4 481 158)"/>
+          <rect x="472" y="132" width="30" height="20" class="s s-thin f-card" transform="rotate(9 487 142)"/>
+        </g>
+        <text x="20" y="96" class="t-lg">Before</text>
+        <text x="20" y="248" class="t-lg">Now</text>
+        <text x="255" y="96" text-anchor="middle">understand</text>
+        <text x="425" y="68" text-anchor="middle" class="t-sm t-red">write code: narrow</text>
+        <text x="595" y="96" text-anchor="middle">verify</text>
+        <text x="750" y="80" text-anchor="middle" class="t-sm">ship</text>
+        <text x="255" y="248" text-anchor="middle">understand</text>
+        <text x="425" y="248" text-anchor="middle">write code</text>
+        <text x="595" y="310" text-anchor="middle" class="t-sm t-red">verify: now the narrow part</text>
+        <text x="750" y="232" text-anchor="middle" class="t-sm">ship</text>
+        <text x="520" y="150" class="t-sm t-red">unreviewed diffs pile up</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.9</b> A model, not a measurement. Pipe width stands for how much work each stage can handle. Agents widened <em>write code</em>. When checking cannot keep up, unreviewed changes queue in front of it.</figcaption>
+  </figure>
+  <p>When writing code was slow, it limited how fast a team could ship. Agents widened that part of the pipe. For many teams the narrowest part is now verification: reading diffs, running the right tests, trying the edge cases, asking whether the change does what the user needs. Whether that is true for <em>your</em> team is something to measure, not assume (Week 11). This course spends most of its time on specifying and verifying because that is where the narrow part tends to move.</p>
+</section>
+
+<section class="block" id="vibe">
+  <div class="sechead"><span class="clock">R5</span><h2>When vibe coding is fine</h2></div>
+  <p>On 2 February 2025, Andrej Karpathy named a style of work: <q>There's a new kind of coding I call "vibe coding", where you fully give in to the vibes, embrace exponentials, and forget that the code even exists.</q> He accepted every change without reading the diffs, and he was clear about where it belonged: <q>It's not too bad for throwaway weekend projects.</q> The term spread much faster than that limit.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 760 520" role="img" aria-label="A two-by-two grid. Horizontal axis: how long the software will live, from throwaway to years. Vertical axis: who gets hurt if it is wrong, from nobody to money, data or safety. Bottom left: vibe freely. Bottom right: tidy as you go. Top left: prototype, then rebuild with evidence. Top right: engineer it, where AfterHours sits.">
+        <defs>
+          <filter id="r10" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a10" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#r10)">
+          <rect x="415" y="40" width="305" height="205" class="f-pen"/>
+          <path d="M110,450 H726" class="s" marker-end="url(#a10)"/>
+          <path d="M110,450 V34" class="s" marker-end="url(#a10)"/>
+          <path d="M415,40 V450 M110,245 H720" class="s s-thin s-dash s-2"/>
+          <circle cx="650" cy="92" r="9" class="s s-red f-redink"/>
+        </g>
+        <text x="415" y="490" text-anchor="middle">how long will it live?</text>
+        <text x="120" y="472" class="t-sm t-2">throwaway</text>
+        <text x="716" y="472" text-anchor="end" class="t-sm t-2">years</text>
+        <text x="50" y="245" text-anchor="middle" transform="rotate(-90 50 245)">who gets hurt if it's wrong?</text>
+        <text x="88" y="440" text-anchor="start" class="t-sm t-2" transform="rotate(-90 88 440)">nobody</text>
+        <text x="88" y="150" text-anchor="middle" class="t-sm t-2" transform="rotate(-90 88 150)">money · data · safety</text>
+        <text x="262" y="340" text-anchor="middle" class="t-lg">Vibe freely</text>
+        <text x="262" y="366" text-anchor="middle" class="t-sm t-2">weekend toy, one-off script</text>
+        <text x="567" y="340" text-anchor="middle" class="t-lg">Tidy as you go</text>
+        <text x="567" y="366" text-anchor="middle" class="t-sm t-2">tools you'll keep using</text>
+        <text x="262" y="132" text-anchor="middle" class="t-lg">Prototype, then</text>
+        <text x="262" y="158" text-anchor="middle" class="t-lg">rebuild with evidence</text>
+        <text x="262" y="184" text-anchor="middle" class="t-sm t-2">demo, spike, hackathon</text>
+        <text x="567" y="150" text-anchor="middle" class="t-lg t-pen">Engineer it</text>
+        <text x="567" y="176" text-anchor="middle" class="t-sm t-2">payments, health, grades</text>
+        <text x="662" y="80" class="t-sm t-red">AfterHours</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.10</b> Two questions decide how carefully to build: who gets hurt if it is wrong, and how long it will live. Vibe coding belongs in the bottom-left corner.</figcaption>
+  </figure>
+  <p>AfterHours takes commitments from real people and will be maintained all semester, so it sits in the top-right corner. A weekend toy sits in the bottom-left, and vibe coding it is fine. Trouble starts when something built in the bottom-left quietly moves up or to the right, and nobody changes how it is built.</p>
+</section>
+
+<section class="block" id="feel">
+  <div class="sechead"><span class="clock">R6</span><h2>Feeling fast, being fast</h2></div>
+  <p>How much do AI tools speed developers up? Asking developers is not a reliable way to find out. In an early-2025 randomised trial by the research group METR, 16 experienced open-source developers worked on 246 real tasks in projects they already knew well, with AI tools allowed on some tasks and not on others.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 880 330" role="img" aria-label="Diverging bar chart of the change in time to finish a task. Developers forecast 24 percent faster. Afterwards they estimated 20 percent faster. Measured: 19 percent slower, with a confidence interval from 2 to 39 percent slower.">
+        <defs>
+          <filter id="r11" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#r11)">
+          <path d="M120,252 H820" class="s s-thin"/>
+          <path d="M120,246 V258 M220,246 V258 M320,246 V258 M520,246 V258 M620,246 V258 M720,246 V258 M820,246 V258" class="s s-thin"/>
+          <rect x="180" y="40" width="240" height="34" class="s s-pen f-pen"/>
+          <rect x="220" y="100" width="200" height="34" class="s s-pen f-pen"/>
+          <rect x="420" y="160" width="190" height="34" class="s s-red f-red"/>
+          <path d="M440,210 H810 M440,203 V217 M810,203 V217" class="s s-thin s-red"/>
+          <path d="M420,24 V258" class="s s-thick"/>
+        </g>
+        <text x="172" y="63" text-anchor="end" class="t-mono t-pen">-24%</text>
+        <text x="212" y="123" text-anchor="end" class="t-mono t-pen">-20%</text>
+        <text x="600" y="183" text-anchor="end" class="t-mono t-red">+19%</text>
+        <text x="434" y="63">forecast before the tasks</text>
+        <text x="434" y="123">their estimate afterwards</text>
+        <text x="406" y="183" text-anchor="end">measured</text>
+        <text x="810" y="236" text-anchor="end" class="t-sm t-red">95% CI: +2% to +39%</text>
+        <text x="120" y="280" text-anchor="middle" class="t-mono t-sm t-2">-30%</text>
+        <text x="220" y="280" text-anchor="middle" class="t-mono t-sm t-2">-20%</text>
+        <text x="320" y="280" text-anchor="middle" class="t-mono t-sm t-2">-10%</text>
+        <text x="420" y="280" text-anchor="middle" class="t-mono t-sm t-2">0</text>
+        <text x="520" y="280" text-anchor="middle" class="t-mono t-sm t-2">+10%</text>
+        <text x="620" y="280" text-anchor="middle" class="t-mono t-sm t-2">+20%</text>
+        <text x="720" y="280" text-anchor="middle" class="t-mono t-sm t-2">+30%</text>
+        <text x="820" y="280" text-anchor="middle" class="t-mono t-sm t-2">+40%</text>
+        <text x="420" y="314" text-anchor="middle" class="t-sm">change in time to finish a task with AI allowed (left = faster, right = slower)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.11</b> METR's early-2025 study (drawn to scale). Developers expected AI to make them 24% faster and afterwards believed it had made them 20% faster. Measured, tasks with AI allowed took 19% longer.</figcaption>
+  </figure>
+  <p>Read this result carefully. It covers experienced developers in large projects they knew well, using early-2025 tools, and the authors say it does not show that AI fails to help most developers. In February 2026 METR reported a follow-up whose raw numbers point toward speedups, but METR itself calls that data an unreliable signal, partly because many developers were no longer willing to work without it. The lasting lesson is the gap between the first two bars and the third. How fast you <em>feel</em> is weak evidence about how fast you are. In this course, when a workflow question matters, we measure.</p>
+</section>
+
+<section class="block" id="fence">
+  <div class="sechead"><span class="clock">R7</span><h2>A sign asks, a fence decides</h2></div>
+  <div class="callout case">
+    <span class="label">Case: Replit, July 2025</span>
+    <p>Jason Lemkin, founder of SaaStr, was building an app with Replit's AI agent and had declared a code freeze. He reported that the agent deleted his project's production database anyway, and then wrongly told him a rollback was impossible. The rollback worked. Replit's CEO, Amjad Masad, called the deletion <q>unacceptable and should never be possible</q>, and Replit began separating development and production databases automatically.</p>
+  </div>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 300" role="img" aria-label="Left: an agent's arrow reaches the production database straight past a sign saying code freeze, don't touch prod. Right: the agent's arrow stops at a wall labelled no production credentials in this sandbox.">
+        <defs>
+          <filter id="r12" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="a12r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#r12)">
+          <rect x="30" y="126" width="100" height="56" rx="10" class="s f-card"/>
+          <path d="M320,122 V190 A48,11 0 0 0 416,190 V122" class="s f-card"/>
+          <ellipse cx="368" cy="122" rx="48" ry="11" class="s f-card"/>
+          <rect x="165" y="56" width="130" height="50" rx="4" class="s f-mark"/>
+          <path d="M230,106 V250" class="s s-thick"/>
+          <path d="M132,160 H314" class="s s-red s-thick" marker-end="url(#a12r)"/>
+          <path d="M450,24 V280" class="s s-dash s-2"/>
+          <rect x="480" y="126" width="100" height="56" rx="10" class="s f-card"/>
+          <path d="M770,122 V190 A48,11 0 0 0 866,190 V122" class="s f-card"/>
+          <ellipse cx="818" cy="122" rx="48" ry="11" class="s f-card"/>
+          <rect x="686" y="70" width="30" height="170" class="s f-ink"/>
+          <path d="M582,160 H676" class="s s-thick"/>
+          <path d="M664,146 l20,28 M684,146 l-20,28" class="s s-red s-thick"/>
+        </g>
+        <text x="220" y="36" text-anchor="middle" class="t-lg">A sign asks</text>
+        <text x="80" y="160" text-anchor="middle">agent</text>
+        <text x="368" y="166" text-anchor="middle" class="t-sm">production</text>
+        <text x="368" y="184" text-anchor="middle" class="t-sm">data</text>
+        <text x="230" y="78" text-anchor="middle" class="t-sm t-mark">CODE FREEZE</text>
+        <text x="230" y="96" text-anchor="middle" class="t-sm t-mark">don't touch prod</text>
+        <text x="220" y="280" text-anchor="middle" class="t-sm t-red">the agent can still get through</text>
+        <text x="675" y="36" text-anchor="middle" class="t-lg">A fence decides</text>
+        <text x="530" y="160" text-anchor="middle">agent</text>
+        <text x="818" y="166" text-anchor="middle" class="t-sm">production</text>
+        <text x="818" y="184" text-anchor="middle" class="t-sm">data</text>
+        <text x="701" y="262" text-anchor="middle" class="t-sm">no prod credentials</text>
+        <text x="701" y="280" text-anchor="middle" class="t-sm">in this sandbox</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1.12</b> An instruction changes what an agent is <em>likely</em> to do. A permission changes what it <em>can</em> do.</figcaption>
+  </figure>
+  <p>A code freeze written in a chat, a prompt, or an <code>AGENTS.md</code> file is a sign. Signs are useful, and agents usually follow them, but "usually" is not good enough for something you cannot undo. For those actions, build a fence: separate development and production databases, credentials the agent never sees, a sandbox that blocks the action outright. In today's investigation, "do not modify files" was a sign, and the blocked network port was a fence.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Invariant</dt><dd>A statement about the system that must be true at every moment, such as confirmed ≤ capacity.</dd>
+    <dt>Race condition</dt><dd>A bug whose result depends on the timing or order of concurrent actions.</dd>
+    <dt>Check-then-act</dt><dd>Deciding from something you read, then acting later as if it were still true.</dd>
+    <dt>Transaction</dt><dd>A group of database steps that succeed or fail together. <code>BEGIN IMMEDIATE</code> takes the write lock at the start; plain <code>BEGIN</code> takes it at the first write.</dd>
+    <dt>Write lock</dt><dd>Permission to change the database. In SQLite only one connection holds it at a time, for the whole file. Other writers wait (here up to 5 seconds, then fail); in WAL mode, readers carry on.</dd>
+    <dt>HTTP 201 / 409 / 500</dt><dd>Created · conflict (here: the event is full) · the server failed.</dd>
+    <dt>Task contract</dt><dd>A delegated task written with its goal, context, limits, deliverables, and stopping condition.</dd>
+    <dt>Evidence packet</dt><dd>requirement → decision → change → check → result, for one decision.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>Frederick P. Brooks Jr., "No Silver Bullet: Essence and Accidents of Software Engineering", <em>Computer</em> 20(4), 1987 (first presented at IFIP 1986). <a href="https://www.cs.unibo.it/~cianca/wwwpages/ids/letture/Brooks.pdf">PDF</a></li>
+    <li>Grace Hopper, lecture at Ohio State University, 5 Feb 1987, as reported in "The Wit and Wisdom of Grace Hopper", <em>OCLC Newsletter</em> 167 (1987). <a href="https://cs.yale.edu/homes/tap/Files/hopper-wit.html">Transcript</a></li>
+    <li>John Backus, "The History of FORTRAN I, II, and III", <em>ACM SIGPLAN Notices</em> 13(8), 1978. <a href="https://softwarepreservation.computerhistory.org/FORTRAN/paper/p165-backus.pdf">PDF</a></li>
+    <li>Andrej Karpathy, post introducing "vibe coding", 2 Feb 2025. <a href="https://x.com/karpathy/status/1886192184808149383">x.com/karpathy</a></li>
+    <li>Andrej Karpathy, "Software Is Changing (Again)", Y Combinator AI Startup School, June 2025. <a href="https://www.ycombinator.com/library/MW-andrej-karpathy-software-is-changing-again">YC Library</a></li>
+    <li>METR, "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity", July 2025. <a href="https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/">Summary</a> · <a href="https://arxiv.org/abs/2507.09089">Paper</a></li>
+    <li>METR, "We are Changing our Developer Productivity Experiment Design", 24 Feb 2026. <a href="https://metr.org/blog/2026-02-24-uplift-update/">metr.org</a></li>
+    <li>Jason Lemkin's report of the incident, July 2025. <a href="https://x.com/jasonlk/status/1946069562723897802">x.com/jasonlk</a> · Amjad Masad's response. <a href="https://x.com/amasad/status/1946986468586721478">x.com/amasad</a> · Coverage: <a href="https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/">The Register</a></li>
+    <li>SQLite, "Transaction" (BEGIN IMMEDIATE and the write lock). <a href="https://www.sqlite.org/lang_transaction.html">sqlite.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="../index.html">← Course home</a>
+  <span>Build It. Prove It. Own It. · Lecture 1</span>
+  <a href="02-specify-the-promise.html">Lecture 2: Discover the Problem, Specify the Promise →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

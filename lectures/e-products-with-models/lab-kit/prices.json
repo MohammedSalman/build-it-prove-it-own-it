@@ -1,0 +1,9 @@
+{
+  "about": "List prices in US dollars per million tokens, from Anthropic's pricing page (https://platform.claude.com/docs/en/about-claude/pricing), checked 28 September 2026. Prices change: check before you rely on them. Batch processing and prompt caching change the real bill; this kit ignores both.",
+  "checked": "2026-09-28",
+  "usd_per_million_tokens": {
+    "claude-opus-5": {"input": 5.0, "output": 25.0},
+    "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+    "claude-sonnet-5": {"input": 2.0, "output": 10.0}
+  }
+}

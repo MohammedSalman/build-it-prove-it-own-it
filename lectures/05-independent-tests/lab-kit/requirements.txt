@@ -1,0 +1,6 @@
+# Pinned so every student gets the same behaviour. Python 3.11 or newer.
+fastapi==0.141.1
+uvicorn==0.54.0
+httpx2==2.13.1      # used by FastAPI's TestClient
+pytest==9.1.1
+hypothesis==6.168.2 # property-based tests in properties/

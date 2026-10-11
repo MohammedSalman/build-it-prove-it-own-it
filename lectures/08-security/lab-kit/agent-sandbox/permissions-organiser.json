@@ -1,0 +1,6 @@
+{
+  "about": "Week 8 kit. The rules an organiser set up for every agent task, so it could also post updates to the festival chat. Too broad on purpose: see Lab 8, task A4.",
+  "allow": ["list_files", "read_file", "write_file", "run_tests", "http_post"],
+  "write_paths": ["docs/*", "inbox/*", "app/*", "tests/*"],
+  "read_deny": [".env", "*.env", "*.pem", "*.key", "secrets/*"]
+}

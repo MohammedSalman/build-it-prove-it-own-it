@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>State, Concurrency and the Last Seat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 6 · Lecture 6 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 6 · Correct in every history</p>
+  <h1 id="page-title">State, Concurrency and the Last Seat</h1>
+  <p class="lede">Patch B closed the race for the last place. This week one tap on bad Wi-Fi books two places. A system is correct only if it keeps its promises in every history it allows, including the ones where a request arrives twice. So we model the states, let the database refuse what it can, and make retries safe.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~30 minutes of reading after class</span>
+    <span class="fact">Kit: AfterHours + cancel + flaky client</span>
+    <span class="fact">Loop: Verify</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Explain why "no answer" does not mean "nothing happened", and draw the lost-answer timeline.</li>
+      <li>Draw a reservation's state machine and name the moves it forbids.</li>
+      <li>State the four rules of an idempotency key (scope, payload, concurrency, one transaction) and name a test for each.</li>
+      <li>Decide which promises the database can enforce and which stay in the application.</li>
+      <li>Force a dangerous order of events in a test, and say what a stress run can and cannot show.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>One tap, two places</span></a></li>
+    <li><a href="#states"><span class="t">0:12</span><span>States and forbidden moves</span></a></li>
+    <li><a href="#keys"><span class="t">0:27</span><span>Idempotency keys, precisely</span></a></li>
+    <li><a href="#constraints"><span class="t">0:50</span><span>Let the database say no</span></a></li>
+    <li><a href="#testing"><span class="t">1:05</span><span>Force the order in a test</span></a></li>
+    <li><a href="#compensation"><span class="t">1:15</span><span>Undo what a rollback can't</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#exactly-once"><span class="t">R1</span><span>Exactly once is about effects</span></a></li>
+    <li><a href="#clocks"><span class="t">R2</span><span>Clocks and the order of events</span></a></li>
+    <li><a href="#amazon"><span class="t">R3</span><span>Checking every history</span></a></li>
+    <li><a href="#therac"><span class="t">R4</span><span>Therac-25: the last safety net</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:12</span>
+    <h2>One tap, two places</h2>
+  </div>
+  <p>Week 1 ended with Patch B shipped. The app now checks the count again inside a write transaction, and the last place goes to exactly one person. The debrief also listed what Patch B leaves open. Two of those items are today's work: Sam's payment hold is never given back, and nothing stops one person from holding two places at the same event. This week adds a third.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 150" role="img" aria-label="The engineering loop drawn as a strip: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Verify is highlighted as this week's step: checking a design against every history it allows.">
+        <defs>
+          <filter id="w6f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w6f1-r)">
+          <rect x="14" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <rect x="142" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <rect x="270" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <rect x="398" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <rect x="526" y="40" width="104" height="44" rx="10" class="s s-thick f-mark"/>
+          <rect x="654" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <rect x="782" y="40" width="104" height="44" rx="10" class="s f-card"/>
+          <path d="M120,62 H138" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M248,62 H266" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M376,62 H394" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M504,62 H522" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M632,62 H650" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M760,62 H778" class="s" marker-end="url(#w6f1-a)"/>
+          <path d="M834,86 V112 H66 V90" class="s s-dash s-2" marker-end="url(#w6f1-a)"/>
+        </g>
+        <text x="66" y="67" text-anchor="middle" class="t-sm">Understand</text>
+        <text x="194" y="67" text-anchor="middle" class="t-sm">Specify</text>
+        <text x="322" y="67" text-anchor="middle" class="t-sm">Delegate</text>
+        <text x="450" y="67" text-anchor="middle" class="t-sm">Inspect</text>
+        <text x="578" y="68" text-anchor="middle" class="t-mark">Verify</text>
+        <text x="706" y="67" text-anchor="middle" class="t-sm">Release</text>
+        <text x="834" y="67" text-anchor="middle" class="t-sm">Observe</text>
+        <text x="578" y="28" text-anchor="middle" class="t-sm t-pen">this week</text>
+        <text x="578" y="138" text-anchor="middle" class="t-sm t-2">check the design against every history it allows, not one request at a time</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.1</b> Where this week sits on the engineering loop from Lecture 1. Week 5 checked single requests against their requirements. Week 6 checks what happens when requests repeat, overlap, or lose their answers.</figcaption>
+  </figure>
+
+  <p>After Week 1 a teammate made the page friendlier for students on campus Wi-Fi. When a reservation gets no answer at all, the page now sends the same request once more. It also sends a header called <code>Idempotency-Key</code>: a new random key for each new reservation attempt, and the same key on the retry. The server receives that header but does not use it to recognise a retry.</p>
+  <p>Maya is in the library, on bad Wi-Fi. She presses <em>Reserve</em> once. Her phone says <em>You're in! Reservation #229</em>. The festival database says she holds two places.</p>
+
+  <div class="callout case">
+    <span class="label">About this bug</span>
+    <p>We set this up on purpose, so it happens on cue. The retry is a reasonable feature; the defect is a server that treats every request as new. In the lab kit, <code>scripts/flaky_client.py</code> plays Maya's phone. It runs a small relay on your own laptop that waits for the server's complete answer, so the server has already saved the reservation, and then drops that answer once. The server itself is not changed.</p>
+  </div>
+
+  <p>This is a real run against the kit. First the script's view, then the server's log:</p>
+  <pre><code>Trial 1 · event #6 (5 places) · Maya presses Reserve once
+  +    0 ms  phone  attempt 1 (key 3eec2c67)
+  +  316 ms  link   server answered 201: reservation #228 (server now shows 1 of 5 places taken)
+  +  316 ms  link   Wi-Fi drops: that answer never reaches the phone
+  +  316 ms  phone  no answer (connection closed); retrying with the same key
+  +  526 ms  phone  attempt 2 (key 3eec2c67)
+  +  846 ms  phone  got 201 Created: reservation #229
+  Result: Maya pressed once and now holds 2 places   -&gt; DUPLICATE</code></pre>
+  <pre><code>22:46:51.198  [Maya · key 3eec] checked: 0 of 5 places taken
+22:46:51.508  [Maya · key 3eec] payment authorised (hold-1, simulated, nothing charged)
+22:46:51.508  [Maya · key 3eec] reservation #228 saved
+22:46:51.726  [Maya · key 3eec] checked: 1 of 5 places taken
+22:46:52.036  [Maya · key 3eec] payment authorised (hold-2, simulated, nothing charged)
+22:46:52.038  [Maya · key 3eec] reservation #229 saved</code></pre>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 920 640" role="img" aria-label="Timeline with four lanes: Maya's phone, the Wi-Fi link, the server and the database. At 0 ms the phone sends a reservation with key 3eec. The server checks, pays for about 300 ms, and commits reservation 228. Its answer, 201 for 228, is lost between the link and the phone. At 316 ms the phone sees no answer, waits 200 ms, and sends the same request with the same key. The server treats it as new, pays again, and commits reservation 229. Maya now holds 2 places after 1 tap.">
+        <defs>
+          <filter id="w6f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w6f2-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w6f2-r)">
+          <rect x="105" y="22" width="150" height="42" rx="8" class="s f-card"/>
+          <rect x="315" y="22" width="150" height="42" rx="8" class="s f-card"/>
+          <rect x="525" y="22" width="150" height="42" rx="8" class="s f-card"/>
+          <rect x="725" y="22" width="150" height="42" rx="8" class="s f-card"/>
+          <path d="M180,66 V580" class="s s-2 s-dash"/>
+          <path d="M390,66 V580" class="s s-2 s-dash"/>
+          <path d="M600,66 V580" class="s s-2 s-dash"/>
+          <path d="M800,66 V560" class="s s-2 s-dash"/>
+          <rect x="172" y="278" width="16" height="92" class="f-mark"/>
+          <rect x="590" y="114" width="20" height="150" rx="3" class="s s-thin f-pen"/>
+          <rect x="590" y="378" width="20" height="150" rx="3" class="s s-thin f-pen"/>
+          <path d="M182,110 H596" class="s" marker-end="url(#w6f2-a)"/>
+          <path d="M612,262 H794" class="s" marker-end="url(#w6f2-a)"/>
+          <circle cx="800" cy="262" r="6" class="s f-ink"/>
+          <path d="M596,272 H394" class="s" marker-end="url(#w6f2-a)"/>
+          <path d="M386,272 H250" class="s s-red s-dash"/>
+          <path d="M232,262 l18,20 M250,262 l-18,20" class="s s-red s-thick"/>
+          <path d="M182,373 H596" class="s" marker-end="url(#w6f2-a)"/>
+          <path d="M612,526 H794" class="s s-red" marker-end="url(#w6f2-ar)"/>
+          <circle cx="800" cy="526" r="6" class="s s-red f-redink"/>
+          <path d="M596,537 H184" class="s" marker-end="url(#w6f2-a)"/>
+          <rect x="690" y="578" width="210" height="50" rx="10" class="s s-red s-thick f-red"/>
+        </g>
+        <text x="180" y="49" text-anchor="middle" class="t-lg">Maya's phone</text>
+        <text x="390" y="49" text-anchor="middle" class="t-lg">Wi-Fi link</text>
+        <text x="600" y="49" text-anchor="middle" class="t-lg">Server</text>
+        <text x="800" y="49" text-anchor="middle" class="t-lg">Database</text>
+        <text x="20" y="114" class="t-mono t-2">+0</text>
+        <text x="20" y="276" class="t-mono t-2">+316</text>
+        <text x="20" y="377" class="t-mono t-2">+526</text>
+        <text x="20" y="541" class="t-mono t-2">+846 ms</text>
+        <text x="290" y="100" text-anchor="middle" class="t-sm">POST · key 3eec</text>
+        <text x="620" y="132" class="t-sm">check: 0 of 5 taken</text>
+        <text x="620" y="196" class="t-sm">pay ~300 ms</text>
+        <text x="706" y="252" text-anchor="middle" class="t-sm">INSERT #228 · COMMIT</text>
+        <text x="812" y="290" class="t-sm">1 place</text>
+        <text x="495" y="262" text-anchor="middle" class="t-sm">201 · #228</text>
+        <text x="310" y="296" text-anchor="middle" class="t-sm t-red">lost on the way back</text>
+        <text x="166" y="304" text-anchor="end" class="t-sm">no answer</text>
+        <text x="166" y="340" text-anchor="end" class="t-sm t-2">wait 0.2 s</text>
+        <text x="290" y="363" text-anchor="middle" class="t-sm">same request, same key</text>
+        <text x="620" y="396" class="t-sm">check: 1 of 5 taken</text>
+        <text x="620" y="460" class="t-sm">pay again ~300 ms</text>
+        <text x="706" y="516" text-anchor="middle" class="t-sm t-red">INSERT #229 · COMMIT</text>
+        <text x="812" y="554" class="t-sm t-red">2 places</text>
+        <text x="290" y="529" text-anchor="middle" class="t-sm">201 · #229</text>
+        <text x="166" y="566" text-anchor="end" class="t-sm">"You're in! #229"</text>
+        <text x="795" y="611" text-anchor="middle" class="t-lg t-red">1 tap, 2 places</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.2</b> The lost-answer timeline, drawn to scale from the run above (phone times from the script, server steps from the log). The yellow band is the phone's wait. The server had already saved #228 when its answer was lost. The server does not use the key to spot a retry, so it booked the retry as a brand-new request.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Vote (2 minutes)</span>
+    <p>Which Week 1 patch would have prevented this: Patch A (disable the button while waiting), Patch B (check again inside a transaction), both, or neither? Give one reason.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p><strong>Neither.</strong> Maya tapped once, so Patch A had nothing to stop. Patch B stops two requests racing for the last place; here the second request arrived 200 ms after the first had finished, and the event had plenty of room. Each request, taken alone, did exactly the right thing. The bug is in the history: the same request, twice.</p>
+    </div>
+  </details>
+
+  <p>Look at the phone at +316 ms. The connection closed without an answer. From where the phone sits, three different things could have happened:</p>
+  <ol>
+    <li>The request never reached the server. Nothing was saved.</li>
+    <li>The server received it and failed before saving. Nothing was saved.</li>
+    <li>The server saved the reservation and the answer was lost on the way back. This is what happened to Maya.</li>
+  </ol>
+  <p>The phone cannot tell these apart. If it never retries, cases 1 and 2 lose Maya's booking. If it retries blindly, case 3 books her twice. The HTTP standard names this problem directly:</p>
+  <div class="callout">
+    <span class="label">RFC 9110 (HTTP Semantics), section 9.2.2</span>
+    <p><q>A client SHOULD NOT automatically retry a request with a non-idempotent method unless it has some means to know that the request semantics are actually idempotent, regardless of the method, or some means to detect that the original request was never applied.</q></p>
+  </div>
+  <p>POST, the method that creates a reservation, is not idempotent: sending it twice books twice. Today we give the server a way to recognise a repeat.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Correctness is about every history the system allows, not about one request at a time.</strong> A request that is correct on its own can still break a promise when it arrives twice, arrives late, or arrives alongside another.</p>
+  </div>
+</section>
+
+<!-- ============ 2. STATES ============ -->
+<section class="block" id="states">
+  <div class="sechead">
+    <span class="clock">0:12 – 0:27</span>
+    <h2>States and forbidden moves</h2>
+  </div>
+  <p>Before we can say what "the same request twice" should do, we need to know what a reservation can be. In Week 1 a reservation either existed or it didn't. The kit adds cancelling, so a reservation now has a <strong>state</strong>: <code>confirmed</code> or <code>cancelled</code>. A <strong>state machine</strong> lists the states and the moves between them, called <strong>transitions</strong>. Just as important, it says which moves are forbidden.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 520" role="img" aria-label="Top: the reservation state machine as the kit will be after the lab. Reserve leads from nothing to confirmed, guarded by: a place is free and Maya holds none. The second half of that guard is new: the lab adds it. Cancel leads from confirmed to cancelled. Cancelling again loops on cancelled and changes nothing. A red crossed-out arrow from cancelled back to confirmed is forbidden: booking again makes a new reservation. Bottom, a dashed preview of a waitlist design: waiting to offered when a place frees up, offered to confirmed when accepted in time, waiting to left, offered to expired, and a forbidden crossed-out arrow from expired to confirmed.">
+        <defs>
+          <filter id="w6f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w6f3-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w6f3-r)">
+          <circle cx="60" cy="130" r="9" class="s f-ink"/>
+          <rect x="200" y="100" width="170" height="60" rx="14" class="s s-thick f-card"/>
+          <rect x="560" y="100" width="170" height="60" rx="14" class="s s-thick f-card"/>
+          <path d="M70,130 H196" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M372,122 H556" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M640,98 C640,48 716,48 708,96" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M600,162 C560,230 330,230 300,166" class="s s-red s-dash" marker-end="url(#w6f3-ar)"/>
+          <path d="M434,201 l24,24 M458,201 l-24,24" class="s s-red s-thick"/>
+          <rect x="10" y="305" width="880" height="205" rx="12" class="s s-thin s-dash s-2"/>
+          <rect x="40" y="360" width="150" height="44" rx="12" class="s f-card"/>
+          <rect x="320" y="360" width="150" height="44" rx="12" class="s f-card"/>
+          <rect x="600" y="360" width="150" height="44" rx="12" class="s f-card"/>
+          <rect x="40" y="440" width="150" height="44" rx="12" class="s s-2 f-paper"/>
+          <rect x="320" y="440" width="150" height="44" rx="12" class="s s-2 f-paper"/>
+          <path d="M192,382 H316" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M472,382 H596" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M752,382 H800" class="s s-2 s-dash" marker-end="url(#w6f3-a)"/>
+          <path d="M115,406 V436" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M395,406 V436" class="s" marker-end="url(#w6f3-a)"/>
+          <path d="M472,462 C560,462 640,470 672,410" class="s s-red s-dash" marker-end="url(#w6f3-ar)"/>
+          <path d="M582,447 l22,22 M604,447 l-22,22" class="s s-red s-thick"/>
+        </g>
+        <text x="20" y="34" class="t-lg">A reservation (the kit after the lab)</text>
+        <text x="285" y="137" text-anchor="middle" class="t-lg">confirmed</text>
+        <text x="645" y="137" text-anchor="middle" class="t-lg">cancelled</text>
+        <text x="133" y="118" text-anchor="middle" class="t-sm">reserve</text>
+        <text x="133" y="160" text-anchor="middle" class="t-sm t-2">[a place is free,</text>
+        <text x="133" y="178" text-anchor="middle" class="t-sm t-pen">Maya holds none]</text>
+        <text x="133" y="198" text-anchor="middle" class="t-sm t-pen">new: the lab adds it</text>
+        <text x="464" y="110" text-anchor="middle" class="t-sm">cancel</text>
+        <text x="730" y="62" class="t-sm">cancel again:</text>
+        <text x="730" y="80" class="t-sm">nothing changes</text>
+        <text x="446" y="252" text-anchor="middle" class="t-sm t-red">un-cancel: forbidden</text>
+        <text x="446" y="272" text-anchor="middle" class="t-sm t-2">(book again = a new reservation)</text>
+        <text x="30" y="334" class="t-sm t-pen">Preview: with a waitlist (one possible design, optional lab extension)</text>
+        <text x="115" y="387" text-anchor="middle">waiting</text>
+        <text x="395" y="387" text-anchor="middle">offered</text>
+        <text x="675" y="387" text-anchor="middle">confirmed</text>
+        <text x="115" y="467" text-anchor="middle" class="t-2">left</text>
+        <text x="395" y="467" text-anchor="middle" class="t-2">expired</text>
+        <text x="254" y="372" text-anchor="middle" class="t-sm">place frees up</text>
+        <text x="534" y="372" text-anchor="middle" class="t-sm">accepts in time</text>
+        <text x="806" y="387" class="t-sm t-2">cancel …</text>
+        <text x="127" y="426" class="t-sm t-2">leaves</text>
+        <text x="407" y="426" class="t-sm t-2">offer runs out</text>
+        <text x="700" y="456" class="t-sm t-red">late accept:</text>
+        <text x="700" y="474" class="t-sm t-red">forbidden</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.3</b> The reservation state machine. Solid arrows are allowed moves. Square brackets hold a <em>guard</em>, a condition that must be true for the move. The kit already checks that a place is free. The second half, Maya holds none, is new: section 4 and the lab add it as a unique index. Red crossed-out arrows are forbidden moves. The waitlist below is a preview of one possible design for the optional lab extension, not something the kit does.</figcaption>
+  </figure>
+
+  <p>Three things in the picture turn into code.</p>
+  <ul>
+    <li><strong>Guards.</strong> The reserve arrow carries a condition: a place must be free, and Maya must not hold one already. The first half is Patch B. The second half is new, and section 4 hands it to the database.</li>
+    <li><strong>A forbidden move stays forbidden.</strong> A cancelled reservation never becomes confirmed again. If Maya changes her mind she books again and gets a new reservation with a new number. The old row stays, cancelled, so the history stays honest.</li>
+    <li><strong>Cancelling twice changes nothing.</strong> The second cancel finds the reservation already cancelled and leaves it alone.</li>
+  </ul>
+  <p>The kit enforces the cancel transition in a single SQL statement:</p>
+  <pre><code>UPDATE reservations
+   SET status = 'cancelled', cancelled_at = &lt;now&gt;
+ WHERE id = ? AND status = 'confirmed'      -- the guard</code></pre>
+  <p class="handnote">Simplified from cancel() in app/reservations.py.</p>
+  <p>The <code>WHERE</code> clause is the guard. Checking the state and changing it happen in one statement, so there is no gap between check and act for another request to slip into. If two cancels for the same reservation arrive together, SQLite runs the two statements one after the other: the first changes one row, the second finds no confirmed row to change. Compare Week 1's check-then-act, where the check and the insert were two separate steps 300 ms apart.</p>
+
+  <p>Some operations are safe to repeat by their nature. Others are not:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Operation</th><th>Done twice</th><th>Same effect as once?</th></tr></thead>
+      <tbody>
+        <tr><td>Read an event (<code>GET</code>)</td><td>reads twice</td><td><span class="tag ok">yes</span> reading changes nothing</td></tr>
+        <tr><td>Cancel reservation #43</td><td>the second finds it already cancelled</td><td><span class="tag ok">yes</span></td></tr>
+        <tr><td>Set an event's capacity to 40</td><td>sets 40, then 40 again</td><td><span class="tag ok">yes</span></td></tr>
+        <tr><td>Add one place to an event</td><td>adds two places</td><td><span class="tag bad">no</span></td></tr>
+        <tr><td>Reserve a place (<code>POST</code>)</td><td>books two places</td><td><span class="tag bad">no</span> unless the server recognises the repeat</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>An operation is <strong>idempotent</strong> when doing it twice has the same effect as doing it once. RFC 9110 defines it for HTTP the same way: <q>the intended effect on the server of multiple identical requests with that method is the same as the effect for a single such request.</q> Cancel is idempotent by design. Reserve is not. The next section makes it so.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (5 minutes, no laptop)</span>
+    <p>Maya's reservation #43 for Board Game Night receives these, in this order. After each step, write the state of #43, how many confirmed places Maya holds at that event, and whether the step changed something, changed nothing, or should have been refused (and by what).</p>
+    <ol>
+      <li>Maya reserves. This creates #43.</li>
+      <li>Maya cancels #43.</li>
+      <li>Her phone sends the same cancel again, because the first answer was lost.</li>
+      <li>A late-night admin script runs <code>UPDATE reservations SET status = 'confirmed' WHERE id = 43</code>.</li>
+      <li>Maya reserves again.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answer to the drill</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Step</th><th>#43</th><th>Maya's confirmed places</th><th>What happened</th></tr></thead>
+          <tbody>
+            <tr><td>1 reserve</td><td>confirmed</td><td>1</td><td>changed: a new row</td></tr>
+            <tr><td>2 cancel</td><td>cancelled</td><td>0</td><td>changed</td></tr>
+            <tr><td>3 cancel again</td><td>cancelled</td><td>0</td><td>nothing changed: the guard found no confirmed #43</td></tr>
+            <tr><td>4 admin script</td><td>cancelled</td><td>0</td><td>refused, but only by luck (see below)</td></tr>
+            <tr><td>5 reserve again</td><td>cancelled</td><td>1</td><td>changed: a new reservation, #44</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Step 4 is the interesting one. The app has no code path that un-cancels, but the script does not go through the app. The kit's database has a CHECK that ties the two columns together: a reservation has a <code>cancelled_at</code> time exactly when it is cancelled. The script sets the status and leaves the time, so SQLite refuses it (we ran it: <code>CHECK constraint failed</code>). A more careful script that also clears <code>cancelled_at</code> goes straight through; we ran that too. Nothing in the kit forbids the move itself. The optional lab extension adds a table of allowed transitions and a trigger, so the database refuses every forbidden move, whoever runs it.</p>
+      <p>If the careful script had run, Maya would hold #43 again, and step 5 would then be refused by the rule you add in the lab: one confirmed place per person per event.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 3. KEYS ============ -->
+<section class="block" id="keys">
+  <div class="sechead">
+    <span class="clock">0:27 – 0:50</span>
+    <h2>Idempotency keys, precisely</h2>
+  </div>
+  <p>The server cannot tell a retry from a new press by looking at the request body: both say <code>{"attendee": "Maya"}</code>. So the client gives each attempt a name. An <strong>idempotency key</strong> is a random string the client creates for one attempt and sends, unchanged, with every retry of that attempt. The server stores the answer it gave under that name. When the name comes back, the server sends the stored answer again, a <strong>replay</strong>, instead of doing the work twice.</p>
+  <p>That one sentence hides four decisions. Each has its own test in the lab.</p>
+  <div class="callout key">
+    <span class="label">The four rules</span>
+    <ol>
+      <li><strong>Scope.</strong> One key per reservation attempt, per client. The server stores answers under the pair (client, key), so two phones that happen to pick the same key never see each other's answers.</li>
+      <li><strong>Same key, different request: refuse.</strong> Once the server has booked an attempt or refused it (404 or 409), it keeps a <em>fingerprint</em> of what the attempt asked for (event and attendee). A key that comes back asking for something else gets HTTP 422, and nothing is saved. A malformed request, such as one with an empty name, is rejected before this step, so its key stays free.</li>
+      <li><strong>Same key at the same moment: one reservation.</strong> Two sends of one attempt that overlap must still create at most one reservation. A send that finds its attempt already answered returns that answer, even when that booking is what filled the event.</li>
+      <li><strong>One transaction.</strong> The reservation and the stored answer are committed together, or not at all.</li>
+    </ol>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 800" role="img" aria-label="Flowchart of an idempotent reservation. A request arrives with client, key, event and attendee. Rule 1: is this key known for this client? If yes, rule 2: same fingerprint? If not, refuse with 422. If it is the same request and it was a booking, replay the booking with no check and no payment; if it was a refusal, carry on and try again. Then count the places. If the event is full, rule 3: is a booking for this request stored now? If yes, replay it; if not, refuse with 409. If there is room, pay, then start one transaction. Rule 3 again: is a booking for this request stored now? If yes, roll back and replay it. If not, check places again, insert the reservation, store the booking under client and key, and commit, which returns 201. Rule 4: the insert and the stored booking are in the same transaction. Every look-up that finds the key for a different request answers 422.">
+        <defs>
+          <filter id="w6f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f4-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w6f4-r)">
+          <rect x="40" y="20" width="320" height="58" rx="8" class="s f-card"/>
+          <path d="M200,80 V102" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="106" width="320" height="44" rx="22" class="s f-paper"/>
+          <path d="M362,128 H452" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="456" y="106" width="220" height="44" rx="22" class="s f-paper"/>
+          <path d="M678,128 H736" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="740" y="100" width="200" height="56" rx="8" class="s s-red f-red"/>
+          <path d="M566,152 V186" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="456" y="190" width="220" height="44" rx="22" class="s f-paper"/>
+          <path d="M678,212 H736" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="740" y="184" width="200" height="56" rx="8" class="s s-green f-green"/>
+          <path d="M454,212 H364" class="s" marker-end="url(#w6f4-a)"/>
+          <path d="M200,152 V186" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="190" width="320" height="44" rx="8" class="s f-card"/>
+          <path d="M200,236 V262" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="120" y="266" width="160" height="40" rx="20" class="s f-paper"/>
+          <path d="M282,286 H452" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="456" y="264" width="220" height="44" rx="22" class="s f-paper"/>
+          <path d="M678,286 H736" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="740" y="262" width="200" height="48" rx="8" class="s s-green f-green"/>
+          <path d="M566,310 V336" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="456" y="340" width="220" height="40" rx="8" class="s s-red f-red"/>
+          <path d="M200,308 V332" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="336" width="320" height="40" rx="8" class="s f-card"/>
+          <path d="M200,378 V426" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="20" y="400" width="400" height="388" rx="12" class="s s-dash s-pen"/>
+          <rect x="40" y="430" width="320" height="44" rx="22" class="s f-paper"/>
+          <path d="M362,452 H736" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="740" y="426" width="200" height="52" rx="8" class="s s-green f-green"/>
+          <path d="M200,476 V504" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="508" width="320" height="44" rx="8" class="s f-card"/>
+          <path d="M200,554 V580" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="584" width="320" height="44" rx="8" class="s s-thick f-mark"/>
+          <path d="M200,630 V656" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="40" y="660" width="320" height="42" rx="8" class="s s-thick f-card"/>
+          <path d="M362,681 H736" class="s" marker-end="url(#w6f4-a)"/>
+          <rect x="740" y="656" width="200" height="50" rx="8" class="s f-card"/>
+          <circle cx="362" cy="106" r="13" class="s s-pen f-card"/>
+          <circle cx="676" cy="106" r="13" class="s s-pen f-card"/>
+          <circle cx="676" cy="264" r="13" class="s s-pen f-card"/>
+          <circle cx="362" cy="430" r="13" class="s s-pen f-card"/>
+          <circle cx="420" cy="400" r="13" class="s s-pen f-card"/>
+        </g>
+        <text x="200" y="45" text-anchor="middle">a request arrives</text>
+        <text x="200" y="66" text-anchor="middle" class="t-mono t-2">client · key · event · attendee</text>
+        <text x="200" y="134" text-anchor="middle">key known for this client?</text>
+        <text x="566" y="134" text-anchor="middle">same fingerprint?</text>
+        <text x="407" y="120" text-anchor="middle" class="t-sm">yes</text>
+        <text x="707" y="120" text-anchor="middle" class="t-sm">no</text>
+        <text x="840" y="124" text-anchor="middle" class="t-sm t-red">422: this key was used</text>
+        <text x="840" y="144" text-anchor="middle" class="t-sm t-red">for a different request</text>
+        <text x="578" y="174" class="t-sm">yes</text>
+        <text x="566" y="218" text-anchor="middle">was it a booking?</text>
+        <text x="707" y="204" text-anchor="middle" class="t-sm">yes</text>
+        <text x="840" y="208" text-anchor="middle" class="t-sm">replay the booking</text>
+        <text x="840" y="228" text-anchor="middle" class="t-sm t-2">no check, no payment</text>
+        <text x="409" y="232" text-anchor="middle" class="t-sm t-2">no: try again</text>
+        <text x="212" y="174" class="t-sm">no</text>
+        <text x="200" y="218" text-anchor="middle">count places</text>
+        <text x="200" y="292" text-anchor="middle">full?</text>
+        <text x="367" y="278" text-anchor="middle" class="t-sm">yes</text>
+        <text x="566" y="292" text-anchor="middle">booking stored now?</text>
+        <text x="707" y="278" text-anchor="middle" class="t-sm">yes</text>
+        <text x="840" y="291" text-anchor="middle" class="t-sm">replay the booking</text>
+        <text x="578" y="328" class="t-sm">no</text>
+        <text x="566" y="365" text-anchor="middle" class="t-sm t-red">409: the event is full</text>
+        <text x="212" y="325" class="t-sm">no</text>
+        <text x="200" y="362" text-anchor="middle">pay (~300 ms)</text>
+        <text x="200" y="458" text-anchor="middle">booking stored now?</text>
+        <text x="560" y="444" text-anchor="middle" class="t-sm">yes: another send booked meanwhile</text>
+        <text x="840" y="448" text-anchor="middle" class="t-sm">ROLLBACK,</text>
+        <text x="840" y="468" text-anchor="middle" class="t-sm">replay the booking</text>
+        <text x="212" y="496" class="t-sm">no</text>
+        <text x="200" y="536" text-anchor="middle">check places again · INSERT</text>
+        <text x="200" y="612" text-anchor="middle" class="t-mark">store the booking under (client, key)</text>
+        <text x="200" y="688" text-anchor="middle" class="t-lg">COMMIT</text>
+        <text x="840" y="687" text-anchor="middle">201 · the reservation</text>
+        <text x="440" y="612" class="t-sm t-2">in the same transaction as the INSERT</text>
+        <text x="440" y="500" class="t-sm t-red">key found for a different request: 422</text>
+        <text x="40" y="748" class="t-sm t-pen">one transaction (BEGIN IMMEDIATE … COMMIT):</text>
+        <text x="40" y="766" class="t-sm t-pen">both saved, or neither</text>
+        <text x="362" y="111" text-anchor="middle" class="t-sm t-pen">1</text>
+        <text x="676" y="111" text-anchor="middle" class="t-sm t-pen">2</text>
+        <text x="676" y="269" text-anchor="middle" class="t-sm t-pen">3</text>
+        <text x="362" y="435" text-anchor="middle" class="t-sm t-pen">3</text>
+        <text x="420" y="405" text-anchor="middle" class="t-sm t-pen">4</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.4</b> An idempotent reservation, step by step. The numbered circles mark where each rule lives. Only a stored <em>booking</em> is replayed; a stored refusal for the same request means "try again". Every look-up that finds the key for a different request answers 422 (rule 2), including the two later look-ups. Everything inside the dashed box happens under SQLite's write lock, in one transaction.</figcaption>
+  </figure>
+
+  <p>The same flow as pseudocode. You write the real version in the lab:</p>
+  <pre><code>reserve(event, attendee, client, key):
+    if (client, key) is known:                        # rules 1 and 2
+        refuse with 422 if it was for a different request
+        if it was a booking: return that booking      # no check, no payment
+        (it was a refusal: carry on and try again)
+    count the places
+    if the event is full:
+        if a booking for this request is stored now:  # rule 3: did this attempt
+            return it                                  #   take the last place?
+        refuse with 409: full
+    pay
+    BEGIN IMMEDIATE                                    # take the write lock
+        if a booking for this request is stored now:  # rule 3
+            ROLLBACK; return it
+        check places again; INSERT the reservation
+        store the booking under (client, key)          # rule 4
+    COMMIT; return the booking
+# every look-up that finds the key for a different request answers 422 (rule 2)
+# every refusal also records the key's request, so rule 2 holds after a refusal too</code></pre>
+
+  <h3>Rule 1: what does "one attempt" mean?</h3>
+  <p>The key is chosen by the client, so the client decides what counts as "the same attempt". Get that wrong and the server, doing exactly what it should, gives wrong answers.</p>
+  <div class="callout try">
+    <span class="label">Choose the key (pairs, 8 minutes)</span>
+    <p>The page could fill in <code>Idempotency-Key</code> in four ways:</p>
+    <ol type="a">
+      <li>a new random key for every HTTP request, retries included;</li>
+      <li>one random key per browser, kept forever;</li>
+      <li>the attendee's name plus the event id, for example <code>Maya-3</code>;</li>
+      <li>a new random key each time someone presses <em>Reserve</em>, reused on that press's retry.</li>
+    </ol>
+    <p>For each, predict what a correct server does in three situations: <strong>S1</strong> the answer is lost and the page retries; <strong>S2</strong> Maya cancels her Board Game Night place, then presses <em>Reserve</em> for it again; <strong>S3</strong> Maya books Board Game Night, then presses <em>Reserve</em> for Open Mic. Mark each cell fine or broken, and say what Maya sees.</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: what each key choice does</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Key</th><th>S1 lost answer, retry</th><th>S2 cancel, then book again</th><th>S3 a second event</th></tr></thead>
+          <tbody>
+            <tr><td>(a) per HTTP request</td><td><span class="tag bad">broken</span> the retry is a new attempt: a second place (or, with section 4's rule, "you already have a place")</td><td><span class="tag ok">fine</span></td><td><span class="tag ok">fine</span></td></tr>
+            <tr><td>(b) per browser</td><td><span class="tag ok">fine</span></td><td><span class="tag bad">broken</span> replays the old answer: "You're in! #43", but #43 is cancelled</td><td><span class="tag bad">broken</span> 422: the key was used for Board Game Night</td></tr>
+            <tr><td>(c) name + event</td><td><span class="tag ok">fine</span></td><td><span class="tag bad">broken</span> same as (b): the old, cancelled answer</td><td><span class="tag ok">fine</span></td></tr>
+            <tr><td>(d) per press</td><td><span class="tag ok">fine</span></td><td><span class="tag ok">fine</span> a new press, a new key, a new reservation</td><td><span class="tag ok">fine</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Only (d) matches what a person means by "I pressed once". Option (c) also puts a person's name into a technical identifier; Stripe's documentation advises against using personal data such as email addresses as keys. And look at (b) in S2: the server replays an answer that was true when it was first given and is false now. A replay repeats the old answer; it does not report the current state. That is correct behaviour for a retry, and a good reason never to reuse a key for a new attempt.</p>
+      <p>The kit's page adds one refinement to (d). If both sends of a press get no answer at all, the page cannot know whether Maya has a place, so it keeps that attempt open: her next press for the same event finishes it with the same key, instead of starting a second attempt that could pay again.</p>
+    </div>
+  </details>
+
+  <h3>Rule 2: why refuse, instead of replaying anyway?</h3>
+  <p>With key choice (b), Maya's press for Open Mic arrives with the key already used for Board Game Night. A server that replayed on the key alone would answer "You're in!" with the Board Game Night reservation, and Maya would walk to the wrong room. Comparing a fingerprint of the request turns a silent wrong answer into a loud error that points at the client's bug. The IETF's draft standard for the <code>Idempotency-Key</code> header recommends exactly this answer, HTTP 422. (That draft expired in April 2026 without becoming a standard, so treat it as careful advice, not a rule.)</p>
+
+  <h3>Rule 3: two sends at once</h3>
+  <p>The page's retry does not always wait for the first request to finish. If the phone gives up waiting too early, both sends reach the server while the first is still paying. Both look the key up, both find nothing, both pay. Only the transaction can separate them. This log is a real run of the reference solution with <code>flaky_client.py --impatient</code>, where the phone resends after 0.1 s:</p>
+  <pre><code>23:33:33.902  [Maya · key e15f] checked: 0 of 5 places taken
+23:33:34.003  [Maya · key e15f] checked: 0 of 5 places taken
+23:33:34.207  [Maya · key e15f] payment authorised (hold-10, simulated, nothing charged)
+23:33:34.210  [Maya · key e15f] reservation #237 saved
+23:33:34.309  [Maya · key e15f] payment authorised (hold-11, simulated, nothing charged)
+23:33:34.310  [Maya · key e15f] finished meanwhile by another request: replaying reservation #237</code></pre>
+  <p>The second send took the write lock after the first had committed, looked again, found the stored answer, and replayed it. Maya got one place, and both sends carried the number #237. There is also a safety net underneath: the answers table holds at most one stored booking per (client, key), and a second attempt to store one fails. Without the second look, the second send's attempt to store its answer would fail, and because the answer and the reservation share one transaction, its reservation would be rolled back too. We tried that: one reservation, and an error for the second send instead of the answer. The second look turns that error into the right answer.</p>
+  <p>Two more places need the same care. First, a send can find the event <em>full</em> because its own resend has just taken the last place; before answering "full", it must look the key up once more. Second, whenever a look-up finds an answer, the fingerprint is compared before the answer is replayed: two overlapping sends of one key could carry different requests. Fig 6.4 shows both.</p>
+  <p>Notice the two payment holds, <code>hold-10</code> and <code>hold-11</code>, for one place. Section 6 comes back to that. Notice also that this is one design among several, with a limit worth knowing: if a place frees up while two sends of one attempt overlap, one can be told "full" while the other books. Our design still makes at most one reservation. The IETF draft suggests answering a send that arrives while the first is still running with 409 ("still in progress"), which needs a record of attempts in progress. The agent you will meet in section 5 built a version of it: its resend waits up to 10 seconds, then answers 409.</p>
+
+  <h3>Rule 4: one transaction</h3>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 370" role="img" aria-label="Top, two transactions: the reservation is inserted and committed, then the server crashes before a second transaction stores the answer. Left behind: a reservation with no stored answer, so the retry is treated as new: it books a second place, or, with the unique index from section 4, gets 409. Bottom, one transaction: insert, store the answer and commit together. A crash before the commit saves neither, so the retry books once. A crash after the commit saves both, so the retry gets the stored answer.">
+        <defs>
+          <filter id="w6f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w6f5-r)">
+          <rect x="40" y="62" width="270" height="42" rx="6" class="s f-card"/>
+          <path d="M330,54 L346,78 L334,82 L350,110" class="s s-red s-thick"/>
+          <rect x="370" y="62" width="270" height="42" rx="6" class="s s-dash s-2 f-paper"/>
+          <rect x="40" y="252" width="520" height="42" rx="6" class="s s-green f-green"/>
+          <path d="M500,214 L516,238 L504,242 L520,268" class="s s-red s-thick"/>
+          <path d="M600,214 L616,238 L604,242 L620,268" class="s s-red s-thick"/>
+        </g>
+        <text x="20" y="36" class="t-lg">Two transactions (wrong)</text>
+        <text x="175" y="89" text-anchor="middle" class="t-sm">INSERT reservation · COMMIT</text>
+        <text x="340" y="130" text-anchor="middle" class="t-sm t-red">crash</text>
+        <text x="505" y="89" text-anchor="middle" class="t-sm t-2">store answer · COMMIT</text>
+        <text x="505" y="130" text-anchor="middle" class="t-sm t-2">never happens</text>
+        <text x="40" y="162" class="t-sm t-red">left behind: a reservation with no stored answer</text>
+        <text x="40" y="182" class="t-sm">the retry finds no answer: a second place, or (with the index) a 409</text>
+        <text x="20" y="226" class="t-lg">One transaction (right)</text>
+        <text x="300" y="279" text-anchor="middle" class="t-sm">INSERT reservation · store answer · COMMIT</text>
+        <text x="420" y="322" text-anchor="middle" class="t-sm">crash before COMMIT: neither saved</text>
+        <text x="420" y="342" text-anchor="middle" class="t-sm t-2">the retry books once</text>
+        <text x="700" y="322" text-anchor="middle" class="t-sm">crash after COMMIT: both saved</text>
+        <text x="700" y="342" text-anchor="middle" class="t-sm t-2">the retry gets the answer</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.5</b> Why the answer is stored in the same transaction as the reservation. With two transactions, a failure between them leaves a reservation whose answer was never stored, so the retry is treated as new: without section 4's unique index it books a second place; with it, the retry gets 409 and the phone never learns its number. With one transaction, a failure leaves both or neither. A model of the failure; the lab's test injects exactly this one.</figcaption>
+  </figure>
+  <p>One more choice is worth writing down. Our server stores a record for every answered key, booking or refusal, but <em>replays</em> only bookings. A refused attempt ("the event is full") booked nothing, so its retry is simply tried again and may find a place that has freed up. Its stored record keeps the key bound to its request, so rule 2 holds for refused attempts too. Stripe's API makes the other choice: it replays failed results as well. Both are defensible. What matters is that the team picks one on purpose and tests it; the lab has a test for each half of ours.</p>
+</section>
+
+<!-- ============ 4. CONSTRAINTS ============ -->
+<section class="block" id="constraints">
+  <div class="sechead">
+    <span class="clock">0:50 – 1:05</span>
+    <h2>Let the database say no</h2>
+  </div>
+  <p>Keys do not solve everything. Maya opens Board Game Night in two browser tabs. She presses <em>Reserve</em> in the first, gets her answer, then forgets and presses <em>Reserve</em> in the second. The first attempt has finished, so the second press starts a new attempt with a new key, and by rule 1 it is new. (Both tabs share the browser's storage, so a press in the second tab can reuse the first tab's key while that attempt is still waiting for its answer.) The idempotency key is doing its job: these really are two requests. What is broken is a rule about the data, not about requests: <em>a person holds at most one confirmed place per event</em>. A rule about data belongs in the database.</p>
+  <pre><code>CREATE UNIQUE INDEX one_active_place_per_person
+    ON reservations (event_id, attendee)
+    WHERE status = 'confirmed';</code></pre>
+  <p>A <strong>unique index</strong> makes the database refuse a second row with the same values in the listed columns. The <code>WHERE</code> clause makes it a <strong>partial</strong> index: only rows that match it are in the index at all. Cancelled rows are left out, so Maya can cancel and book again. Without the <code>WHERE</code>, one cancelled reservation would block her from that event forever. SQLite has supported partial indexes since version 3.8.0 (2013).</p>
+  <p>When the second tab's <code>INSERT</code> hits the index, SQLite raises an error inside the transaction, the transaction rolls back, and the app answers 409 <em>You already have a place at this event</em>. The refusal does not depend on the app remembering to check. A script, a future endpoint, or an agent fixing data by hand hits the same wall.</p>
+
+  <p>The kit already has two other rules in the database, written as <strong>CHECK constraints</strong>: a condition every row must satisfy.</p>
+  <pre><code>status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
+CHECK ((status = 'cancelled') = (cancelled_at IS NOT NULL))</code></pre>
+  <p>One rule cannot be written as a CHECK. Capacity is a count across many rows, and SQLite's documentation is plain: <q>The expression of a CHECK constraint may not contain a subquery.</q> In this app, "confirmed places ≤ capacity" stays in the application, enforced by Patch B's second check under the write lock. A trigger could hold it inside SQLite, because SQLite lets only one writer in at a time, but that would be a second mechanism to design and test, and the kit does not need one. Knowing which rules the database can hold, and how, is part of the design.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 920 530" role="img" aria-label="Three stacked layers. The browser: button disabled while waiting, one key per attempt. The app: check capacity again under the write lock, the four key rules, cancel only from confirmed. The database: status is confirmed or cancelled, cancelled goes with a cancellation time, one confirmed place per person per event, one stored answer per client and key, a reservation's event exists. On the left, writes enter at different depths: the page at the top, curl or an old client at the app, an admin script or migration straight into the database. Only the database sees every write, and SQLite checks foreign keys only on connections that turn them on.">
+        <defs>
+          <filter id="w6f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w6f6-r)">
+          <rect x="200" y="24" width="700" height="104" rx="10" class="s f-card"/>
+          <rect x="200" y="156" width="700" height="124" rx="10" class="s f-card"/>
+          <rect x="200" y="308" width="700" height="170" rx="10" class="s s-thick f-pen"/>
+          <rect x="10" y="56" width="160" height="44" rx="8" class="s s-thin f-paper"/>
+          <rect x="10" y="196" width="160" height="56" rx="8" class="s s-thin f-paper"/>
+          <rect x="10" y="366" width="160" height="56" rx="8" class="s s-thin f-paper"/>
+          <path d="M172,78 H196" class="s" marker-end="url(#w6f6-a)"/>
+          <path d="M172,224 H196" class="s" marker-end="url(#w6f6-a)"/>
+          <path d="M172,394 H196" class="s" marker-end="url(#w6f6-a)"/>
+          <path d="M870,130 V152" class="s" marker-end="url(#w6f6-a)"/>
+          <path d="M870,282 V304" class="s" marker-end="url(#w6f6-a)"/>
+        </g>
+        <text x="220" y="54" class="t-lg">Browser (the page)</text>
+        <text x="220" y="84" class="t-sm">· button disabled while waiting (Patch A)</text>
+        <text x="220" y="108" class="t-sm">· one key per attempt, the same key on the retry</text>
+        <text x="220" y="186" class="t-lg">App (reservations.py)</text>
+        <text x="220" y="214" class="t-sm">· capacity: check again under the write lock (Patch B)</text>
+        <text x="220" y="238" class="t-sm">· the four key rules</text>
+        <text x="220" y="262" class="t-sm">· cancel only from confirmed (the UPDATE's guard)</text>
+        <text x="220" y="338" class="t-lg">Database (SQLite)</text>
+        <text x="220" y="366" class="t-sm">· status is confirmed or cancelled (CHECK)</text>
+        <text x="220" y="390" class="t-sm">· cancelled goes with a cancellation time (CHECK)</text>
+        <text x="220" y="414" class="t-sm">· one confirmed place per person per event (partial UNIQUE index)</text>
+        <text x="220" y="438" class="t-sm">· one stored answer per (client, key) (PRIMARY KEY)</text>
+        <text x="220" y="462" class="t-sm">· a reservation's event exists (FOREIGN KEY, if the connection turns it on)</text>
+        <text x="90" y="83" text-anchor="middle" class="t-sm">the page</text>
+        <text x="90" y="220" text-anchor="middle" class="t-sm">curl, a script,</text>
+        <text x="90" y="238" text-anchor="middle" class="t-sm">an old client</text>
+        <text x="90" y="390" text-anchor="middle" class="t-sm">an admin script,</text>
+        <text x="90" y="408" text-anchor="middle" class="t-sm">a migration</text>
+        <text x="90" y="40" text-anchor="middle" class="t-sm t-2">writes enter here</text>
+        <text x="220" y="510" class="t-sm t-pen">only the bottom layer sees every write · capacity stays in the app: a CHECK cannot count rows</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.6</b> Where each promise is enforced. Writes enter at different depths: the page passes through every layer, a script or an old client skips the page, and an admin script or a migration skips the app. Put a rule in the database whenever the database can express it plainly; keep in the app what it cannot, or what would need extra machinery such as a trigger. One catch: SQLite checks foreign keys only on connections that run <code>PRAGMA foreign_keys = ON</code>. The kit's <code>db.connect()</code> does; a script that opens the file with plain <code>sqlite3.connect()</code> does not, so scripts must use the helper.</figcaption>
+  </figure>
+
+  <h3>The key and the index do different jobs</h3>
+  <p>It is tempting to think the unique index makes the key unnecessary: after all, it also stops the lost-answer duplicate. We measured each combination with <code>flaky_client.py</code> (3 runs × 3 trials per cell) and two tabs pressed one after the other:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Build</th><th>Lost answer, retry with the same key</th><th>Old page, no key</th><th>Two tabs, two keys</th></tr></thead>
+      <tbody>
+        <tr><td>Kit: neither</td><td><span class="tag bad">duplicate</span> 9 of 9</td><td><span class="tag bad">duplicate</span> 9 of 9</td><td><span class="tag bad">2 places</span></td></tr>
+        <tr><td>Key only</td><td><span class="tag ok">ok</span> 9 of 9</td><td><span class="tag bad">duplicate</span> 9 of 9</td><td><span class="tag bad">2 places</span></td></tr>
+        <tr><td>Index only</td><td><span class="tag maybe">confused</span> 9 of 9</td><td><span class="tag maybe">confused</span> 9 of 9</td><td><span class="tag ok">1 place</span> second tab: 409</td></tr>
+        <tr><td>Both (the lab's goal)</td><td><span class="tag ok">ok</span> 9 of 9</td><td><span class="tag maybe">confused</span> 9 of 9</td><td><span class="tag ok">1 place</span> second tab: 409</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><em>Confused</em> means Maya holds exactly one place, but the retry was told <em>409: You already have a place</em>, so her phone never learned its reservation number, and the server authorised her payment twice. The index protects the data. The key protects the conversation: a retry of an attempt that has already finished gets the same answer and does not pay again. (Sends that overlap can still both pay; section 6.) You need both. With no key at all, nothing can make the answer right, because the server has no way to recognise the repeat.</p>
+
+  <div class="callout try">
+    <span class="label">Quick check (pairs, 3 minutes)</span>
+    <p>For each promise, pick the lowest layer that can enforce it in AfterHours: (1) a person holds at most one confirmed place per event; (2) confirmed places ≤ capacity; (3) a retry of one press gets the same answer; (4) a reservation's status is one of two words; (5) a cancelled reservation never becomes confirmed again.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answers</summary>
+    <div class="inner">
+      <p>(1) Database: the partial unique index. (2) App, in this kit, under the write lock: a CHECK cannot count rows. A trigger could move it into SQLite; that is a design choice to test like any other. (3) App, backed by the database's primary key on (client, key). (4) Database: a CHECK. (5) App today, through the UPDATE's guard, which only a request through the app respects. The database can hold it too, with a table of allowed transitions and a trigger; that is the optional lab extension.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 5. TESTING ============ -->
+<section class="block" id="testing">
+  <div class="sechead">
+    <span class="clock">1:05 – 1:15</span>
+    <h2>Force the order in a test</h2>
+  </div>
+  <p>Week 1's original tests, in <code>tests/test_basics.py</code>, sent one request, waited for the answer, then sent the next. Tests like that can only ever produce the safe orders. Rule 3 is about two sends that overlap, so its test has to make them overlap, and in the dangerous order: both sends look the key up before either one saves. Week 1's <code>tests/helpers.py</code> already does this. <code>hold_everyone_at_payment</code> replaces the payment step with a gate where each request waits until the others arrive, and <code>at_the_same_time</code> starts them together.</p>
+  <pre><code>def test_two_requests_with_the_same_key_at_once_make_one_reservation(client, monkeypatch):
+    event = event_by_title(client, BOARD_GAMES)
+    gate = hold_everyone_at_payment(monkeypatch, people=2)  # both look the key up before either saves
+
+    outcomes = at_the_same_time(
+        lambda send: reservations.reserve(event["id"], "Maya", client_id="maya-phone", key="k-1"),
+        ["first send", "resend"],
+    )
+
+    assert gate.all_arrived, "the two sends did not meet at the payment gate: order not forced"
+    assert all(isinstance(r, dict) for r in outcomes.values()), outcomes
+    assert outcomes["first send"]["id"] == outcomes["resend"]["id"]
+    assert rows_for(event, "Maya") == 1</code></pre>
+  <p class="handnote">From tests/test_retries.py in the lab kit.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 480" role="img" aria-label="Two lanes, first send and resend, time running down. Both look the key up and find nothing, and both check places, before a gate at the payment step. The gate holds each until both arrive. After the gate, the first send takes the lock, inserts reservation 228, stores the answer and commits, while the resend waits for the lock. Then the resend takes the lock, looks again, finds the answer and replays 228. Result: one reservation, and both sends answer 228. Without the gate, the resend might look after the commit, and the test would pass by luck.">
+        <defs>
+          <filter id="w6f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w6f7-r)">
+          <rect x="190" y="20" width="180" height="40" rx="8" class="s f-card"/>
+          <rect x="530" y="20" width="180" height="40" rx="8" class="s f-card"/>
+          <path d="M280,62 V428" class="s s-2 s-dash"/>
+          <path d="M620,62 V428" class="s s-2 s-dash"/>
+          <rect x="190" y="76" width="180" height="32" rx="6" class="s s-thin f-paper"/>
+          <rect x="530" y="76" width="180" height="32" rx="6" class="s s-thin f-paper"/>
+          <rect x="190" y="122" width="180" height="32" rx="6" class="s s-thin f-paper"/>
+          <rect x="530" y="122" width="180" height="32" rx="6" class="s s-thin f-paper"/>
+          <path d="M180,184 H790" class="s s-thick s-pen"/>
+          <rect x="190" y="210" width="180" height="32" rx="6" class="s s-thin f-card"/>
+          <rect x="190" y="252" width="180" height="32" rx="6" class="s s-thin f-mark"/>
+          <rect x="530" y="210" width="180" height="84" rx="6" class="s s-thin s-dash f-paper"/>
+          <rect x="530" y="318" width="180" height="32" rx="6" class="s s-thin f-card"/>
+          <rect x="530" y="360" width="180" height="32" rx="6" class="s s-green f-green"/>
+        </g>
+        <text x="280" y="46" text-anchor="middle" class="t-lg">first send</text>
+        <text x="620" y="46" text-anchor="middle" class="t-lg">resend</text>
+        <text x="280" y="97" text-anchor="middle" class="t-sm">look up key: none</text>
+        <text x="620" y="97" text-anchor="middle" class="t-sm">look up key: none</text>
+        <text x="280" y="143" text-anchor="middle" class="t-sm">check places: room</text>
+        <text x="620" y="143" text-anchor="middle" class="t-sm">check places: room</text>
+        <text x="20" y="180" class="t-pen">the gate:</text>
+        <text x="20" y="200" class="t-sm t-pen">both wait here</text>
+        <text x="280" y="231" text-anchor="middle" class="t-sm">lock · INSERT #228</text>
+        <text x="280" y="273" text-anchor="middle" class="t-sm t-mark">store answer · COMMIT</text>
+        <text x="620" y="256" text-anchor="middle" class="t-sm t-2">waits for the lock</text>
+        <text x="620" y="339" text-anchor="middle" class="t-sm">lock · look again: found</text>
+        <text x="620" y="381" text-anchor="middle" class="t-sm t-green">replay #228</text>
+        <text x="20" y="318" class="t-sm t-2">without the gate,</text>
+        <text x="20" y="336" class="t-sm t-2">the resend may look</text>
+        <text x="20" y="354" class="t-sm t-2">after the commit,</text>
+        <text x="20" y="372" class="t-sm t-2">and the test passes</text>
+        <text x="20" y="390" class="t-sm t-2">by luck</text>
+        <text x="450" y="462" text-anchor="middle" class="t-lg t-green">one reservation · both sends answer #228</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.7</b> Forcing the dangerous order. The gate from Week 1's <code>hold_everyone_at_payment</code> makes both sends look up the key before either saves. It waits at most 2 seconds, so the lab's version reports whether both really arrived, and the test fails if they did not, instead of passing by luck. Which send wins the lock can vary; the assertions hold either way.</figcaption>
+  </figure>
+
+  <p>A forced order tests the history you thought of. A <strong>stress run</strong> tests the timings you didn't: <code>flaky_client.py</code> and <code>race.py</code> send real requests with real delays and count what happened. The two kinds of evidence answer different questions. The forced test is deterministic and fails the same way every time. The stress run can surprise you, but a green run is an observation, not a proof: 9 of 9 trials without a duplicate says nothing about the tenth ordering that no trial happened to produce. Reading R3 shows a tool that explores every ordering of a model.</p>
+
+  <h3>Do the tests catch wrong fixes?</h3>
+  <p>Week 5 asked you to test the tests. We wrote thirteen plausible wrong fixes, each a small edit to the reference solution, and ran the lab's tests against each one (<code>solutions/wrong_fixes.py</code>). Every wrong fix was caught:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Wrong fix</th><th>Caught by</th></tr></thead>
+      <tbody>
+        <tr><td>Key looked up only before paying (no second look)</td><td>two requests with the same key at once; two sends of one key for different people</td></tr>
+        <tr><td>No look-up before answering "full"</td><td>a send that finds the last place taken by its own attempt</td></tr>
+        <tr><td>The look-up inside the transaction replays without the fingerprint check</td><td>two sends of one key for different people</td></tr>
+        <tr><td>Answer stored after <code>COMMIT</code>, in its own transaction</td><td>the reservation and its stored answer are saved together</td></tr>
+        <tr><td>Replay without comparing the fingerprint</td><td>same key for a different request, or a different event; two sends of one key for different people</td></tr>
+        <tr><td>Fingerprint ignores the event</td><td>same key for a different event</td></tr>
+        <tr><td>Keys looked up without the client</td><td>keys belong to one client</td></tr>
+        <tr><td>Keys remembered only after a booking, not after a refusal</td><td>a key refused once cannot be reused for a different request; two refusals with one key at once</td></tr>
+        <tr><td>A refusal's binding recorded without comparing an existing one</td><td>two refusals with one key at once</td></tr>
+        <tr><td>A stored refusal replayed as if it were a booking</td><td>a retry of a refused attempt is tried again</td></tr>
+        <tr><td>Unique index on every row, cancelled ones included</td><td>cancel, then book again; the database refuses a second active place</td></tr>
+        <tr><td>Unique index, but its error is not turned into a 409</td><td>one person cannot hold two places; two tabs at the same moment</td></tr>
+        <tr><td>No idempotency at all (index only)</td><td>eight of the retry tests</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Five of the lab's tests already pass on the kit. Four catch fixes that go too far: <em>keys belong to one client</em>, <em>cancel, then book again</em>, <em>a retry of a refused attempt is tried again</em>, and <em>a request without a key still works</em>; the table shows the first three doing that job. The fifth, <em>two refusals with one key at once</em>, checks code the kit already provides.</p>
+  <p>The tests still only force the orders someone thought of. Our own first reference solution passed every test we had, and an independent review of this package found an order we had missed: the first send looks the key up, finds nothing, and pauses; its resend books the last place; the first send then sees a full event and answers 409, although its own attempt holds the place. The fix is the look-up before answering "full" in Fig 6.4, and the lab now has a test that pauses a send at exactly that point. Two more review rounds found further gaps: a key refused once could be reused for another request, even by two refusals at the same moment; the page could forget, or strand, an attempt whose answers were lost; two forced-order tests could time out and pass by luck; and our own flowchart replayed refusals. Each was reproduced, fixed and given a test.</p>
+
+  <h3>An agent's fix, under the same checks</h3>
+  <p>We gave the bug report to a coding agent (a Claude Code subagent running Claude Opus 5.5) as a task contract, on a copy of the app from before the lab's scaffolding: no helper module, no answers table, no lab tests, and no mention of the four rules. Its commit, its unedited report and our checks are in <code>lectures/06-state-and-concurrency/demo/agent-retry-fix/</code>.</p>
+  <p>It built a more elaborate design than ours: the first request <em>claims</em> the key before doing anything, a resend that arrives while the claim is open waits up to 10 seconds, and a claim abandoned for 30 seconds can be taken over. Its report listed the rules it guaranteed, how it had checked each, and what it did not handle.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Our check</th><th>Result on the agent's fix</th></tr></thead>
+      <tbody>
+        <tr><td>Its own 28 tests, 3 runs</td><td><span class="tag ok">pass</span></td></tr>
+        <tr><td>Its claim: 9 of its 15 new tests fail on the old code</td><td><span class="tag ok">verified</span> 9 failed, 6 passed</td></tr>
+        <tr><td><code>flaky_client.py</code>: lost answer, and impatient resend (3 runs × 3 trials each)</td><td><span class="tag ok">ok</span> 9 of 9, and 9 of 9</td></tr>
+        <tr><td>Our tests for rules 1–4 (the function-level ones adapted to its code)</td><td><span class="tag ok">pass</span> 8 of 8, 3 runs</td></tr>
+        <tr><td><code>race.py</code> and <code>rush.py</code></td><td><span class="tag ok">kept</span> 10 of 10; 20 × 201, median 0.32 s</td></tr>
+        <tr><td>One confirmed place per person (two tabs)</td><td><span class="tag bad">2 places</span> not in the task; its report did note that a second press, with a new key, can become a second reservation</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>This is a good result on everything we checked, and it is worth being exact about why we can say so. We believed it because independent checks passed, not because the report was confident. The same second review also looked inside the agent's lease takeover and found a check-then-act race there: if a buggy client reuses one key for two people, a failed first send and a stalled request older than the 30-second lease can leave Sam's stored attempt holding Maya's reservation, which Sam's retry then receives. We reproduced it (<code>demo/agent-retry-fix/takeover_race_repro.py</code>). None of our checks forced that order; passing them was evidence about the orders they forced, and no more. The fix is also larger: 304 new lines of app code against the reference's 227 (which include the unique index), plus 286 lines of tests. And it made product decisions nobody asked for: it stores and replays "the event is full", so a retry stays refused even after a place frees up, and a waiting resend occupies a server thread for up to 10 seconds. Each decision is defensible. Each one is yours to accept or reject before you merge.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A test for a concurrency rule has to create the concurrency, in the order that breaks things.</strong> Then the same tests judge your fix, a teammate's, and an agent's.</p>
+  </div>
+</section>
+
+<!-- ============ 6. COMPENSATION ============ -->
+<section class="block" id="compensation">
+  <div class="sechead">
+    <span class="clock">1:15 – 1:25</span>
+    <h2>Undo what a rollback can't</h2>
+  </div>
+  <p>Week 1 left one more item open: Sam loses the last place after his payment was authorised. Today's log added two more cases, a resend that paid before it replayed (<code>hold-10</code> and <code>hold-11</code> for one place) and a second tab that paid before the index refused it. In each case a hold was placed and no new place was booked.</p>
+  <p>Patch B's <code>ROLLBACK</code> cannot help. A database transaction undoes the writes made inside it, in that database. The payment provider is outside: the hold was placed by a separate call, before the transaction even began. The only way back is a new action that cancels the effect of the old one, here <code>release(hold)</code>. That new action is called <strong>compensation</strong>.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 400" role="img" aria-label="Three lanes: Sam's request in reserve(), the database, and the simulated payment provider. First, authorise places hold-2 at the provider. Then Sam's request begins a transaction and checks again: 40 of 40, full. ROLLBACK undoes the database's writes, but cannot reach the hold at the provider. Then Sam's request calls release on hold-2, the compensation, and the hold is released. Sam gets 409, full. Releasing twice changes nothing, so the release is safe to retry.">
+        <defs>
+          <filter id="w6f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w6f8-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+          <marker id="w6f8-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+        </defs>
+        <g filter="url(#w6f8-r)">
+          <rect x="70" y="20" width="200" height="42" rx="8" class="s f-card"/>
+          <rect x="370" y="20" width="160" height="42" rx="8" class="s f-card"/>
+          <rect x="640" y="20" width="220" height="42" rx="8" class="s f-card"/>
+          <path d="M170,64 V350" class="s s-2 s-dash"/>
+          <path d="M450,64 V350" class="s s-2 s-dash"/>
+          <path d="M750,64 V350" class="s s-2 s-dash"/>
+          <path d="M172,100 H684" class="s" marker-end="url(#w6f8-a)"/>
+          <rect x="688" y="84" width="124" height="32" rx="6" class="s f-mark"/>
+          <path d="M172,160 H444" class="s" marker-end="url(#w6f8-a)"/>
+          <rect x="392" y="172" width="116" height="30" rx="6" class="s s-thin f-paper"/>
+          <path d="M172,226 H444" class="s" marker-end="url(#w6f8-a)"/>
+          <path d="M458,226 H590" class="s s-red s-dash" marker-end="url(#w6f8-ar)"/>
+          <path d="M600,204 V250" class="s s-thick s-red"/>
+          <path d="M172,294 H684" class="s s-green s-thick" marker-end="url(#w6f8-ag)"/>
+          <rect x="688" y="278" width="124" height="32" rx="6" class="s s-green f-green"/>
+          <path d="M168,340 H40" class="s" marker-end="url(#w6f8-a)"/>
+        </g>
+        <text x="170" y="47" text-anchor="middle">Sam's request</text>
+        <text x="450" y="47" text-anchor="middle">Database</text>
+        <text x="750" y="47" text-anchor="middle">Payments (simulated)</text>
+        <text x="300" y="92" text-anchor="middle" class="t-sm">authorise</text>
+        <text x="750" y="105" text-anchor="middle" class="t-sm t-mark">hold-2 placed</text>
+        <text x="300" y="152" text-anchor="middle" class="t-sm">BEGIN · check again</text>
+        <text x="450" y="192" text-anchor="middle" class="t-sm">40 of 40: full</text>
+        <text x="300" y="218" text-anchor="middle" class="t-sm">ROLLBACK</text>
+        <text x="620" y="232" class="t-sm t-red">ROLLBACK</text>
+        <text x="620" y="250" class="t-sm t-red">stops here</text>
+        <text x="310" y="286" text-anchor="middle" class="t-sm t-green">release(hold-2): compensation</text>
+        <text x="750" y="299" text-anchor="middle" class="t-sm t-green">released</text>
+        <text x="104" y="332" text-anchor="middle" class="t-sm">409 full</text>
+        <text x="450" y="384" text-anchor="middle" class="t-sm t-2">releasing twice changes nothing, so the release itself is safe to retry</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.8</b> Compensation in one picture. <code>ROLLBACK</code> undoes the database's part of Sam's request. The hold at the payment provider needs its own undo, a new call that releases it. The kit's payments are a simulation; nothing is ever charged.</figcaption>
+  </figure>
+
+  <p>Two points carry over from the rest of today.</p>
+  <ul>
+    <li><strong>A compensation gets retried too.</strong> If the call to release the hold loses its answer, the server will try again. So the release must itself be idempotent: releasing a released hold changes nothing. The kit's simulated <code>payments.release()</code> works that way.</li>
+    <li><strong>Every outside call is its own retry problem.</strong> Our payment call is not idempotent either: a retried authorisation would place a second hold. Payment APIs such as Stripe's let you pass an idempotency key for this reason; Stripe's documentation says all its <code>POST</code> requests accept one.</li>
+  </ul>
+  <p>Releasing holds is an optional extension in the lab. Reading R1 goes further: why "exactly once" is a promise about effects, and never about messages.</p>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Maya's phone sent a reservation with key K and got no answer. List the three things that may have happened on the server, and what a correct server answers to the retry with key K in each case.</li>
+        <li>Name one AfterHours promise the database enforces and one the application enforces. Why can't a CHECK constraint enforce the second one, and what else could?</li>
+        <li>Name one thing you are still unsure about after today.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 7</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 30 minutes</p>
+  <h2>Beyond one server</h2>
+  <p>The lecture stayed with one app and one database. These four readings follow the same ideas further: into networks that lose messages, clocks that disagree, a company that checks every history of its designs, and an accident where software became the last line of defence. Read them before the lab.</p>
+</div>
+
+<section class="block" id="exactly-once">
+  <div class="sechead"><span class="clock">R1</span><h2>Exactly once is a promise about effects</h2></div>
+  <p>A sender that gets no answer has two choices. It can give up, and then the work happened <em>at most once</em>: maybe zero times. Or it can resend until an answer arrives, and then the work happened <em>at least once</em>: maybe twice. (Resending only gets there if the network and the server eventually let a request through.) Nothing the sender can choose guarantees that the work happens exactly once, for the reason Maya's phone met at +316 ms: the sender cannot tell a lost request from a lost answer.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 380" role="img" aria-label="Three rows. At most once: the phone sends once, the answer is lost, and the phone cannot tell whether Maya is booked. At least once: the phone resends after a lost answer, and the server books twice. At least once with a server that recognises the repeat: the phone resends with the same key, the server replays, and there is exactly one place.">
+        <defs>
+          <filter id="w6f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w6f9-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+        </defs>
+        <g filter="url(#w6f9-r)">
+          <rect x="40" y="52" width="90" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="52" width="130" height="44" rx="8" class="s f-card"/>
+          <path d="M132,64 H536" class="s" marker-end="url(#w6f9-a)"/>
+          <path d="M536,84 H300" class="s s-red s-dash"/>
+          <path d="M280,76 l16,16 M296,76 l-16,16" class="s s-red s-thick"/>
+          <rect x="40" y="160" width="90" height="70" rx="8" class="s f-card"/>
+          <rect x="540" y="160" width="130" height="70" rx="8" class="s f-card"/>
+          <path d="M132,170 H536" class="s" marker-end="url(#w6f9-a)"/>
+          <path d="M536,186 H300" class="s s-red s-dash"/>
+          <path d="M280,178 l16,16 M296,178 l-16,16" class="s s-red s-thick"/>
+          <path d="M132,208 H536" class="s" marker-end="url(#w6f9-a)"/>
+          <path d="M536,222 H136" class="s" marker-end="url(#w6f9-a)"/>
+          <rect x="40" y="290" width="90" height="70" rx="8" class="s f-card"/>
+          <rect x="540" y="290" width="130" height="70" rx="8" class="s s-green f-green"/>
+          <path d="M132,300 H536" class="s" marker-end="url(#w6f9-a)"/>
+          <path d="M536,316 H300" class="s s-red s-dash"/>
+          <path d="M280,308 l16,16 M296,308 l-16,16" class="s s-red s-thick"/>
+          <path d="M132,338 H536" class="s" marker-end="url(#w6f9-a)"/>
+          <path d="M536,352 H136" class="s s-green" marker-end="url(#w6f9-ag)"/>
+        </g>
+        <text x="20" y="36" class="t-sm t-pen">At most once: send, never resend</text>
+        <text x="85" y="79" text-anchor="middle" class="t-sm">phone</text>
+        <text x="605" y="79" text-anchor="middle" class="t-sm">server</text>
+        <text x="700" y="70" class="t-sm t-red">booked or not?</text>
+        <text x="700" y="90" class="t-sm t-2">the phone can't tell</text>
+        <text x="20" y="144" class="t-sm t-pen">At least once: resend until an answer arrives</text>
+        <text x="85" y="200" text-anchor="middle" class="t-sm">phone</text>
+        <text x="605" y="200" text-anchor="middle" class="t-sm">server</text>
+        <text x="146" y="202" class="t-sm t-2">resend</text>
+        <text x="700" y="190" class="t-sm t-red">2 places</text>
+        <text x="700" y="210" class="t-sm t-2">for 1 press</text>
+        <text x="20" y="274" class="t-sm t-pen">At least once, to a server that recognises the repeat (a key)</text>
+        <text x="85" y="330" text-anchor="middle" class="t-sm">phone</text>
+        <text x="605" y="322" text-anchor="middle" class="t-sm">server</text>
+        <text x="605" y="342" text-anchor="middle" class="t-sm t-2">+ stored answers</text>
+        <text x="146" y="332" class="t-sm t-2">same key</text>
+        <text x="700" y="320" class="t-sm t-green">1 place,</text>
+        <text x="700" y="340" class="t-sm t-green">the same answer twice</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.9</b> Three delivery promises. The network can only offer the first two. "Exactly once" is something the receiver builds on top of the second, by recognising repeats. A model, not a measurement.</figcaption>
+  </figure>
+  <p>What real systems promise instead is an exactly-once <em>effect</em>: keep resending until the work is confirmed, and make the processing idempotent so a repeat changes nothing. The promise has two halves of different strength. "Never twice" holds in every history. "At least once" holds only if the network comes back before the client gives up and before the server forgets the key. Your reservation endpoint after the lab guarantees the first half; the page's single retry gives the second half one extra chance. Three details decide how well the promise holds in practice.</p>
+  <ul>
+    <li><strong>How long keys live.</strong> A server cannot keep every key forever. Stripe's API documentation says keys can be removed once they are at least 24 hours old, and a key reused after that is treated as a new request. A retry that arrives after its key was forgotten is a new booking. So the key's lifetime must be longer than any client will keep retrying. The kit keeps keys forever, which the agent in section 5 also pointed out.</li>
+    <li><strong>What is replayed.</strong> Our reference stores a record for bookings and for refusals, but replays only bookings; a refused request is tried again. Stripe stores results whether they succeed or fail, even server errors, and replays them all. Either choice is defensible if it is written down and tested.</li>
+    <li><strong>Every hop is its own problem.</strong> An idempotent reservation endpoint does not make the payment call behind it idempotent, or the confirmation email after it. Each call that leaves your process needs its own key, or its own way to recognise a repeat. The same holds for compensations, like releasing a hold: they are retried too.</li>
+  </ul>
+</section>
+
+<section class="block" id="clocks">
+  <div class="sechead"><span class="clock">R2</span><h2>Clocks and the order of events</h2></div>
+  <p>Lecture 1's log showed Maya's and Sam's checks in the same millisecond, and its caption warned that sharing a millisecond does not make two events simultaneous. Those timestamps came from one clock on one laptop. As soon as a system runs on several machines, each with its own clock, timestamps become worse evidence of order: clocks drift, and a message can appear to arrive before it was sent.</p>
+  <p>In 1978 Leslie Lamport published "Time, Clocks, and the Ordering of Events in a Distributed System" in <em>Communications of the ACM</em>. Its introduction uses a familiar example: <q>in an airline reservation system we specify that a request for a reservation should be granted if it is made before the flight is filled. However, we will see that this concept must be carefully reexamined when considering events in a distributed system.</q> His answer was to define order without clocks. Event <em>a</em> <strong>happened before</strong> event <em>b</em> if they are in the same process and <em>a</em> came first, or if <em>a</em> sends a message and <em>b</em> receives it, or if a chain of such steps leads from <em>a</em> to <em>b</em>. When neither happened before the other, the two events are <strong>concurrent</strong>: <q>it is sometimes impossible to say that one of two events occurred first.</q></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 420" role="img" aria-label="Illustrative space-time diagram with server A and server B, time running down. Server B's clock runs 50 milliseconds slow. A saves reservation 228 at wall time .500, logical clock 4, then sends a message to B at .510, logical clock 5. B receives it at its wall time .470, logical clock 6. An unrelated event on B at .455, logical clock 2, is concurrent with A's save. Sorted by wall clock, B received the message before A sent it; the logical clocks keep the send before the receive.">
+        <defs>
+          <filter id="w6f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w6f10-r)">
+          <rect x="170" y="20" width="160" height="40" rx="8" class="s f-card"/>
+          <rect x="570" y="20" width="160" height="40" rx="8" class="s f-card"/>
+          <path d="M250,62 V330" class="s s-2 s-dash"/>
+          <path d="M650,62 V330" class="s s-2 s-dash"/>
+          <circle cx="250" cy="130" r="7" class="s f-ink"/>
+          <circle cx="250" cy="180" r="7" class="s f-ink"/>
+          <circle cx="650" cy="140" r="7" class="s f-ink"/>
+          <circle cx="650" cy="270" r="7" class="s f-ink"/>
+          <path d="M256,184 L642,266" class="s" marker-end="url(#w6f10-a)"/>
+          <path d="M258,131 L642,139" class="s s-thin s-dash s-pen"/>
+        </g>
+        <text x="250" y="46" text-anchor="middle">server A</text>
+        <text x="650" y="46" text-anchor="middle">server B</text>
+        <text x="664" y="86" class="t-sm t-2">clock runs 50 ms slow</text>
+        <text x="40" y="104" class="t-sm t-2">wall clock</text>
+        <text x="40" y="135" class="t-mono t-2">.500</text>
+        <text x="236" y="135" text-anchor="end" class="t-sm">save #228 · L 4</text>
+        <text x="40" y="185" class="t-mono t-2">.510</text>
+        <text x="236" y="185" text-anchor="end" class="t-sm">send to B · L 5</text>
+        <text x="664" y="145" class="t-sm">unrelated event · L 2</text>
+        <text x="830" y="145" class="t-mono t-2">.455</text>
+        <text x="830" y="112" class="t-sm t-2">wall clock</text>
+        <text x="664" y="275" class="t-sm">receive · L 6</text>
+        <text x="830" y="275" class="t-mono t-red">.470</text>
+        <text x="450" y="118" text-anchor="middle" class="t-sm t-pen">concurrent: neither could affect the other</text>
+        <text x="40" y="370" class="t-sm t-red">by wall clock: B received at .470, before A sent at .510</text>
+        <text x="40" y="396" class="t-sm t-green">by logical clock: send 5 &lt; receive 6, cause before effect</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.10</b> Illustrative, not a real trace. Server B's clock runs 50 ms slow, so ordering the two logs by wall-clock time puts a message's arrival before its sending. Lamport's logical clocks (the L numbers) cannot do that: a receiver always moves its counter past the number carried in the message.</figcaption>
+  </figure>
+  <p>The paper then gives a simple rule for <strong>logical clocks</strong>. Each process keeps a counter and increases it between events. Every message carries its sender's counter, and the receiver sets its own counter above that number. The result is Lamport's clock condition: if <em>a</em> happened before <em>b</em>, then <em>a</em>'s number is smaller than <em>b</em>'s. (The reverse does not hold: a smaller number does not prove anything happened first.)</p>
+  <p>AfterHours never asks a clock who got the last place. SQLite's single write lock puts every commit into one order, and each request decides inside that order. Lamport's own note on the paper, on his website, makes the link to today's first half: he wrote it to show how a set of computers can act like one <em>state machine</em> by agreeing on a single order of requests, and he remarks that few readers noticed the paper said anything about state machines.</p>
+</section>
+
+<section class="block" id="amazon">
+  <div class="sechead"><span class="clock">R3</span><h2>Checking every history: formal methods at Amazon</h2></div>
+  <p>Lecture 1's strip exercise counted the orders in which Maya's and Sam's three steps can interleave: 20, of which 18 oversell. Sequential tests produce only the 2 safe orders. Today's forced test picks one bad order on purpose. A stress run samples whatever orders the timing happens to produce. None of them looks at all 20.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 420" role="img" aria-label="A four by four grid of points. Moving right is one of Maya's steps: check, pay, save. Moving down is one of Sam's steps. Every path from the top-left start to the bottom-right end is one order of the six steps: 20 paths. The two green paths along the edges, all of Maya then all of Sam or the reverse, keep the promise. A red path through the middle, which alternates the two people, oversells, like 17 other paths through the middle. Sequential tests only walk the green edges; a model checker walks all 20 paths of a small model.">
+        <defs>
+          <filter id="w6f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w6f11-r)">
+          <path d="M200,170 H470 M200,260 H470 M290,80 V350 M380,80 V350" class="s s-thin s-2"/>
+          <path d="M200,80 H470 V350" class="s s-green s-thick"/>
+          <path d="M200,80 V350 H470" class="s s-green s-thick"/>
+          <path d="M200,80 H290 V170 H380 V260 H470 V350" class="s s-red s-thick s-dash"/>
+          <circle cx="200" cy="80" r="8" class="s f-ink"/>
+          <circle cx="470" cy="350" r="8" class="s f-ink"/>
+        </g>
+        <text x="200" y="36" class="t-sm t-2">Maya's steps →</text>
+        <text x="245" y="66" text-anchor="middle" class="t-sm">check</text>
+        <text x="335" y="66" text-anchor="middle" class="t-sm">pay</text>
+        <text x="425" y="66" text-anchor="middle" class="t-sm">save</text>
+        <text x="186" y="130" text-anchor="end" class="t-sm">check</text>
+        <text x="186" y="220" text-anchor="end" class="t-sm">pay</text>
+        <text x="186" y="310" text-anchor="end" class="t-sm">save</text>
+        <text x="40" y="36" class="t-sm t-2">Sam's steps ↓</text>
+        <text x="470" y="384" text-anchor="middle" class="t-sm">both done</text>
+        <text x="186" y="74" text-anchor="end" class="t-sm">start</text>
+        <text x="540" y="110" class="t-sm">each path from start to end is one order of the six steps</text>
+        <text x="540" y="140" class="t-lg">20 paths</text>
+        <text x="540" y="176" class="t-sm t-green">2 along the edges keep the promise:</text>
+        <text x="540" y="196" class="t-sm t-green">one person finishes before the other checks</text>
+        <text x="540" y="228" class="t-sm t-red">18 through the middle oversell</text>
+        <text x="540" y="248" class="t-sm t-red">(dashed: one of them)</text>
+        <text x="540" y="290" class="t-sm">sequential tests: only the edges</text>
+        <text x="540" y="312" class="t-sm">a forced test: one path, on purpose</text>
+        <text x="540" y="334" class="t-sm t-pen">a model checker: every path of a model</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.11</b> The 20 orders from Lecture 1's strip exercise, drawn as paths on a grid. Counting is exact: choose which 3 of the 6 steps are Maya's. Real systems have far more steps, which is why nobody enumerates their histories by hand.</figcaption>
+  </figure>
+  <p>A <strong>model checker</strong> does look at all of them, for a small model of the design. In April 2015 Chris Newcombe and five co-authors described their experience at Amazon Web Services in <em>Communications of the ACM</em>, in "How Amazon Web Services Uses Formal Methods". <q>Since 2011,</q> they wrote, engineers at AWS <q>have used formal specification and model checking to help solve difficult design problems in critical systems.</q> They wrote specifications in a language called TLA+ and checked them with the TLC model checker, which explores every possible execution of a specification. At the time of writing they had used it on 10 large systems, seven teams were using it, and engineers <q>from entry level to principal</q> had learned it from scratch and got useful results in two to three weeks.</p>
+  <p>The most striking example concerns DynamoDB. The model checker found a bug that could lose data if a particular sequence of failures and recovery steps was interleaved with other processing. The shortest trace that showed it had 35 high-level steps, and the bug had passed unnoticed through extensive design reviews, code reviews and testing. The authors explain why such bugs survive: <q>human intuition is poor at estimating the true probability of supposedly “extremely rare” combinations of events in systems operating at a scale of millions of requests per second.</q></p>
+  <p>They also give the vocabulary for the promises we wrote today. A <strong>safety</strong> property says what the system is <em>allowed</em> to do: one press never makes two reservations. A <strong>liveness</strong> property says what it <em>must eventually</em> do: every retry eventually gets an answer. Keep the scope in mind. A model checker checks a model of the design, usually with a small number of servers and requests, not your Python code; the authors say it themselves: formal methods <q>deal with models of systems, not the systems themselves</q>. A bug in the step from design to code is still possible. And this is Amazon's own 2015 account of its practice, not an independent study.</p>
+</section>
+
+<section class="block" id="therac">
+  <div class="sechead"><span class="clock">R4</span><h2>Therac-25: when software became the last safety net</h2></div>
+  <div class="callout case">
+    <span class="label">Case: Therac-25, 1985–1987</span>
+    <p>The Therac-25 was a computer-controlled radiation therapy machine. Between June 1985 and January 1987 it was involved in six known massive overdoses, at least three of them fatal. The standard account is Nancy Leveson and Clark Turner's investigation, published in <em>IEEE Computer</em> in 1993.</p>
+  </div>
+  <p>This reading is here for context, and because people were badly hurt, it deserves care. Several of the software defects Leveson and Turner describe are close relatives of this week's topic. In the software behind the accidents at Tyler, Texas, an operator who edited the treatment data quickly, within about 8 seconds while the machine was setting its magnets, could leave the machine set up differently from what the screen showed, and the software never noticed the edit. The same code had a related race: a flag recorded that data entry had finished, but, in Leveson and Turner's words, it <q>only indicates that the cursor has been down to the command line, not that it is still there.</q> That is a check acted on after it stopped being true. Behind the January 1987 accident at Yakima, Washington, a one-byte counter rolled over to zero on every 256th pass, and on that pass a safety check was skipped.</p>
+  <p>A third detail mirrors this week's lost answer from the other side. At Hamilton, Ontario, in July 1985, the machine stopped with an error and its display read "no dose". Believing nothing had been delivered, the operator pressed P, the proceed key, to try again: standard practice, because operators had become used to frequent malfunctions that did no harm. It happened five times in all. The patient had been overdosed.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 360" role="img" aria-label="Simplified comparison. Left, the earlier Therac-20: operator console, software, then hardware interlocks, then the beam. A software error is stopped by the hardware interlocks. Right, the Therac-25: operator console, software, and the hardware interlocks were not all duplicated, so the software is a single point of failure and a software error reaches the beam.">
+        <defs>
+          <filter id="w6f12-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w6f12-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w6f12-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w6f12-r)">
+          <rect x="80" y="60" width="240" height="40" rx="8" class="s f-card"/>
+          <rect x="80" y="130" width="240" height="40" rx="8" class="s f-card"/>
+          <rect x="80" y="200" width="240" height="40" rx="8" class="s s-thick f-pen"/>
+          <rect x="80" y="270" width="240" height="40" rx="8" class="s f-card"/>
+          <path d="M200,102 V126 M200,172 V196 M200,242 V266" class="s"/>
+          <path d="M360,150 V192" class="s s-red" marker-end="url(#w6f12-ar)"/>
+          <path d="M348,204 l24,24 M372,204 l-24,24" class="s s-red s-thick"/>
+          <rect x="560" y="60" width="240" height="40" rx="8" class="s f-card"/>
+          <rect x="560" y="130" width="240" height="40" rx="8" class="s f-card"/>
+          <rect x="560" y="200" width="240" height="40" rx="8" class="s s-dash s-2"/>
+          <rect x="560" y="270" width="240" height="40" rx="8" class="s s-red f-red"/>
+          <path d="M680,102 V126 M680,172 V266" class="s"/>
+          <path d="M840,150 V262" class="s s-red" marker-end="url(#w6f12-ar)"/>
+        </g>
+        <text x="200" y="36" text-anchor="middle" class="t-lg">Therac-20 (earlier)</text>
+        <text x="680" y="36" text-anchor="middle" class="t-lg">Therac-25</text>
+        <text x="200" y="85" text-anchor="middle" class="t-sm">operator console</text>
+        <text x="200" y="155" text-anchor="middle" class="t-sm">software</text>
+        <text x="200" y="225" text-anchor="middle" class="t-sm">hardware interlocks</text>
+        <text x="200" y="295" text-anchor="middle" class="t-sm">beam</text>
+        <text x="376" y="146" class="t-sm t-red">software error</text>
+        <text x="380" y="222" class="t-sm t-red">stopped</text>
+        <text x="680" y="85" text-anchor="middle" class="t-sm">operator console</text>
+        <text x="680" y="155" text-anchor="middle" class="t-sm">software</text>
+        <text x="618" y="225" text-anchor="middle" class="t-sm t-2">interlocks</text>
+        <text x="742" y="225" text-anchor="middle" class="t-sm t-2">not all kept</text>
+        <text x="680" y="295" text-anchor="middle" class="t-sm t-red">beam</text>
+        <text x="836" y="120" text-anchor="end" class="t-sm t-red">software error</text>
+        <text x="450" y="340" text-anchor="middle" class="t-sm t-2">a simplification: Leveson and Turner list many contributing causes</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 6.12</b> Where the last safety net was. In the earlier Therac-20, the computer "merely added convenience" and hardware interlocks were retained. For the Therac-25 the manufacturer decided not to duplicate all of them, which made the software a single point of failure. Simplified; see the text for the other causes.</figcaption>
+  </figure>
+  <p>Leveson and Turner insist that the software defects are not the whole story, and that <q>To attribute a single cause to an accident is usually a serious mistake.</q> The contributing factors they list include <q>management inadequacies and lack of procedures for following through on all reported incidents, overconfidence in the software and removal of hardware interlocks (making the software into a single point of failure that could lead to an accident), presumably less-than-acceptable software-engineering practices, and unrealistic risk assessments along with overconfidence in the results of these assessments.</q></p>
+  <p>Hold the comparison lightly: a festival booking is not a radiation dose. But two habits from this week are small versions of their lessons. Keep more than one layer of protection, and put the strongest one where every path must pass (Fig 6.6). And treat a display, a log line or a missing answer as evidence about the system's state, never as the state itself.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Idempotent</dt><dd>Doing it twice has the same effect as doing it once. Cancelling is; creating a reservation is not, unless the server recognises the repeat.</dd>
+    <dt>Idempotency key</dt><dd>A random string the client creates for one attempt and sends, unchanged, with every retry of that attempt.</dd>
+    <dt>Key scope</dt><dd>What one key stands for and whose it is. Here: one reservation attempt by one client, stored under (client, key).</dd>
+    <dt>Fingerprint</dt><dd>A short hash of what a request asks for, used to spot a key reused for a different request (answered with HTTP 422).</dd>
+    <dt>Replay</dt><dd>Sending the stored answer again instead of doing the work again. It repeats the old answer; it does not report the current state.</dd>
+    <dt>State machine</dt><dd>The states something can be in, the allowed moves (transitions) between them, and by omission the forbidden ones.</dd>
+    <dt>Guard</dt><dd>A condition a transition requires. In the kit, the <code>WHERE status = 'confirmed'</code> of the cancel <code>UPDATE</code>.</dd>
+    <dt>Partial unique index</dt><dd>A unique index over only the rows that match a <code>WHERE</code> clause, such as confirmed reservations, so cancelled rows don't count.</dd>
+    <dt>CHECK constraint</dt><dd>A condition every row must satisfy. In SQLite it may not contain a subquery, so it cannot count rows.</dd>
+    <dt>Compensation</dt><dd>A new action that undoes the effect of an earlier one that a <code>ROLLBACK</code> cannot reach, such as releasing a payment hold.</dd>
+    <dt>At most once / at least once</dt><dd>Send once and never resend (the work may not happen) / resend until answered (the work may happen twice).</dd>
+    <dt>Happened before</dt><dd>Lamport's order of events: earlier in the same process, or a message's sending before its receipt, or a chain of these. Events with neither order are concurrent.</dd>
+    <dt>Safety / liveness</dt><dd>What a system is allowed to do / what it must eventually do.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>R. Fielding, M. Nottingham, J. Reschke (eds.), "HTTP Semantics", RFC 9110, June 2022, section 9.2.2 "Idempotent Methods". <a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2">rfc-editor.org</a></li>
+    <li>J. Jena, S. Dalal, "The Idempotency-Key HTTP Header Field", IETF Internet-Draft draft-ietf-httpapi-idempotency-key-header-07, 15 October 2025. Expired April 2026; not an RFC. <a href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/">datatracker.ietf.org</a></li>
+    <li>Stripe, API reference, "Idempotent requests" (read 27 September 2026). <a href="https://docs.stripe.com/api/idempotent_requests">docs.stripe.com</a></li>
+    <li>SQLite, "Partial Indexes". <a href="https://www.sqlite.org/partialindex.html">sqlite.org</a></li>
+    <li>SQLite, "CREATE TABLE" (CHECK constraints). <a href="https://www.sqlite.org/lang_createtable.html">sqlite.org</a></li>
+    <li>SQLite, "Transaction" (BEGIN IMMEDIATE and the write lock). <a href="https://www.sqlite.org/lang_transaction.html">sqlite.org</a></li>
+    <li>SQLite, "SQLite Foreign Key Support" (foreign keys must be enabled on each connection). <a href="https://www.sqlite.org/foreignkeys.html">sqlite.org</a></li>
+    <li>Leslie Lamport, "Time, Clocks, and the Ordering of Events in a Distributed System", <em>Communications of the ACM</em> 21(7), July 1978, 558–565. <a href="https://lamport.azurewebsites.net/pubs/time-clocks.pdf">PDF</a> · Lamport's note on the paper: <a href="https://lamport.azurewebsites.net/pubs/pubs.html">his publications page</a></li>
+    <li>Chris Newcombe, Tim Rath, Fan Zhang, Bogdan Munteanu, Marc Brooker, Michael Deardeuff, "How Amazon Web Services Uses Formal Methods", <em>Communications of the ACM</em> 58(4), April 2015, 66–73. <a href="https://cacm.acm.org/research/how-amazon-web-services-uses-formal-methods/">cacm.acm.org</a> · <a href="https://doi.org/10.1145/2699417">doi:10.1145/2699417</a></li>
+    <li>Nancy Leveson, Clark S. Turner, "An Investigation of the Therac-25 Accidents", <em>IEEE Computer</em> 26(7), July 1993, 18–41. <a href="https://web.mit.edu/6.033/2004/wwwdocs/papers/Therac_1.html">Reprint (MIT 6.033)</a></li>
+    <li>Lecture 1, "Code Is Cheap. Software Isn't." (Patch B and what it leaves open). <a href="01-code-is-cheap.html">01-code-is-cheap.html</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="05-independent-tests.html">← Lecture 5: Tests Need an Independent Source of Truth</a>
+  <span>Build It. Prove It. Own It. · Lecture 6 · <a href="../index.html">Course home</a></span>
+  <a href="07-review-and-debugging.html">Lecture 7: Review and Debugging at Agent Speed →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

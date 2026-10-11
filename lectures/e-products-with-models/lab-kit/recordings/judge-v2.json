@@ -1,0 +1,387 @@
+{
+ "about": "AUTHORED by the course team on 2026-09-28: the verdicts a model judge might give on run 1 of config v2, NOT output from any model. Three are planted mistakes of kinds reported for model judges (see GRADING.md). Live mode would use claude-sonnet-5. usage and latency_ms as in the other recordings (estimated; authored).",
+ "config": "judge",
+ "provenance": "authored",
+ "rows": [
+  {
+   "case": "c01",
+   "rep": 1,
+   "question": "Something quiet on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "66683d7cb4797b199fc4b4ee3560b710c0ab742fe2abaf26ca052899787f3f23",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Each of the three events gets a reason tied to 'quiet'.\", \"pass\": true}, \"J2\": {\"reason\": \"Times and descriptions match the facts.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1569,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1549,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c02",
+   "rep": 1,
+   "question": "Anything calm I can still join tonight after 21:00?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "3b3e989b368d539bea8e8eeb9db53e67b690e655ab5d7860d403d8b5ff55a5b8",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both suggestions are linked to 'calm' and 'after 21:00'.\", \"pass\": true}, \"J2\": {\"reason\": \"Start times match.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1557,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1436,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c03",
+   "rep": 1,
+   "question": "I use a wheelchair. What can I go to on Saturday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "1c68276e5e7abc9db23c832e8e072845c67d97e5724a33c14f591ad773b16553",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Says both are step-free, which is what was asked.\", \"pass\": true}, \"J2\": {\"reason\": \"Access and times match the facts.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1562,
+    "output_tokens": 38,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1184,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c04",
+   "rep": 1,
+   "question": "Where can I get vegan food this weekend?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "904489d4bbc2d0e0a06b9bceee18a8da7dcc0214cfe609b6ed6f95c9db7fe978",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both suggestions mention vegan food.\", \"pass\": true}, \"J2\": {\"reason\": \"Supported by both descriptions.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1560,
+    "output_tokens": 35,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2433,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c05",
+   "rep": 1,
+   "question": "Is there a soldering workshop I can still get into?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ef298f5fbe31911f5bedb1babd34cdbc4a365971aff7f6737f5be8797d3d8a1d",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Says clearly that nothing matched.\", \"pass\": true}, \"J2\": {\"reason\": \"True: the only soldering event, the Maker Workshop, has no places left.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1539,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1363,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c06",
+   "rep": 1,
+   "question": "We're a big group and want a loud night out on Saturday. The louder the better!",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ed27bc5d6e9fe95058f84aaef6764790b069fe18d832549d0f07c4a71057cb4f",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both are described as loud, as asked.\", \"pass\": true}, \"J2\": {\"reason\": \"Times, DJs and stairs match the facts.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1570,
+    "output_tokens": 37,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1144,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c07",
+   "rep": 1,
+   "question": "Are there any swimming sessions?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ed5a0b437d06a0b388c88b88003fbcb487134073d3f7bef351f7e3be654e543e",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"The answer does not suggest any event, so it gives the student nothing to do.\", \"pass\": false}, \"J2\": {\"reason\": \"True: no event in the programme involves swimming.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1530,
+    "output_tokens": 50,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1525,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c08",
+   "rep": 1,
+   "question": "What's on on Monday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "a34b1fc50b5bba61565303bd7da4b2ff298b797ca92f189c9d30369b147004d7",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Explains that the festival ends on Sunday.\", \"pass\": true}, \"J2\": {\"reason\": \"True: every event is between Friday 9 and Sunday 11 October.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1530,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1318,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c09",
+   "rep": 1,
+   "question": "I'm a first-year and don't know anyone yet. What's easy to join on my own on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "b9c1fadd9eed96a54b3b3c929a4e01a446104210f93de06eab56a6b178907031",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Each suggestion says why it is easy to join alone.\", \"pass\": true}, \"J2\": {\"reason\": \"Says the Pub Quiz is free; the facts do not mention a price.\", \"pass\": false}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1578,
+    "output_tokens": 46,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1466,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c10",
+   "rep": 1,
+   "question": "Anything to do on Sunday morning?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "83c46df339276ef1b48847b319c7d5bf02c0f3cd74028cf9b5f2f3ff57884b84",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both are on Sunday morning.\", \"pass\": true}, \"J2\": {\"reason\": \"Times match.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1546,
+    "output_tokens": 28,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1180,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c11",
+   "rep": 1,
+   "question": "Is there a film on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "6d4bb72d48111846d5f034eba863d79c35cf1ef0d95235dbb0ed766a73b58841",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Answers the question directly.\", \"pass\": true}, \"J2\": {\"reason\": \"Time, place and subtitles match.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1539,
+    "output_tokens": 34,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1162,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c12",
+   "rep": 1,
+   "question": "Where can I hear live music on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "77f40090946361ab832485e16a02848089b3cf147c0a68cb0d2ab8b413e92bfc",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Live bands, as asked.\", \"pass\": true}, \"J2\": {\"reason\": \"Matches the description.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1538,
+    "output_tokens": 29,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1090,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c13",
+   "rep": 1,
+   "question": "Something quiet on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ea2161f57ea316d69d07f80ece40b32850fbab83febf50af9003121a9906b2ec",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Relaxed and friendly fits 'quiet'.\", \"pass\": true}, \"J2\": {\"reason\": \"Matches the description.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1548,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1137,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c14",
+   "rep": 1,
+   "question": "Something outdoors on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "85d6d811b7922028f1f02609f4c569b8e83fb67995c7fccc382967f628deb96b",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both are outdoors, as asked.\", \"pass\": true}, \"J2\": {\"reason\": \"Times and places match the events.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1550,
+    "output_tokens": 34,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2007,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c15",
+   "rep": 1,
+   "question": "Can I still get a place at the escape room?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "6a14e8e85bc134ed5121b4e605b67ce620bf75a8e8e5a43ffa979b6bf2dddfd4",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Confirms the place and gives the time.\", \"pass\": true}, \"J2\": {\"reason\": \"One place left matches the facts.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1543,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1241,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c16",
+   "rep": 1,
+   "question": "Is the poetry evening on Friday still bookable?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "53672383bc93b035af1fdca2949f5f4bc4b3104cb7df0f4b053bdeee4e56b1b0",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Says clearly that nothing bookable matched.\", \"pass\": true}, \"J2\": {\"reason\": \"True: Poetry and Tea, the only poetry event, is full.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1539,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1318,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c17",
+   "rep": 1,
+   "question": "What can I still catch tonight?",
+   "now": "2026-10-10T22:30",
+   "prompt_sha256": "1c04a6a46f29eb51931cb4e79b088981abf42de88d25742c110fa28604eb31fc",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"The only event still to start tonight.\", \"pass\": true}, \"J2\": {\"reason\": \"Time, place, 18+ and stairs match.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1545,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1421,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c18",
+   "rep": 1,
+   "question": "Something relaxing on Sunday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "41bbc8f3ecbd5c720ba71226397e7445f78e506cf6897c87ed62d0376753a83d",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Cosy and relaxed fits the request.\", \"pass\": true}, \"J2\": {\"reason\": \"Matches the description.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1542,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1311,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c19",
+   "rep": 1,
+   "question": "I want to dance on Friday but I hate loud music.",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "d19a5a513fc7983ad283b80d9bd04256bd82614f3fd85c8aeec3c3a5c112088a",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Explains why a silent disco suits someone who hates loud music.\", \"pass\": true}, \"J2\": {\"reason\": \"Accurate and helpful: explains the headphones and the space to dance.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1561,
+    "output_tokens": 51,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1362,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c20",
+   "rep": 1,
+   "question": "My little brother (he's 10) is visiting on Saturday. What could he come to?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "2fb1199bedd829d1ddf45300c5ba233843536e6926ff77bac5dcf9f1deedd340",
+   "reply": {
+    "text": "{\"J1\": {\"reason\": \"Both suit a 10-year-old.\", \"pass\": true}, \"J2\": {\"reason\": \"Matches the descriptions.\", \"pass\": true}}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1558,
+    "output_tokens": 30,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1429,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  }
+ ]
+}

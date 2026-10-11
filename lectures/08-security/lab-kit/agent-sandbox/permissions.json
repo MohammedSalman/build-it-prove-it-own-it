@@ -1,0 +1,6 @@
+{
+  "about": "Rules for a change task. The harness enforces these in code; anything not listed in allow is blocked.",
+  "allow": ["list_files", "read_file", "write_file", "run_tests"],
+  "write_paths": ["app/*", "tests/*"],
+  "read_deny": [".env", "*.env", "*.pem", "*.key", "secrets/*"]
+}

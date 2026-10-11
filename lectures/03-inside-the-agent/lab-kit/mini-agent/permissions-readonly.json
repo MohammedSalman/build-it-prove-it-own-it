@@ -1,0 +1,6 @@
+{
+  "about": "Rules for an investigation during a code freeze: the agent may look and run the tests, nothing else.",
+  "allow": ["list_files", "read_file", "run_tests"],
+  "write_paths": [],
+  "read_deny": [".env", "*.env", "*.pem", "*.key", "secrets/*"]
+}

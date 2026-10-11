@@ -1,0 +1,12 @@
+--- a/app/static/index.html
++++ b/app/static/index.html
+@@ -126,6 +126,9 @@
+     document.getElementById("attendee").focus();
+     return;
+   }
++  // Stop a second click while the first request is still on its way.
++  button.disabled = true;
++  button.textContent = "Reserving…";
+   const res = await fetch(`/api/events/${ev.id}/reservations`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },

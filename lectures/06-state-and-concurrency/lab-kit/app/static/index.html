@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterHours Festival</title>
+<style>
+  :root {
+    --night: #14112a;
+    --panel: #1f1a3d;
+    --line: #342c63;
+    --text: #f3f0ff;
+    --muted: #b3aad9;
+    --glow: #ffb547;
+    --full: #ff6b8b;
+    --ok: #5fe0b0;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #3a2470 0%, transparent 60%), var(--night);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: clamp(2rem, 6vw, 3.2rem); margin: 0; letter-spacing: -0.02em; }
+  header h1 span { color: var(--glow); }
+  header p { color: var(--muted); margin: 4px 0 24px; }
+  .who { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+  .who label { color: var(--muted); }
+  .who input {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font: inherit; min-width: 0; flex: 1 1 200px; max-width: 320px;
+  }
+  .events { display: grid; gap: 14px; }
+  .event {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center;
+  }
+  .event h2 { margin: 0; font-size: 1.15rem; }
+  .meta { color: var(--muted); font-size: 0.92rem; }
+  .meter { grid-column: 1 / -1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--glow); }
+  .left { font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+  .left.last { color: var(--glow); font-weight: 600; }
+  .left.none { color: var(--full); }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 18px;
+    background: var(--glow); color: #2a1a00; cursor: pointer; grid-row: 1 / span 2; grid-column: 2;
+  }
+  button:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ok); color: #062a1d; padding: 12px 18px; border-radius: 12px;
+    font-weight: 600; max-width: calc(100% - 32px);
+  }
+  #toast.bad { background: var(--full); color: #3a0010; }
+  .mine { margin-top: 32px; }
+  .mine h2 { font-size: 1.1rem; margin: 0 0 8px; }
+  .mine ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .mine li {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+    display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .mine li button { grid-row: auto; grid-column: auto; background: transparent; color: var(--text); border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>After<span>Hours</span> Festival</h1>
+    <p>Three nights of games, music and making. Places are limited.</p>
+  </header>
+
+  <div class="who">
+    <label for="attendee">Your name</label>
+    <input id="attendee" autocomplete="name" placeholder="e.g. Maya Chen">
+  </div>
+
+  <section class="events" id="events" aria-live="polite"></section>
+
+  <section class="mine" id="mine" hidden>
+    <h2>Your reservations on this device</h2>
+    <ul id="mine-list"></ul>
+  </section>
+</main>
+<div id="toast" role="status" hidden></div>
+
+<script>
+const eventsEl = document.getElementById("events");
+const toastEl = document.getElementById("toast");
+
+function when(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function toast(text, bad = false) {
+  toastEl.textContent = text;
+  toastEl.className = bad ? "bad" : "";
+  toastEl.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (toastEl.hidden = true), 3500);
+}
+
+async function load() {
+  const events = await (await fetch("/api/events")).json();
+  eventsEl.replaceChildren(...events.map(render));
+}
+
+function render(ev) {
+  const card = document.createElement("article");
+  card.className = "event";
+  const left = ev.places_left;
+  const leftText = left <= 0 ? "Full" : left === 1 ? "1 place left!" : `${left} places left`;
+  const leftClass = left <= 0 ? "none" : left === 1 ? "last" : "";
+  const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+  card.innerHTML = `
+    <h2></h2>
+    <div class="meta"></div>
+    <div class="left ${leftClass}">${leftText}</div>
+    <div class="meter" aria-hidden="true"><i style="width:${pct}%"></i></div>
+    <button type="button">Reserve</button>`;
+  card.querySelector("h2").textContent = ev.title;
+  card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+  const button = card.querySelector("button");
+  const pending = pendingFor(ev.id);
+  if (pending) {
+    // An unanswered booking may already hold one of these places, even the last one, so the
+    // button stays usable: it finishes that same attempt instead of starting a new one.
+    button.textContent = `Finish ${pending.attendee}'s booking`;
+    button.disabled = false;
+  } else {
+    button.disabled = left <= 0;
+  }
+  button.addEventListener("click", () => reserve(ev, button));
+  return card;
+}
+
+// Each browser gets one id, kept across visits. The server keeps idempotency keys per client.
+function newId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function clientId() {
+  let id = null;
+  try { id = localStorage.getItem("afterhours-client-id"); } catch (e) {}
+  if (!id) {
+    id = "web-" + newId();
+    try { localStorage.setItem("afterhours-client-id", id); } catch (e) {}
+  }
+  return id;
+}
+const CLIENT_ID = clientId();
+
+// Bad Wi-Fi: if no answer arrives at all, send the same request once more, with the SAME key.
+// "No answer" can mean the request never arrived, or that it arrived, was saved, and the
+// response was lost on the way back. The page cannot tell which. (One automatic retry only:
+// HTTP's rules say a client should not automatically retry a failed automatic retry.)
+// The whole answer is read inside the try: the connection can also break after the status
+// line has arrived, while the body is still on its way. That is a lost answer too.
+async function postWithRetries(url, body, key) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key, "Client-Id": CLIENT_ID },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text || "{}"); } catch (e) {}
+      return { status: res.status, data };
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+}
+
+// Redraw the events. If even that fails, at least give the button back.
+async function refresh(button) {
+  try {
+    await load();
+  } catch (e) {
+    if (button) { button.disabled = false; button.textContent = "Reserve"; }
+  }
+}
+
+// An attempt that got no answer at all stays open. The next press of Reserve for the same
+// event and name finishes it with the SAME key, instead of starting a second attempt.
+function pendingAttempts() {
+  try { return JSON.parse(localStorage.getItem("afterhours-pending") || "{}"); } catch (e) { return {}; }
+}
+
+// The open attempt for this event, if any: { attendee, key }.
+function pendingFor(eventId) {
+  for (const [slot, key] of Object.entries(pendingAttempts())) {
+    const [id, ...name] = slot.split("|");
+    if (Number(id) === eventId) return { attendee: name.join("|"), key };
+  }
+  return null;
+}
+
+function setPending(slot, key) {
+  const pending = pendingAttempts();
+  if (key) pending[slot] = key; else delete pending[slot];
+  try { localStorage.setItem("afterhours-pending", JSON.stringify(pending)); } catch (e) {}
+}
+
+function remembered() {
+  try { return JSON.parse(localStorage.getItem("afterhours-mine") || "[]"); } catch (e) { return []; }
+}
+
+function remember(list) {
+  try { localStorage.setItem("afterhours-mine", JSON.stringify(list)); } catch (e) {}
+  renderMine();
+}
+
+function renderMine() {
+  const list = remembered();
+  document.getElementById("mine").hidden = list.length === 0;
+  document.getElementById("mine-list").replaceChildren(...list.map((r) => {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = `#${r.id} · ${r.title} · ${r.attendee}`;
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => cancelReservation(r, cancel));
+    li.append(label, cancel);
+    return li;
+  }));
+}
+
+async function cancelReservation(r, button) {
+  button.disabled = true;
+  let res;
+  try {
+    // Cancelling twice changes nothing, so a plain retry of a cancel is safe.
+    res = await fetch(`/api/reservations/${r.id}/cancel`, { method: "POST" });
+  } catch (e) {
+    toast("No connection. Try cancelling again.", true);
+    button.disabled = false;
+    return;
+  }
+  if (res.ok || res.status === 404) {
+    remember(remembered().filter((x) => x.id !== r.id));
+    if (res.ok) toast(`Cancelled reservation #${r.id}.`);
+  } else {
+    toast("Something went wrong. Please try again.", true);
+    button.disabled = false;
+  }
+  await refresh(null);
+}
+
+async function reserve(ev, button) {
+  const pending = pendingFor(ev.id);
+  const attendee = pending ? pending.attendee : document.getElementById("attendee").value.trim();
+  if (!attendee) {
+    toast("Type your name first, then press Reserve.", true);
+    document.getElementById("attendee").focus();
+    return;
+  }
+  const slot = `${ev.id}|${attendee}`;
+  // One key per reservation attempt: a new press starts a new attempt, unless the last
+  // attempt for this event never got an answer; then this press finishes it.
+  const key = pending ? pending.key : newId();
+  setPending(slot, key);
+  button.disabled = true;
+  button.textContent = "Reserving…";
+  let answer;
+  try {
+    answer = await postWithRetries(`/api/events/${ev.id}/reservations`, { attendee }, key);
+  } catch (e) {
+    toast("No connection, so we can't tell yet whether you got a place. When you're back " +
+          `online, press \u201cFinish ${attendee}'s booking\u201d: it continues this same booking instead of starting a new one.`, true);
+    await refresh(button);
+    return;
+  }
+  setPending(slot, null);       // an answer arrived: this attempt is finished
+  if (answer.status === 201) {
+    const r = answer.data;
+    if (!remembered().some((x) => x.id === r.id)) {
+      remember([...remembered(), { id: r.id, title: ev.title, attendee: r.attendee }]);
+    }
+    toast(`You're in! Reservation #${r.id} for ${ev.title}.`);
+  } else if (answer.status === 409) {
+    toast(answer.data.detail || "Sorry, that event just filled up.", true);
+  } else {
+    toast("Something went wrong. Please try again.", true);
+  }
+  await refresh(button);
+}
+
+renderMine();
+load();
+</script>
+</body>
+</html>

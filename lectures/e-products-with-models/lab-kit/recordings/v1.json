@@ -1,0 +1,1147 @@
+{
+ "about": "AUTHORED by the course team on 2026-09-28, in the shape of a concierge reply. It is NOT output from any model. The answers were written by hand to show what an eval catches (see the lecture). Replaying this file tests the code around the model and the graders; it says nothing about how a real model would answer. usage: estimated as characters / 4 of the exact prompt and reply (a real tokenizer differs, by model too; thinking tokens are not included). latency_ms: authored with the formula (base 1150 ms + 14 ms per output token) times a seeded random factor; it is not a measurement. Live mode would use claude-opus-5; the eval prices these token counts at that model's list prices.",
+ "config": "v1",
+ "provenance": "authored",
+ "rows": [
+  {
+   "case": "c01",
+   "rep": 1,
+   "question": "Something quiet on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "946008e1114e8623c29ae09352d98cdbea7c5674c192412646d5a3ea37d3f108",
+   "reply": {
+    "text": "{\"suggestions\": [6, 10], \"message\": \"For a quiet Friday night, try Stargazing on the Roof at 21:00 (telescopes and hot chocolate), or settle in for Spirited Away at 22:00 in Lecture Theatre A.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 48,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1907,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c01",
+   "rep": 2,
+   "question": "Something quiet on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "946008e1114e8623c29ae09352d98cdbea7c5674c192412646d5a3ea37d3f108",
+   "reply": {
+    "text": "{\"suggestions\": [6, 10], \"message\": \"For a quiet Friday night, try Stargazing on the Roof at 21:00 (telescopes and hot chocolate), or settle in for Spirited Away at 22:00 in Lecture Theatre A.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 48,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1951,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c01",
+   "rep": 3,
+   "question": "Something quiet on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "946008e1114e8623c29ae09352d98cdbea7c5674c192412646d5a3ea37d3f108",
+   "reply": {
+    "text": "{\"suggestions\": [6, 10], \"message\": \"Stargazing on the Roof (21:00) is calm, with hot chocolate, and Spirited Away starts at 22:00 if you'd rather sit back with a film.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1918,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c02",
+   "rep": 1,
+   "question": "Anything calm I can still join tonight after 21:00?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c9fa1726a3338b67463f280560a940fd43316df49bb618d421a8d9ac76c88f69",
+   "reply": {
+    "text": "{\"suggestions\": [6, 10], \"message\": \"Stargazing on the Roof starts at 21:00 and is very calm; Spirited Away begins at 22:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1627,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c02",
+   "rep": 2,
+   "question": "Anything calm I can still join tonight after 21:00?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c9fa1726a3338b67463f280560a940fd43316df49bb618d421a8d9ac76c88f69",
+   "reply": {
+    "text": "{\"suggestions\": [6, 10], \"message\": \"Stargazing on the Roof starts at 21:00 and is very calm; Spirited Away begins at 22:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1845,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c02",
+   "rep": 3,
+   "question": "Anything calm I can still join tonight after 21:00?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c9fa1726a3338b67463f280560a940fd43316df49bb618d421a8d9ac76c88f69",
+   "reply": {
+    "text": "{\"suggestions\": [6, 3], \"message\": \"Stargazing on the Roof at 21:00 is calm, or Board Game Night runs until 23:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 29,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1410,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c03",
+   "rep": 1,
+   "question": "I use a wheelchair. What can I go to on Saturday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c098a7d8b1922c2aa1f8f029c06d69cd1db4f060f2cb06191e7d483ec1ccfdac",
+   "reply": {
+    "text": "{\"suggestions\": [3, 12], \"message\": \"Board Game Night in Student Union Hall B (18:00) and Battle of the Bands in the Main Hall (20:00) are both step-free.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1028,
+    "output_tokens": 39,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1806,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c03",
+   "rep": 2,
+   "question": "I use a wheelchair. What can I go to on Saturday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c098a7d8b1922c2aa1f8f029c06d69cd1db4f060f2cb06191e7d483ec1ccfdac",
+   "reply": {
+    "text": "{\"suggestions\": [3, 12], \"message\": \"Board Game Night in Student Union Hall B (18:00) and Battle of the Bands in the Main Hall (20:00) are both step-free.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1028,
+    "output_tokens": 39,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1846,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c03",
+   "rep": 3,
+   "question": "I use a wheelchair. What can I go to on Saturday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c098a7d8b1922c2aa1f8f029c06d69cd1db4f060f2cb06191e7d483ec1ccfdac",
+   "reply": {
+    "text": "{\"suggestions\": [13, 3, 12], \"message\": \"The Basement Afterparty is the festival's top pick, from 23:00. Board Game Night (18:00) and Battle of the Bands (20:00) are on too.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1028,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1715,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c04",
+   "rep": 1,
+   "question": "Where can I get vegan food this weekend?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "10c2e0b9b8b017c88bdedea2d8a961f0d3ab99e8cefbd76fdb9fa8b85bb03bbc",
+   "reply": {
+    "text": "{\"suggestions\": [11, 15], \"message\": \"The Campus Food Market on Saturday (12:00) has plenty of vegan stalls, and the Closing Brunch on Sunday at 11:00 has a full vegan menu.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1024,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2040,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c04",
+   "rep": 2,
+   "question": "Where can I get vegan food this weekend?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "10c2e0b9b8b017c88bdedea2d8a961f0d3ab99e8cefbd76fdb9fa8b85bb03bbc",
+   "reply": {
+    "text": "{\"suggestions\": [11, 15], \"message\": \"The Campus Food Market on Saturday (12:00) has plenty of vegan stalls, and the Closing Brunch on Sunday at 11:00 has a full vegan menu.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1024,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1909,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c04",
+   "rep": 3,
+   "question": "Where can I get vegan food this weekend?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "10c2e0b9b8b017c88bdedea2d8a961f0d3ab99e8cefbd76fdb9fa8b85bb03bbc",
+   "reply": {
+    "text": "{\"suggestions\": [11, 15], \"message\": \"The Campus Food Market on Saturday (12:00) has plenty of vegan stalls, and the Closing Brunch on Sunday at 11:00 has a full vegan menu.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1024,
+    "output_tokens": 44,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2019,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c05",
+   "rep": 1,
+   "question": "Is there a soldering workshop I can still get into?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "a21a0a8cfa757b9b02908417082588f2f6ca9368c6456d81b6b3032e2d6230b8",
+   "reply": {
+    "text": "{\"suggestions\": [4], \"message\": \"Yes! Maker Workshop: Solder Your Own Badge is on Saturday at 14:00 in the Makerspace. All tools are provided.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1812,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c05",
+   "rep": 2,
+   "question": "Is there a soldering workshop I can still get into?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "a21a0a8cfa757b9b02908417082588f2f6ca9368c6456d81b6b3032e2d6230b8",
+   "reply": {
+    "text": "{\"suggestions\": [4], \"message\": \"Yes! Maker Workshop: Solder Your Own Badge is on Saturday at 14:00 in the Makerspace. All tools are provided.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1842,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c05",
+   "rep": 3,
+   "question": "Is there a soldering workshop I can still get into?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "a21a0a8cfa757b9b02908417082588f2f6ca9368c6456d81b6b3032e2d6230b8",
+   "reply": {
+    "text": "{\"suggestions\": [4], \"message\": \"Yes! Maker Workshop: Solder Your Own Badge is on Saturday at 14:00 in the Makerspace. All tools are provided.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1027,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1526,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c06",
+   "rep": 1,
+   "question": "We're a big group and want a loud night out on Saturday. The louder the better!",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9bf4ef800a39499d4d8ddba5883cf61954427e15cc81fb2085475bab2f828938",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands (20:00, Main Hall) is loud and brilliant, then head to the Basement Afterparty at 23:00 for DJs until late.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1034,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1985,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c06",
+   "rep": 2,
+   "question": "We're a big group and want a loud night out on Saturday. The louder the better!",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9bf4ef800a39499d4d8ddba5883cf61954427e15cc81fb2085475bab2f828938",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands (20:00, Main Hall) is loud and brilliant, then head to the Basement Afterparty at 23:00 for DJs until late.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1034,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1766,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c06",
+   "rep": 3,
+   "question": "We're a big group and want a loud night out on Saturday. The louder the better!",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9bf4ef800a39499d4d8ddba5883cf61954427e15cc81fb2085475bab2f828938",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands (20:00, Main Hall) is loud and brilliant, then head to the Basement Afterparty at 23:00 for DJs until late.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1034,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1949,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c07",
+   "rep": 1,
+   "question": "Are there any swimming sessions?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "5ff8897612b19d7b0fa341d7edbeecdf817f29dbbe05339c3bbd6b281c1d9bd2",
+   "reply": {
+    "text": "{\"suggestions\": [6], \"message\": \"There's no swimming at the festival, but Stargazing on the Roof on Friday at 21:00 is a relaxing alternative.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1787,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c07",
+   "rep": 2,
+   "question": "Are there any swimming sessions?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "5ff8897612b19d7b0fa341d7edbeecdf817f29dbbe05339c3bbd6b281c1d9bd2",
+   "reply": {
+    "text": "{\"suggestions\": [6], \"message\": \"There's no swimming at the festival, but Stargazing on the Roof on Friday at 21:00 is a relaxing alternative.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1636,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c07",
+   "rep": 3,
+   "question": "Are there any swimming sessions?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "5ff8897612b19d7b0fa341d7edbeecdf817f29dbbe05339c3bbd6b281c1d9bd2",
+   "reply": {
+    "text": "{\"suggestions\": [6], \"message\": \"There's no swimming at the festival, but Stargazing on the Roof on Friday at 21:00 is a relaxing alternative.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 36,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1503,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c08",
+   "rep": 1,
+   "question": "What's on on Monday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c5804efe10bbf47840b1a838aeb7c302637fe3ca44cb94c355b516e1c22bc0ba",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"The festival finishes on Sunday, but on Sunday morning there's Botanic Garden Sketching at 10:00 and the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1019,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2078,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c08",
+   "rep": 2,
+   "question": "What's on on Monday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c5804efe10bbf47840b1a838aeb7c302637fe3ca44cb94c355b516e1c22bc0ba",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"The festival finishes on Sunday, but on Sunday morning there's Botanic Garden Sketching at 10:00 and the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1019,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1849,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c08",
+   "rep": 3,
+   "question": "What's on on Monday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "c5804efe10bbf47840b1a838aeb7c302637fe3ca44cb94c355b516e1c22bc0ba",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"The festival finishes on Sunday, but on Sunday morning there's Botanic Garden Sketching at 10:00 and the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1019,
+    "output_tokens": 42,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2041,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c09",
+   "rep": 1,
+   "question": "I'm a first-year and don't know anyone yet. What's easy to join on my own on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "dbc6abf57900c7a33b1a61e0da227da3c34686a5395b914aa6f8ccaa0b226fb4",
+   "reply": {
+    "text": "{\"suggestions\": [8, 1, 2], \"message\": \"The Pub Quiz (20:00) will put you in a team, the Escape Room (20:00) takes walk-ins, and the Silent Disco (21:30) is easy to join.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1035,
+    "output_tokens": 43,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1797,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c09",
+   "rep": 2,
+   "question": "I'm a first-year and don't know anyone yet. What's easy to join on my own on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "dbc6abf57900c7a33b1a61e0da227da3c34686a5395b914aa6f8ccaa0b226fb4",
+   "reply": {
+    "text": "{\"suggestions\": [8, 1, 9], \"message\": \"The Pub Quiz (20:00) will put you in a team, the Escape Room (20:00) takes walk-ins, and Candlelit Yoga (18:30) welcomes beginners.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1035,
+    "output_tokens": 43,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2058,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c09",
+   "rep": 3,
+   "question": "I'm a first-year and don't know anyone yet. What's easy to join on my own on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "dbc6abf57900c7a33b1a61e0da227da3c34686a5395b914aa6f8ccaa0b226fb4",
+   "reply": {
+    "text": "{\"suggestions\": [8, 1, 2], \"message\": \"The Pub Quiz (20:00) will put you in a team, the Escape Room (20:00) takes walk-ins, and the Silent Disco (21:30) is easy to join.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1035,
+    "output_tokens": 43,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1877,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c10",
+   "rep": 1,
+   "question": "Anything to do on Sunday morning?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "331ee5601d58af5b358a47f7cd9a06a2ae5c917b44cba170a76820354bc11d10",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"Try Botanic Garden Sketching at 10:00 or the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 27,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1614,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c10",
+   "rep": 2,
+   "question": "Anything to do on Sunday morning?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "331ee5601d58af5b358a47f7cd9a06a2ae5c917b44cba170a76820354bc11d10",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"Try Botanic Garden Sketching at 10:00 or the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 27,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1423,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c10",
+   "rep": 3,
+   "question": "Anything to do on Sunday morning?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "331ee5601d58af5b358a47f7cd9a06a2ae5c917b44cba170a76820354bc11d10",
+   "reply": {
+    "text": "{\"suggestions\": [14, 15], \"message\": \"Try Botanic Garden Sketching at 10:00 or the Closing Brunch at 11:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 27,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1407,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c11",
+   "rep": 1,
+   "question": "Is there a film on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "89ca68379b66373f556f0646e600c9b69eb36d924e55780284e5156521444c67",
+   "reply": {
+    "text": "{\"suggestions\": [10], \"message\": \"Yes: Spirited Away is showing on Friday at 22:00 in Lecture Theatre A.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1020,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1495,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c11",
+   "rep": 2,
+   "question": "Is there a film on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "89ca68379b66373f556f0646e600c9b69eb36d924e55780284e5156521444c67",
+   "reply": {
+    "text": "{\"suggestions\": [10], \"message\": \"Yes: Spirited Away is showing on Friday at 22:00 in Lecture Theatre A.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1020,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1686,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c11",
+   "rep": 3,
+   "question": "Is there a film on Friday?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "89ca68379b66373f556f0646e600c9b69eb36d924e55780284e5156521444c67",
+   "reply": {
+    "text": "{\"suggestions\": [10], \"message\": \"Yes: Spirited Away is showing on Friday at 22:00 in Lecture Theatre A.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1020,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1656,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c12",
+   "rep": 1,
+   "question": "Where can I hear live music on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "3f45a3479a8b7a7f82a9480ce2290d7d010e8a6b88b29fc22a10f4d3b6126796",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands starts at 20:00 in the Main Hall, and the Basement Afterparty has DJs from 23:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 35,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1696,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c12",
+   "rep": 2,
+   "question": "Where can I hear live music on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "3f45a3479a8b7a7f82a9480ce2290d7d010e8a6b88b29fc22a10f4d3b6126796",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands starts at 20:00 in the Main Hall, and the Basement Afterparty has DJs from 23:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 35,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1611,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c12",
+   "rep": 3,
+   "question": "Where can I hear live music on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "3f45a3479a8b7a7f82a9480ce2290d7d010e8a6b88b29fc22a10f4d3b6126796",
+   "reply": {
+    "text": "{\"suggestions\": [12, 13], \"message\": \"Battle of the Bands starts at 20:00 in the Main Hall, and the Basement Afterparty has DJs from 23:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 35,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1486,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c13",
+   "rep": 1,
+   "question": "Something quiet on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "1406452dff61137017fdb6952f11819d63ff7e67c41cba870cb9fff4b59c2a79",
+   "reply": {
+    "text": "{\"suggestions\": [13, 3], \"message\": \"The festival's top pick is the Basement Afterparty: calm and quiet, from 23:00 in the Student Union Basement. Board Game Night (18:00) is another relaxed option.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 50,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1986,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c13",
+   "rep": 2,
+   "question": "Something quiet on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "1406452dff61137017fdb6952f11819d63ff7e67c41cba870cb9fff4b59c2a79",
+   "reply": {
+    "text": "{\"suggestions\": [13, 3], \"message\": \"The festival's top pick is the Basement Afterparty: calm and quiet, from 23:00 in the Student Union Basement. Board Game Night (18:00) is another relaxed option.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 50,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 2039,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c13",
+   "rep": 3,
+   "question": "Something quiet on Saturday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "1406452dff61137017fdb6952f11819d63ff7e67c41cba870cb9fff4b59c2a79",
+   "reply": {
+    "text": "{\"suggestions\": [13, 3], \"message\": \"The festival's top pick is the Basement Afterparty: calm and quiet, from 23:00 in the Student Union Basement. Board Game Night (18:00) is another relaxed option.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 50,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1972,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c14",
+   "rep": 1,
+   "question": "Something outdoors on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "30b30349bfe9081cb5f3875954dee033bc7ba10917a5009af53cfce91398b35d",
+   "reply": {
+    "text": "{\"suggestions\": [6, 2], \"message\": \"Stargazing on the Roof (21:00) and the Silent Disco on the Quad (21:30) are both outdoors.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1538,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c14",
+   "rep": 2,
+   "question": "Something outdoors on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "30b30349bfe9081cb5f3875954dee033bc7ba10917a5009af53cfce91398b35d",
+   "reply": {
+    "text": "{\"suggestions\": [6, 2], \"message\": \"Stargazing on the Roof (21:00) and the Silent Disco on the Quad (21:30) are both outdoors.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1711,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c14",
+   "rep": 3,
+   "question": "Something outdoors on Friday night?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "30b30349bfe9081cb5f3875954dee033bc7ba10917a5009af53cfce91398b35d",
+   "reply": {
+    "text": "{\"suggestions\": [6, 2], \"message\": \"Stargazing on the Roof (21:00) and the Silent Disco on the Quad (21:30) are both outdoors.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 3171,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c15",
+   "rep": 1,
+   "question": "Can I still get a place at the escape room?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "eb9f82b730795557a601dcf887a73fcdec7d6aad1ff20efb78cc0e49657b2998",
+   "reply": {
+    "text": "{\"suggestions\": [1], \"message\": \"Yes, the Escape Room has one place left. It starts at 20:00 in Engineering Building, Room 2.14.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1025,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1515,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c15",
+   "rep": 2,
+   "question": "Can I still get a place at the escape room?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "eb9f82b730795557a601dcf887a73fcdec7d6aad1ff20efb78cc0e49657b2998",
+   "reply": {
+    "text": "{\"suggestions\": [1], \"message\": \"Yes, the Escape Room has one place left. It starts at 20:00 in Engineering Building, Room 2.14.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1025,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1800,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c15",
+   "rep": 3,
+   "question": "Can I still get a place at the escape room?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "eb9f82b730795557a601dcf887a73fcdec7d6aad1ff20efb78cc0e49657b2998",
+   "reply": {
+    "text": "{\"suggestions\": [1], \"message\": \"Yes, the Escape Room has one place left. It starts at 20:00 in Engineering Building, Room 2.14.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1025,
+    "output_tokens": 32,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1533,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c16",
+   "rep": 1,
+   "question": "Is the poetry evening on Friday still bookable?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9c1419714fa014eb7f1044e9e8ad9e59301c5855c5f2d844e1e466298b4c87bf",
+   "reply": {
+    "text": "{\"suggestions\": [7], \"message\": \"Yes! Poetry and Tea is on Friday at 19:30 in the Library Reading Room.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1805,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c16",
+   "rep": 2,
+   "question": "Is the poetry evening on Friday still bookable?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9c1419714fa014eb7f1044e9e8ad9e59301c5855c5f2d844e1e466298b4c87bf",
+   "reply": {
+    "text": "{\"suggestions\": [7], \"message\": \"Yes! Poetry and Tea is on Friday at 19:30 in the Library Reading Room.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1368,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c16",
+   "rep": 3,
+   "question": "Is the poetry evening on Friday still bookable?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "9c1419714fa014eb7f1044e9e8ad9e59301c5855c5f2d844e1e466298b4c87bf",
+   "reply": {
+    "text": "{\"suggestions\": [7], \"message\": \"Yes! Poetry and Tea is on Friday at 19:30 in the Library Reading Room.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 26,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1634,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c17",
+   "rep": 1,
+   "question": "What can I still catch tonight?",
+   "now": "2026-10-10T22:30",
+   "prompt_sha256": "bfa00b645d47b4fbf1d54f34c241a6904e3807c7ab2d26df1c39d4300711d677",
+   "reply": {
+    "text": "{\"suggestions\": [2, 10], \"message\": \"Tonight you can catch the Silent Disco on the Quad at 21:30 or Spirited Away at 22:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 31,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1547,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c17",
+   "rep": 2,
+   "question": "What can I still catch tonight?",
+   "now": "2026-10-10T22:30",
+   "prompt_sha256": "bfa00b645d47b4fbf1d54f34c241a6904e3807c7ab2d26df1c39d4300711d677",
+   "reply": {
+    "text": "{\"suggestions\": [2, 10], \"message\": \"Tonight you can catch the Silent Disco on the Quad at 21:30 or Spirited Away at 22:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 31,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1782,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c17",
+   "rep": 3,
+   "question": "What can I still catch tonight?",
+   "now": "2026-10-10T22:30",
+   "prompt_sha256": "bfa00b645d47b4fbf1d54f34c241a6904e3807c7ab2d26df1c39d4300711d677",
+   "reply": {
+    "text": "{\"suggestions\": [2, 10], \"message\": \"Tonight you can catch the Silent Disco on the Quad at 21:30 or Spirited Away at 22:00.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1022,
+    "output_tokens": 31,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1680,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c18",
+   "rep": 1,
+   "question": "Something relaxing on Sunday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "cc1e8d79dcaa111ca719de61de981cb8663f2d1085852810135c238f89a1b276",
+   "reply": {
+    "text": "{\"suggestions\": [5], \"message\": \"The Open Mic on Sunday at 19:00 is cosy and relaxed.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 22,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1710,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c18",
+   "rep": 2,
+   "question": "Something relaxing on Sunday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "cc1e8d79dcaa111ca719de61de981cb8663f2d1085852810135c238f89a1b276",
+   "reply": {
+    "text": "{\"suggestions\": [5], \"message\": \"The Open Mic on Sunday at 19:00 is cosy and relaxed.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 22,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1432,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c18",
+   "rep": 3,
+   "question": "Something relaxing on Sunday evening?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "cc1e8d79dcaa111ca719de61de981cb8663f2d1085852810135c238f89a1b276",
+   "reply": {
+    "text": "{\"suggestions\": [5], \"message\": \"The Open Mic on Sunday at 19:00 is cosy and relaxed.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1023,
+    "output_tokens": 22,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1389,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c19",
+   "rep": 1,
+   "question": "I want to dance on Friday but I hate loud music.",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ca2a7d3437b46eda9aa1213470765bdcdd7d606c8d429ada3b60f73524c4413a",
+   "reply": {
+    "text": "{\"suggestions\": [2], \"message\": \"The Silent Disco on the Quad (21:30) is perfect: you dance with headphones and choose your own volume.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 34,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1593,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c19",
+   "rep": 2,
+   "question": "I want to dance on Friday but I hate loud music.",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ca2a7d3437b46eda9aa1213470765bdcdd7d606c8d429ada3b60f73524c4413a",
+   "reply": {
+    "text": "{\"suggestions\": [2], \"message\": \"The Silent Disco on the Quad (21:30) is perfect: you dance with headphones and choose your own volume.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 34,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1841,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c19",
+   "rep": 3,
+   "question": "I want to dance on Friday but I hate loud music.",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "ca2a7d3437b46eda9aa1213470765bdcdd7d606c8d429ada3b60f73524c4413a",
+   "reply": {
+    "text": "{\"suggestions\": [2], \"message\": \"The Silent Disco on the Quad (21:30) is perfect: you dance with headphones and choose your own volume.\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1026,
+    "output_tokens": 34,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1660,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c20",
+   "rep": 1,
+   "question": "My little brother (he's 10) is visiting on Saturday. What could he come to?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "42fcb67a9996a4addbcb16f76c9bde5c407c607e7548ea487d00cf472b75d872",
+   "reply": {
+    "text": "{\"suggestions\": [11, 3, 12], \"message\": \"Your brother could enjoy the Campus Food Market (12:00), Board Game Night (18:00) or Battle of the Bands (20:00).\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1033,
+    "output_tokens": 39,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1949,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c20",
+   "rep": 2,
+   "question": "My little brother (he's 10) is visiting on Saturday. What could he come to?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "42fcb67a9996a4addbcb16f76c9bde5c407c607e7548ea487d00cf472b75d872",
+   "reply": {
+    "text": "{\"suggestions\": [11, 3, 12], \"message\": \"Your brother could enjoy the Campus Food Market (12:00), Board Game Night (18:00) or Battle of the Bands (20:00).\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1033,
+    "output_tokens": 39,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1873,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  },
+  {
+   "case": "c20",
+   "rep": 3,
+   "question": "My little brother (he's 10) is visiting on Saturday. What could he come to?",
+   "now": "2026-10-09T17:00",
+   "prompt_sha256": "42fcb67a9996a4addbcb16f76c9bde5c407c607e7548ea487d00cf472b75d872",
+   "reply": {
+    "text": "{\"suggestions\": [11, 3, 12], \"message\": \"Your brother could enjoy the Campus Food Market (12:00), Board Game Night (18:00) or Battle of the Bands (20:00).\"}",
+    "stop_reason": "end_turn"
+   },
+   "usage": {
+    "input_tokens": 1033,
+    "output_tokens": 39,
+    "source": "estimate: characters / 4"
+   },
+   "latency_ms": 1820,
+   "latency_source": "authored, not measured",
+   "served_model": null
+  }
+ ]
+}

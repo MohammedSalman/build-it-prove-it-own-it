@@ -1,0 +1,6 @@
+# Pinned so everyone gets the same behaviour. Python 3.11 or newer.
+fastapi==0.141.1
+uvicorn==0.54.0
+httpx2==2.13.1      # used by FastAPI's TestClient
+pytest==9.1.1
+anthropic==1.8.0    # the mini-agent's optional live mode; its test runs offline

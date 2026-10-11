@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterHours · Door check-in</title>
+<style>
+  :root {
+    --night: #14112a; --panel: #1f1a3d; --line: #342c63; --text: #f3f0ff;
+    --muted: #b3aad9; --glow: #ffb547; --full: #ff6b8b; --ok: #5fe0b0;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--night); color: var(--text); }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { margin: 0 0 12px; font-size: 1.8rem; }
+  label { color: var(--muted); }
+  select { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 18px 0; font-variant-numeric: tabular-nums; }
+  .summary b { font-size: 1.4rem; display: block; }
+  .banner { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-weight: 600; }
+  .banner.open { background: var(--ok); color: #062a1d; }
+  .banner.closed { background: var(--line); color: var(--muted); }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 8px 14px; background: var(--glow); color: #2a1a00; cursor: pointer; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+  .in { color: var(--ok); font-weight: 600; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ok); color: #062a1d; padding: 12px 18px; border-radius: 12px; font-weight: 600; }
+  #toast.bad { background: var(--full); color: #3a0010; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Door check-in</h1>
+  <label for="event">Event</label>
+  <select id="event"></select>
+  <div class="summary" aria-live="polite">
+    <div><b id="expected">–</b>expected</div>
+    <div><b id="inside">–</b>checked in</div>
+    <div><b id="capacity">–</b>capacity</div>
+  </div>
+  <div id="banner" class="banner closed" role="status"></div>
+  <ul id="people"></ul>
+</main>
+<div id="toast" role="status" hidden></div>
+
+<script>
+const select = document.getElementById("event");
+const toastEl = document.getElementById("toast");
+
+function toast(text, bad = false) {
+  toastEl.textContent = text;
+  toastEl.className = bad ? "bad" : "";
+  toastEl.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (toastEl.hidden = true), 3500);
+}
+
+async function loadEvents() {
+  const events = await (await fetch("/api/events")).json();
+  select.replaceChildren(...events.map((ev) => new Option(`${ev.title} (${ev.starts_at.slice(11)})`, ev.id)));
+  await loadDoor();
+}
+
+async function loadDoor() {
+  const door = await (await fetch(`/api/events/${select.value}/door`)).json();
+  document.getElementById("expected").textContent = door.expected;
+  document.getElementById("inside").textContent = door.checked_in;
+  document.getElementById("capacity").textContent = door.event.capacity;
+  const banner = document.getElementById("banner");
+  banner.className = "banner " + (door.door_open ? "open" : "closed");
+  banner.textContent = door.door_open ? "Doors open: check people in" : "Doors closed right now";
+  document.getElementById("people").replaceChildren(...door.people.map(renderPerson));
+}
+
+function renderPerson(p) {
+  const li = document.createElement("li");
+  const name = document.createElement("span");
+  name.textContent = `${p.attendee} · #${p.id}`;
+  li.append(name);
+  if (p.checked_in_at) {
+    const done = document.createElement("span");
+    done.className = "in";
+    done.textContent = `In at ${p.checked_in_at.slice(11, 16)}`;
+    li.append(done);
+  } else {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Check in";
+    button.addEventListener("click", () => checkIn(p));
+    li.append(button);
+  }
+  return li;
+}
+
+async function checkIn(p) {
+  const res = await fetch(`/api/reservations/${p.id}/check-in`, { method: "POST" });
+  const body = await res.json().catch(() => ({}));
+  if (res.ok) toast(`${p.attendee} is in.`);
+  else toast(body.detail || "Something went wrong.", true);
+  await loadDoor();
+}
+
+select.addEventListener("change", loadDoor);
+loadEvents();
+</script>
+</body>
+</html>

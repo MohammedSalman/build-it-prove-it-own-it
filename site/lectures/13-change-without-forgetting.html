@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Change Without Forgetting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* This lecture compares >= and < in dates; show operators as typed, without ligatures. */
+  code, pre, .sk .t-mono { font-variant-ligatures: none; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 13 · Lecture 13 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 13 · Keeping old promises in new code</p>
+  <h1 id="page-title">Change Without Forgetting</h1>
+  <p class="lede">Most of a system's life comes after its first release, and most of its changes are made by people who did not write it: new teammates, future you, and now agents. This lecture is about changing a running system, its code and its data, without breaking a promise it has already made.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Homework: finish your own migration (~2 h)</span>
+    <span class="fact">Kit: AfterHours v1 and v2 on one database</span>
+    <span class="fact">Loop: Observe → Understand</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Explain how old code, a reused flag and one missed server combined at Knight Capital.</li>
+      <li>Write characterization tests before you change unfamiliar code, and label each one a promise or a photographed quirk.</li>
+      <li>Plan a schema change as expand, migrate, contract, and say what every running version reads and writes at each step.</li>
+      <li>Write a backfill that is safe to run again and catches up with late writes, and check a migration by comparing meaning.</li>
+      <li>Retire a flag and its dead code without giving its name a new meaning.</li>
+      <li>Use an agent to explain code, draft characterization tests and make mechanical changes, and say what each output still needs from you.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>Eight servers, one stale</span></a></li>
+    <li><a href="#photo"><span class="t">0:15</span><span>Photograph before you change</span></a></li>
+    <li><a href="#migrate"><span class="t">0:30</span><span>Expand, migrate, contract</span></a></li>
+    <li><a href="#flags"><span class="t">0:50</span><span>Flags, dead code, Hyrum's law</span></a></li>
+    <li><a href="#agents"><span class="t">1:05</span><span>Agents in maintenance</span></a></li>
+    <li><a href="#exit"><span class="t">1:20</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#lehman"><span class="t">R1</span><span>Software that is used must change</span></a></li>
+    <li><a href="#hyrum"><span class="t">R2</span><span>Every behaviour has a user</span></a></li>
+    <li><a href="#deprecation"><span class="t">R3</span><span>Deprecation is a process</span></a></li>
+    <li><a href="#meaning"><span class="t">R4</span><span>Compare meaning, not bytes</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>Eight servers, one stale</h2>
+  </div>
+  <p>On 1 August 2012 the New York Stock Exchange was due to start a new programme for retail orders, and the broker Knight Capital had written new code to take part. The code went into Knight's order router, a system called SMARS that ran on eight servers. This is what the US Securities and Exchange Commission (SEC) later found.</p>
+  <div class="callout case">
+    <span class="label">Case: Knight Capital, 1 August 2012</span>
+    <p>In about 45 minutes, Knight's router sent millions of orders (4M+ executions in 154 stocks, 397M+ shares) and Knight lost over $460 million. New code repurposed a flag that once activated old "Power Peg" code still on the servers; a technician did not copy the new code to one of eight servers, with no second review.</p>
+  </div>
+  <p>Take it apart one step at a time. Every detail below is from the SEC's order.</p>
+  <ol>
+    <li><strong>Old code stayed.</strong> Power Peg was a feature Knight stopped using in 2003. Its code was never deleted: the SEC calls it "present and callable".</li>
+    <li><strong>The old code was changed and not retested.</strong> In 2005 Knight moved the part of Power Peg that kept count of the shares already filled. Knight did not retest Power Peg afterwards.</li>
+    <li><strong>A flag got a new meaning.</strong> The new code reused the flag that used to switch Power Peg on. The plan was to delete Power Peg, so that the flag would now switch on the new code instead.</li>
+    <li><strong>One server was missed.</strong> The new code was copied to the servers in stages from 27 July. One of the eight never got it, and nobody checked.</li>
+  </ol>
+  <p>On the morning of 1 August, orders arrived with the flag set. Seven servers ran the new code. The eighth ran Power Peg, which, with its counting moved away, kept sending orders without noticing they had been filled.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 430" role="img" aria-label="Orders arrive with the same flag set and are spread across eight servers. Seven servers have the new code, and for them the flag means the new retail programme; they handle the orders correctly. The eighth never received the new code, so for it the flag still means Power Peg, and it sends child orders again and again. A note says the new code was never copied to that server. About 45 minutes; Knight lost over 460 million dollars.">
+        <defs>
+          <filter id="w13f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w13f1-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w13f1-r)">
+          <rect x="240" y="16" width="320" height="48" rx="8" class="s f-card"/>
+          <path d="M400,66 V94" class="s" marker-end="url(#w13f1-a)"/>
+          <path d="M112,100 H840" class="s"/>
+          <path d="M112,100 V124 M216,100 V124 M320,100 V124 M424,100 V124 M528,100 V124 M632,100 V124 M736,100 V124 M840,100 V124" class="s"/>
+          <rect x="70" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="174" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="278" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="382" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="486" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="590" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="694" y="130" width="84" height="96" rx="6" class="s s-green f-green"/>
+          <rect x="798" y="130" width="84" height="96" rx="6" class="s s-red s-thick f-red"/>
+          <path d="M80,152 H144 M184,152 H248 M288,152 H352 M392,152 H456 M496,152 H560 M600,152 H664 M704,152 H768 M808,152 H872" class="s s-thin s-2"/>
+          <path d="M70,244 V254 H778 V244" class="s s-thin s-green"/>
+          <rect x="670" y="16" width="270" height="56" rx="3" class="s s-thin f-mark"/>
+          <path d="M880,74 V126" class="s s-thin s-dash"/>
+          <path d="M840,230 L792,322 M840,230 L818,330 M840,230 L844,334 M840,230 L870,330 M840,230 L896,322" class="s s-red" marker-end="url(#w13f1-ar)"/>
+        </g>
+        <text x="400" y="46" text-anchor="middle">orders arrive, flag set</text>
+        <text x="112" y="188" text-anchor="middle" class="t-lg">1</text>
+        <text x="216" y="188" text-anchor="middle" class="t-lg">2</text>
+        <text x="320" y="188" text-anchor="middle" class="t-lg">3</text>
+        <text x="424" y="188" text-anchor="middle" class="t-lg">4</text>
+        <text x="528" y="188" text-anchor="middle" class="t-lg">5</text>
+        <text x="632" y="188" text-anchor="middle" class="t-lg">6</text>
+        <text x="736" y="188" text-anchor="middle" class="t-lg">7</text>
+        <text x="840" y="188" text-anchor="middle" class="t-lg t-red">8</text>
+        <text x="112" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="216" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="320" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="424" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="528" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="632" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="736" y="214" text-anchor="middle" class="t-sm t-green">new code</text>
+        <text x="840" y="214" text-anchor="middle" class="t-sm t-red">Power Peg</text>
+        <text x="424" y="278" text-anchor="middle" class="t-sm t-green">seven servers: the flag means the new code, orders handled</text>
+        <text x="805" y="40" text-anchor="middle" class="t-sm t-mark">the new code was never</text>
+        <text x="805" y="60" text-anchor="middle" class="t-sm t-mark">copied to this server</text>
+        <text x="844" y="362" text-anchor="middle" class="t-sm t-red">child orders,</text>
+        <text x="844" y="380" text-anchor="middle" class="t-sm t-red">again and again</text>
+        <text x="70" y="330" class="t-sm t-2">copied in stages from 27 July;</text>
+        <text x="70" y="350" class="t-sm t-2">nobody checked all eight</text>
+        <text x="440" y="414" text-anchor="middle" class="t-sm t-red">about 45 minutes · 4M+ executions · Knight lost over $460 million</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.1</b> One flag, eight servers, two meanings. Where the new code had been copied, the flag switched on the new feature. On the one server that was missed, the same flag switched on code that had not been used for nine years. Drawn from the SEC's order.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <span class="label">Read the case carefully</span>
+    <p>Legally, the SEC's order is about risk controls. The SEC found that Knight had violated the Market Access Rule (Rule 15c3-5), which requires brokers to <q>appropriately control the risks associated with market access</q>, and Knight settled without admitting or denying the findings. The order lists missing controls from deployment to monitoring, so read it as the failure of a whole system of safeguards. One technician's missed copy is only the first link.</p>
+  </div>
+
+  <div class="callout try">
+    <span class="label">In pairs (3 minutes)</span>
+    <p>Knight's failure needed three ingredients: old code that could still run, a flag whose meaning changed, and a deploy that reached seven servers out of eight. For each one, name a check that would have caught it before 1 August.</p>
+  </div>
+  <details class="reveal">
+    <summary>What Knight's own systems showed that morning (open after the pairs)</summary>
+    <div class="inner">
+      <p>From about 8:01 a.m., before the 9:30 market open, an internal system sent 97 automated emails that mentioned SMARS and an error called "Power Peg disabled". They were not designed as alerts, and staff did not usually read them. The evidence was there; nothing turned it into a stop.</p>
+      <p>During the incident, trying to fix the problem, Knight removed the new code from the seven servers where it had been installed correctly. That made things worse: now those servers also ran Power Peg when the flag arrived. Rolling back is only safe if the old version is still safe to run.</p>
+      <p>The SEC's order also says what one check could have done: "a written procedure requiring a simple double-check of the deployment of the RLP code could have identified that a server had been missed and averted the events of August 1."</p>
+      <p>Your three checks probably look like these: delete code you no longer use (it can't run if it isn't there); never give an old flag name a new meaning; after a deploy, ask every server which version it runs, and compare.</p>
+    </div>
+  </details>
+
+  <p>AfterHours has all three ingredients this week. The festival wants multi-day passes, which changes how tickets are stored. The gate servers are replaced one at a time while the gates are open, so for a while the old version and the new one run side by side on one database. And there is a flag in the database that nobody has touched since the 2025 festival.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Maintenance keeps promises while it replaces the implementation.</strong> The code, the data layout and the flags all change. What each user was promised must not.</p>
+  </div>
+</section>
+
+<!-- ============ 2. PHOTO ============ -->
+<section class="block" id="photo">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:30</span>
+    <h2>Photograph before you change</h2>
+  </div>
+  <p>Before you change code you didn't write, find out what it does today. On the engineering loop from Lecture 1, this week starts at <em>Observe</em>: watch what the running code actually does, and feed that back into <em>Understand</em> before anyone specifies or delegates the change.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 250" role="img" aria-label="The engineering loop drawn as a row: Understand, Specify, Delegate, Inspect, Verify, Release, Observe. Observe and Understand are highlighted. A thick blue arrow curves back from Observe to Understand, labelled: this week, observe what the running code does before you change it.">
+        <defs>
+          <filter id="w13f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w13f2-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w13f2-r)">
+          <rect x="21" y="50" width="108" height="46" rx="10" class="s s-thick f-mark"/>
+          <rect x="156" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="291" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="426" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="561" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="696" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="831" y="50" width="108" height="46" rx="10" class="s s-thick f-mark"/>
+          <path d="M131,73 H152" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M266,73 H287" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M401,73 H422" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M536,73 H557" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M671,73 H692" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M806,73 H827" class="s" marker-end="url(#w13f2-a)"/>
+          <path d="M885,100 C885,205 75,205 75,104" class="s s-pen s-thick" marker-end="url(#w13f2-ap)"/>
+        </g>
+        <text x="75" y="79" text-anchor="middle" class="t-mark">Understand</text>
+        <text x="210" y="79" text-anchor="middle">Specify</text>
+        <text x="345" y="79" text-anchor="middle">Delegate</text>
+        <text x="480" y="79" text-anchor="middle">Inspect</text>
+        <text x="615" y="79" text-anchor="middle">Verify</text>
+        <text x="750" y="79" text-anchor="middle">Release</text>
+        <text x="885" y="79" text-anchor="middle" class="t-mark">Observe</text>
+        <text x="480" y="36" text-anchor="middle" class="t-sm t-pen">week 13</text>
+        <text x="480" y="236" text-anchor="middle" class="t-sm t-pen">this week: observe what the running code does, and understand it, before you change it</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.2</b> Where this week sits on the engineering loop. Maintenance starts from the running system: what it does today is the first thing to learn.</figcaption>
+  </figure>
+
+  <p>Michael Feathers's book <em>Working Effectively with Legacy Code</em> (2004) is about exactly this problem. His definition of it is short: <q>To me, legacy code is simply code without tests.</q> One of his main tools is the <strong>characterization test</strong>: a test that records what the code does now, so that you notice when a change changes it. On his blog he put the purpose this way: <q>The purpose of characterization testing is to document your system's actual behavior, not check for the behavior you wish your system had.</q></p>
+  <p>The method is almost mechanical. Put the code in a test, write an expected value you know is wrong, run it, read the real answer in the failure, and paste it in as the expected value. In the same post Feathers describes it as <q>supplying a dummy expectation value, and then running the test</q> to find the actual one. Repeat for every situation you care about.</p>
+  <p>Here is the code that moves a ticket to another day in AfterHours v1, the version that runs today. Maya holds a <strong>Friday</strong> ticket and Sam a <strong>Saturday</strong> ticket. The festival runs Friday 9 to Sunday 11 October.</p>
+  <pre><code>def change_day(ticket_id, new_day, now):
+    row = ...SELECT id, holder, day, code FROM tickets WHERE id = ?...
+    # A ticket can move until the day begins.
+    if now &gt;= _starts(new_day):            # 00:00 at the start of new_day
+        raise ChangeRefused(...)            # → HTTP 409
+    ...UPDATE tickets SET day = ? WHERE id = ?...   # → HTTP 200</code></pre>
+  <p class="handnote">Simplified from v1/tickets.py in the lab kit.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (6 minutes, no laptop)</span>
+    <p>Photograph by hand. From the code alone, predict the status for each request: 200 (moved) or 409 (refused).</p>
+    <div class="tablewrap">
+      <table class="grid">
+        <thead><tr><th></th><th>It is now</th><th>Request</th><th>Your prediction</th></tr></thead>
+        <tbody>
+          <tr><td>a</td><td>Thursday 8 October, 12:00</td><td>Maya's Friday ticket → Saturday</td><td></td></tr>
+          <tr><td>b</td><td>Friday 9 October, 18:00</td><td>Maya's Friday ticket → Saturday</td><td></td></tr>
+          <tr><td>c</td><td>Saturday 10 October, 12:00</td><td>Maya's Friday ticket → Sunday</td><td></td></tr>
+          <tr><td>d</td><td>Friday 9 October, 18:00</td><td>Sam's Saturday ticket → Friday</td><td></td></tr>
+          <tr><td>e</td><td>Saturday 10 October, 12:00</td><td>Sam's Saturday ticket → Sunday</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Then read the requirement below and mark each row: does the answer keep the promise?</p>
+  </div>
+  <div class="contract">
+    <span class="cardtitle">Requirement T3 · docs/requirements.md</span>
+    <dl>
+      <dt>Rule</dt><dd>A holder can move a day ticket to another festival day while both days are still ahead: before 00:00:00 on the ticket's current day, and before 00:00:00 on the new day.</dd>
+      <dt>Example</dt><dd>At 18:00 on Friday 9 October a Friday ticket can't move: its own day has begun.</dd>
+    </dl>
+  </div>
+  <details class="reveal">
+    <summary>What v1 actually answers (open after the drill)</summary>
+    <div class="inner">
+      <p>We ran each request against v1 with the clock set to that moment. These are the observed answers, now pinned as characterization tests in the lab's reference solution.</p>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th></th><th>Request</th><th>v1 answers</th><th>T3 says</th><th>Label</th></tr></thead>
+          <tbody>
+            <tr><td>a</td><td>Thu 12:00, Maya Fri → Sat</td><td>200</td><td>allowed</td><td><span class="tag ok">promise</span></td></tr>
+            <tr><td>b</td><td>Fri 18:00, Maya Fri → Sat</td><td>200</td><td>refused: Friday has begun</td><td><span class="tag bad">quirk</span></td></tr>
+            <tr><td>c</td><td>Sat 12:00, Maya Fri → Sun</td><td>200</td><td>refused: Friday is over</td><td><span class="tag bad">quirk</span></td></tr>
+            <tr><td>d</td><td>Fri 18:00, Sam Sat → Fri</td><td>409</td><td>refused: Friday has begun</td><td><span class="tag ok">promise</span></td></tr>
+            <tr><td>e</td><td>Sat 12:00, Sam Sat → Sun</td><td>200</td><td>refused: Saturday has begun</td><td><span class="tag bad">quirk</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The code checks only the <em>new</em> day. So Maya can scan in on Friday evening, move her ticket to Saturday, and come back the next day. We planted this defect in the kit on purpose, and it is labelled as planted in the instructor notes. It is also a very ordinary bug: the comment "until the day begins" never says which day.</p>
+    </div>
+  </details>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 430" role="img" aria-label="Left, the change_day code. An arrow labelled run it, copy the answer leads to a photograph of five observed answers: Thursday Maya Friday to Saturday 200; Friday 18:00 Maya Friday to Saturday 200; Saturday Maya Friday to Sunday 200; Friday 18:00 Sam Saturday to Friday 409; Saturday Sam Saturday to Sunday 200. Right, requirement T3. Compared with T3, rows one and four are ticked and rows two, three and five are crossed: the photograph recorded three bugs as faithfully as the rest.">
+        <defs>
+          <filter id="w13f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w13f3-r)">
+          <rect x="20" y="70" width="230" height="190" rx="8" class="s f-card"/>
+          <path d="M254,160 H318" class="s" marker-end="url(#w13f3-a)"/>
+          <rect x="330" y="30" width="310" height="370" rx="4" class="s f-card"/>
+          <rect x="346" y="46" width="278" height="276" class="s s-thin f-paper"/>
+          <rect x="700" y="46" width="240" height="118" rx="3" class="s s-thin f-mark"/>
+          <path d="M656,84 l8,9 l14,-17" class="s s-green s-thick"/>
+          <path d="M658,120 l18,18 M676,120 l-18,18" class="s s-red s-thick"/>
+          <path d="M658,164 l18,18 M676,164 l-18,18" class="s s-red s-thick"/>
+          <path d="M656,216 l8,9 l14,-17" class="s s-green s-thick"/>
+          <path d="M658,252 l18,18 M676,252 l-18,18" class="s s-red s-thick"/>
+        </g>
+        <text x="135" y="56" text-anchor="middle" class="t-sm t-2">v1/tickets.py today</text>
+        <text x="36" y="104" class="t-mono">change_day(t, new_day, now)</text>
+        <text x="36" y="134" class="t-mono">if now &gt;= start(new_day):</text>
+        <text x="60" y="160" class="t-mono">refuse → 409</text>
+        <text x="36" y="190" class="t-mono">move it → 200</text>
+        <text x="36" y="232" class="t-sm t-2">which day? the new one</text>
+        <text x="286" y="194" text-anchor="middle" class="t-sm">run it,</text>
+        <text x="286" y="212" text-anchor="middle" class="t-sm">copy the</text>
+        <text x="286" y="230" text-anchor="middle" class="t-sm">answer</text>
+        <text x="362" y="96" xml:space="preserve" class="t-mono">a Thu 12:00 Maya FRI→SAT  200</text>
+        <text x="362" y="140" xml:space="preserve" class="t-mono">b Fri 18:00 Maya FRI→SAT  200</text>
+        <text x="362" y="184" xml:space="preserve" class="t-mono">c Sat 12:00 Maya FRI→SUN  200</text>
+        <text x="362" y="228" xml:space="preserve" class="t-mono">d Fri 18:00 Sam  SAT→FRI  409</text>
+        <text x="362" y="272" xml:space="preserve" class="t-mono">e Sat 12:00 Sam  SAT→SUN  200</text>
+        <text x="485" y="354" text-anchor="middle" class="t-lg">what v1 does today</text>
+        <text x="485" y="380" text-anchor="middle" class="t-mono t-2">tests/characterization</text>
+        <text x="820" y="80" text-anchor="middle" class="t-sm t-mark">T3: a ticket can move</text>
+        <text x="820" y="102" text-anchor="middle" class="t-sm t-mark">while both days</text>
+        <text x="820" y="124" text-anchor="middle" class="t-sm t-mark">are still ahead</text>
+        <text x="820" y="218" text-anchor="middle" class="t-sm">compare each row</text>
+        <text x="820" y="238" text-anchor="middle" class="t-sm">with T3, afterwards</text>
+        <text x="820" y="300" text-anchor="middle" class="t-sm t-red">three bugs, photographed</text>
+        <text x="820" y="320" text-anchor="middle" class="t-sm t-red">as faithfully as the rest</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.3</b> A characterization test is a photograph of what the code does today. The camera can't tell a promise from a bug; the comparison with the requirement is a separate step, done by a person.</figcaption>
+  </figure>
+
+  <p>This is Week 5's warning from the other side. A characterization test takes its expected values from the code, so it can never show that the code is wrong. That is fine. Its job is to tell you, during a change, that behaviour moved. Feathers again: <q>When a system goes into production, in a way, it becomes its own specification.</q> People rely on what it does, bugs included.</p>
+  <p>So what do you do with a photographed bug in the middle of a migration? Keep the photograph, label it, and tell the product lead. Fix it later, in its own change, with a new test written from T3. During the migration both versions of the app must give Maya the same answer. If v2 quietly fixed the bug and v1 didn't, her answer would depend on which server took her request.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Photograph first, judge second.</strong> A characterization test tells you when behaviour changed. The requirement tells you whether it was right. Keep the two apart, and never fix a bug inside a migration.</p>
+  </div>
+</section>
+
+<!-- ============ 3. MIGRATE ============ -->
+<section class="block" id="migrate">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:50</span>
+    <h2>Expand, migrate, contract</h2>
+  </div>
+  <p>The organisers' new requirement (T5): <em>a festival pass covers two or three consecutive days and admits its holder on each of them.</em> v1 stores one day per ticket, in the column <code>tickets.day</code>. A pass needs a range. The obvious change is one migration:</p>
+  <pre><code>ALTER TABLE tickets RENAME COLUMN day TO first_day;
+ALTER TABLE tickets ADD COLUMN last_day TEXT;</code></pre>
+  <p>Now think about Friday night. The gates are open, so the servers are updated one at a time: this is a <strong>rolling deploy</strong>. For a while some gates run v1 and some run v2, and all of them use one database. The moment the rename runs, every v1 server asks for a column that no longer exists. That is Knight's eighth server again: old code, still running, meeting a change it was never told about.</p>
+  <p>The fix is an old refactoring pattern. Danilo Sato described it on Martin Fowler's site in 2014: <q>Parallel change, also known as expand and contract, is a pattern to implement backward-incompatible changes to an interface in a safe manner, by breaking the change into three distinct phases: expand, migrate, and contract.</q> A database table is an interface too, shared by every version that runs against it. Sato adds that most database refactorings follow the same pattern, with the migrate phase as the transition period between the old and the new schema.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Phase</th><th>What changes</th><th>Tickets table afterwards</th><th>Who can run on it</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Expand</strong></td><td>Add <code>first_day</code> and <code>last_day</code>, empty. Remove nothing.</td><td><code>day</code>, <code>first_day</code>, <code>last_day</code></td><td>v1 and v2</td></tr>
+        <tr><td><strong>Migrate</strong></td><td>Copy <code>day</code> into the new columns for every existing ticket (the <strong>backfill</strong>), while both versions keep writing</td><td>same columns, new ones filled</td><td>v1 and v2</td></tr>
+        <tr><td><strong>Contract</strong></td><td>Once v1 is gone, drop <code>day</code> and make the new columns required</td><td><code>first_day</code>, <code>last_day</code></td><td>v2</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout try">
+    <span class="label">In pairs (8 minutes): order the steps</span>
+    <p>Put these cards in the order you would run them: <strong>A</strong> contract · <strong>B</strong> deploy v2 next to v1 · <strong>C</strong> expand · <strong>D</strong> passes go on sale · <strong>E</strong> retire v1 · <strong>F</strong> backfill · <strong>G</strong> backfill again, then verify · <strong>H</strong> compare meaning.</p>
+    <p>Then pick two neighbouring cards and say exactly what breaks if you swap them.</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: the order, and what each swap breaks</summary>
+    <div class="inner">
+      <p>The kit's order is <strong>C, B, F, E, G, D, A, H</strong>: expand, deploy v2, backfill, retire v1, backfill again and verify, passes on sale, contract, compare meaning. Some swaps are harmless; the table shows which are not.</p>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>If you swap…</th><th>…this breaks</th></tr></thead>
+          <tbody>
+            <tr><td>B before C</td><td>v2 starts on a table with no <code>first_day</code>. In the kit, v2 refuses to start.</td></tr>
+            <tr><td>E before F</td><td>Nothing breaks: v2's read rule covers rows the backfill hasn't reached, and with v1 gone there are no late writes to catch up with. You give up the option of falling back to v1 while v2 proves itself.</td></tr>
+            <tr><td>A before E</td><td>Every v1 server still running asks for <code>day</code> and fails. The kit's contract step refuses: <q>v1 is still live</q>.</td></tr>
+            <tr><td>A before G</td><td>Tickets v1 sold or moved after the first backfill lose what v1 wrote. The kit's contract step refuses: rows are missing or disagree.</td></tr>
+            <tr><td>D before E</td><td>A v1 gate reads only <code>day</code>, which holds a pass's first day. It admits the pass holder on Friday and turns them away on Saturday. The kit refuses to switch passes on until v1 is recorded as retired.</td></tr>
+            <tr><td>H skipped</td><td>You have no evidence that anything survived. Every step can report success while tickets quietly change meaning.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Two of the steps can't be undone by redeploying v1. Until passes go on sale you could go back to v1 alone: v1 ignores the new columns. After passes are sold, v1 would turn their holders away. After the contract, the old column is gone, so v1 can't run at all. Going back from there needs work you have prepared and tested: a reverse migration that rebuilds <code>day</code> (possible while no passes exist), a repair forward, or a restore (Week 12) that also deals with every write made since the backup. The kit supplies none of these, which is why these steps come last and have guards.</p>
+    </div>
+  </details>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 980 470" role="img" aria-label="Timeline of the migration. The tickets table has only day until step 1, expand; then day plus first_day plus last_day; from step 7, contract, only first_day plus last_day. v1 servers run until step 4, when v1 is retired. v2 servers run from step 2. Between step 2 and step 4 both versions share one database: the migration window. The backfill runs at step 3 and again, briefly, at step 5. Passes go on sale at step 6. After steps 6 and 7, v1 can no longer simply be redeployed.">
+        <defs>
+          <filter id="w13f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w13f4-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-pen"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-pen s-thin"/></pattern>
+        </defs>
+        <g filter="url(#w13f4-r)">
+          <rect x="310" y="104" width="230" height="236" class="f-mark"/>
+          <rect x="170" y="50" width="70" height="40" class="s f-card"/>
+          <rect x="240" y="50" width="550" height="40" class="s f-pen"/>
+          <rect x="790" y="50" width="170" height="40" class="s s-green f-green"/>
+          <rect x="170" y="164" width="370" height="30" rx="6" class="s f-card"/>
+          <rect x="310" y="214" width="650" height="30" rx="6" class="s f-card"/>
+          <rect x="690" y="264" width="270" height="30" rx="6" class="s s-green f-green"/>
+          <rect x="380" y="306" width="90" height="24" class="s s-pen s-thin" style="fill:url(#w13f4-h)"/>
+          <rect x="598" y="306" width="24" height="24" class="s s-pen s-thin" style="fill:url(#w13f4-h)"/>
+          <path d="M170,352 H960" class="s s-thin"/>
+          <path d="M240,346 V358 M310,346 V358 M425,346 V358 M540,346 V358 M610,346 V358 M690,346 V358 M790,346 V358 M900,346 V358" class="s s-thin"/>
+          <path d="M690,418 V428 H958 V418" class="s s-thin s-red"/>
+        </g>
+        <text x="20" y="76" class="t-sm">tickets table</text>
+        <text x="20" y="184" class="t-sm">v1 servers</text>
+        <text x="20" y="234" class="t-sm">v2 servers</text>
+        <text x="20" y="284" class="t-sm">passes</text>
+        <text x="20" y="323" class="t-sm">backfill</text>
+        <text x="205" y="75" text-anchor="middle" class="t-mono">day</text>
+        <text x="515" y="75" text-anchor="middle" class="t-mono">day + first_day + last_day</text>
+        <text x="875" y="75" text-anchor="middle" class="t-mono">first_day + last_day</text>
+        <text x="425" y="124" text-anchor="middle" class="t-sm t-mark">migration window:</text>
+        <text x="425" y="142" text-anchor="middle" class="t-sm t-mark">v1 and v2, one database</text>
+        <text x="182" y="184" class="t-sm">v1: reads and writes day</text>
+        <text x="740" y="234" text-anchor="middle" class="t-sm">v2: keeps day in step; after the contract, new columns only</text>
+        <text x="825" y="284" text-anchor="middle" class="t-sm t-green">passes on sale</text>
+        <text x="240" y="378" text-anchor="middle" class="t-sm">1 expand</text>
+        <text x="310" y="402" text-anchor="middle" class="t-sm">2 v2 deployed</text>
+        <text x="425" y="378" text-anchor="middle" class="t-sm">3 backfill</text>
+        <text x="540" y="402" text-anchor="middle" class="t-sm">4 v1 retired</text>
+        <text x="610" y="378" text-anchor="middle" class="t-sm">5 catch up, verify</text>
+        <text x="690" y="402" text-anchor="middle" class="t-sm">6 passes</text>
+        <text x="790" y="378" text-anchor="middle" class="t-sm">7 contract</text>
+        <text x="958" y="402" text-anchor="end" class="t-sm">8 compare meaning</text>
+        <text x="824" y="452" text-anchor="middle" class="t-sm t-red">v1 can't simply be redeployed after here</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.4</b> Schema states against app versions (a model, not to scale in time). Every step keeps every running version working: v1 runs on the first two shapes of the table, v2 on the last two, and they overlap only on the middle one. The yellow band is the migration window.</figcaption>
+  </figure>
+
+  <p>The kit supplies v2 with a <strong>compatibility strategy</strong>: two rules for the window, written at the top of <code>v2/tickets.py</code>.</p>
+  <ul>
+    <li><strong>Write rule.</strong> While <code>day</code> exists, v2 keeps it in step: every ticket v2 writes has <code>day</code>, <code>first_day</code> and <code>last_day</code>. (For a pass, <code>day</code> holds its first day.)</li>
+    <li><strong>Read rule.</strong> While <code>day</code> exists, it is the truth for day tickets. v1 writes only <code>day</code>: its new tickets have no <code>first_day</code> yet, and it may move a ticket after the backfill has copied it.</li>
+  </ul>
+  <p>That second sentence hides the hardest case of the week. Follow one row.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 980 420" role="img" aria-label="Maya's ticket as three columns, day, first_day and last_day, over time. 1, v1 sells it: Friday, NULL, NULL. 2, the backfill copies it: Friday, Friday, Friday. 3, v1 moves it to Saturday: Saturday, Friday, Friday, the copies now stale. Upper branch in red: if the contract ran now, the ticket would keep first and last day Friday, and Maya would be turned away on Saturday. Lower branch in green: the backfill runs again, rule B4, giving Saturday, Saturday, Saturday; after the contract the ticket says Saturday and she is admitted.">
+        <defs>
+          <filter id="w13f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f5-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w13f5-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+          <marker id="w13f5-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+        </defs>
+        <g filter="url(#w13f5-r)">
+          <rect x="20" y="150" width="58" height="34" class="s f-card"/>
+          <rect x="78" y="150" width="58" height="34" class="s f-paper"/>
+          <rect x="136" y="150" width="58" height="34" class="s f-paper"/>
+          <path d="M198,167 H244" class="s" marker-end="url(#w13f5-a)"/>
+          <rect x="250" y="150" width="58" height="34" class="s f-card"/>
+          <rect x="308" y="150" width="58" height="34" class="s f-card"/>
+          <rect x="366" y="150" width="58" height="34" class="s f-card"/>
+          <path d="M428,167 H474" class="s" marker-end="url(#w13f5-a)"/>
+          <rect x="480" y="150" width="58" height="34" class="s s-green f-green"/>
+          <rect x="538" y="150" width="58" height="34" class="s s-red f-red"/>
+          <rect x="596" y="150" width="58" height="34" class="s s-red f-red"/>
+          <path d="M658,156 L716,100" class="s s-red" marker-end="url(#w13f5-ar)"/>
+          <rect x="742" y="62" width="58" height="34" class="s s-red f-red"/>
+          <rect x="800" y="62" width="58" height="34" class="s s-red f-red"/>
+          <path d="M658,178 L716,236" class="s s-green" marker-end="url(#w13f5-ag)"/>
+          <rect x="742" y="246" width="58" height="34" class="s s-green f-green"/>
+          <rect x="800" y="246" width="58" height="34" class="s s-green f-green"/>
+          <rect x="858" y="246" width="58" height="34" class="s s-green f-green"/>
+          <path d="M829,284 V320" class="s s-green" marker-end="url(#w13f5-ag)"/>
+          <rect x="771" y="328" width="58" height="34" class="s s-green f-green"/>
+          <rect x="829" y="328" width="58" height="34" class="s s-green f-green"/>
+          <rect x="20" y="262" width="400" height="84" rx="3" class="s s-thin f-mark"/>
+        </g>
+        <text x="107" y="112" text-anchor="middle" class="t-sm">1 · v1 sells it</text>
+        <text x="337" y="112" text-anchor="middle" class="t-sm">2 · backfill copies it</text>
+        <text x="567" y="112" text-anchor="middle" class="t-sm">3 · v1 moves it to Sat</text>
+        <text x="49" y="142" text-anchor="middle" class="t-sm t-2">day</text>
+        <text x="107" y="142" text-anchor="middle" class="t-sm t-2">first</text>
+        <text x="165" y="142" text-anchor="middle" class="t-sm t-2">last</text>
+        <text x="279" y="142" text-anchor="middle" class="t-sm t-2">day</text>
+        <text x="337" y="142" text-anchor="middle" class="t-sm t-2">first</text>
+        <text x="395" y="142" text-anchor="middle" class="t-sm t-2">last</text>
+        <text x="509" y="142" text-anchor="middle" class="t-sm t-2">day</text>
+        <text x="567" y="142" text-anchor="middle" class="t-sm t-2">first</text>
+        <text x="625" y="142" text-anchor="middle" class="t-sm t-2">last</text>
+        <text x="49" y="172" text-anchor="middle" class="t-mono">FRI</text>
+        <text x="107" y="172" text-anchor="middle" class="t-mono t-2">NULL</text>
+        <text x="165" y="172" text-anchor="middle" class="t-mono t-2">NULL</text>
+        <text x="279" y="172" text-anchor="middle" class="t-mono">FRI</text>
+        <text x="337" y="172" text-anchor="middle" class="t-mono">FRI</text>
+        <text x="395" y="172" text-anchor="middle" class="t-mono">FRI</text>
+        <text x="509" y="172" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="567" y="172" text-anchor="middle" class="t-mono t-red">FRI</text>
+        <text x="625" y="172" text-anchor="middle" class="t-mono t-red">FRI</text>
+        <text x="800" y="30" text-anchor="middle" class="t-sm t-red">contract now</text>
+        <text x="771" y="54" text-anchor="middle" class="t-sm t-2">first</text>
+        <text x="829" y="54" text-anchor="middle" class="t-sm t-2">last</text>
+        <text x="771" y="84" text-anchor="middle" class="t-mono t-red">FRI</text>
+        <text x="829" y="84" text-anchor="middle" class="t-mono t-red">FRI</text>
+        <text x="870" y="124" text-anchor="middle" class="t-sm t-red">Maya turned away</text>
+        <text x="870" y="142" text-anchor="middle" class="t-sm t-red">on Saturday</text>
+        <text x="829" y="214" text-anchor="middle" class="t-sm t-green">backfill again (B4)</text>
+        <text x="771" y="238" text-anchor="middle" class="t-sm t-2">day</text>
+        <text x="829" y="238" text-anchor="middle" class="t-sm t-2">first</text>
+        <text x="887" y="238" text-anchor="middle" class="t-sm t-2">last</text>
+        <text x="771" y="268" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="829" y="268" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="887" y="268" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="842" y="308" class="t-sm t-green">contract</text>
+        <text x="800" y="350" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="858" y="350" text-anchor="middle" class="t-mono t-green">SAT</text>
+        <text x="829" y="392" text-anchor="middle" class="t-sm t-green">admitted on Saturday</text>
+        <text x="220" y="290" text-anchor="middle" class="t-sm t-mark">v1 changes only day, so the copies go stale.</text>
+        <text x="220" y="312" text-anchor="middle" class="t-sm t-mark">Nothing looks wrong until day is dropped.</text>
+        <text x="220" y="334" text-anchor="middle" class="t-sm t-mark">The lab's test_b4 is exactly this row.</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.5</b> The row that moved. A v1 server moves Maya's ticket after the backfill has copied it. While <code>day</code> exists, the read rule makes the stale copy harmless. At the contract step the copy becomes the only truth, so the backfill has to run again first, and the contract has to check that it did.</figcaption>
+  </figure>
+
+  <p>So the backfill in the kit has rules, and part A3 of the lab is writing it: fill every day ticket's new columns from <code>day</code>; never touch a pass; be safe to run again; <strong>catch up</strong> with tickets v1 sold or moved after an earlier run; and change at most a batch of rows per transaction, because SQLite has one write lock for the whole database (Lecture 1) and the gates are selling while you copy.</p>
+  <p>The contract step then refuses unless four things hold, and it checks them <em>inside</em> the transaction that rebuilds the table, after taking the write lock. Checking first and rebuilding later would be check-then-act, the Lecture 1 race, with a v1 write landing in the gap.</p>
+  <pre><code>-- the contract step refuses unless all of these are 0 (and v1 is recorded as retired)
+SELECT COUNT(*) FROM tickets WHERE first_day IS NULL OR last_day IS NULL;       -- missing
+SELECT COUNT(*) FROM tickets WHERE first_day = last_day AND first_day &lt;&gt; day;  -- disagree
+SELECT COUNT(*) FROM tickets WHERE first_day &gt; last_day;                        -- backwards</code></pre>
+  <p>How do you know it worked? The kit's rehearsal copies "production" (600 tickets), then runs the whole migration while v1 and v2 sell and move tickets through the real apps, and records every write the apps confirmed. At the end it compares what each ticket <em>means</em> (who it admits, on which days) with that record. One real run, shortened:</p>
+  <pre><code>$ python scripts/rehearse.py
+  2  backfill: 647 rows in 48 batches, while v1 and v2 made 151 writes (v1 84, v2 67)
+  3  after the backfill: v1 moved 12 copied tickets and sold 12; v2 made 12 writes
+     checks: missing 14, disagree 12
+  4  flag multi_day_passes on: REFUSED (v1 is live)
+     contract: REFUSED (3 reasons, first: v1 is still live)
+  5  v1 stopped and recorded as retired
+  6  contract: REFUSED
+       - 14 tickets have no first_day/last_day: run the backfill
+       - 12 day tickets disagree with `day` (moved by v1 after the backfill copied them): run the backfill
+  7  backfill again: 26 rows in 1 batch; checks: missing 0, disagree 0, backwards 0
+  9  contract: `day` dropped, 716 tickets copied
+ 10  v2 after the contract: 11 of 11 writes succeeded; a v1 server started by mistake: HTTP 500 on its first sale
+ 11  meaning: expected 720 tickets, found 720, 0 differences
+  PASS</code></pre>
+  <p>Now the same rehearsal with a backfill that fills only empty rows (it looks right, and it is safe to run again), and with the guard switched off, which the script allows only as a demonstration:</p>
+  <pre><code>$ python scripts/rehearse.py --backfill ../demo/naive_backfill.py:backfill --skip-guard
+  7  contract WITHOUT the guard (demonstration): `day` dropped, 665 tickets copied
+  8  meaning: expected 665 tickets, found 665, 29 differences
+       - ticket 10 (Jonas Tanaka, FRI-0010): expected days ['2026-10-11'], found ['2026-10-09']
+       - ticket 13 (Ines Silva, FRI-0013): expected days ['2026-10-10'], found ['2026-10-09']
+       ...</code></pre>
+  <p>Every ticket is still there: 665 expected, 665 found. A row count would pass, and so would any check that the new columns are filled. Twenty-nine people would still be turned away on the day they moved to. Only a comparison of meaning finds them. (The counts vary a little from run to run because the backfill runs in its own thread; with the guard on, the naive backfill is refused every time.)</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Change the shape of shared data in steps that each keep every running version working.</strong> The steps you can't undo by redeploying the old version come last, and they check before they act. Prove the result by comparing what the data means, with writes still arriving.</p>
+  </div>
+</section>
+
+<!-- ============ 4. FLAGS ============ -->
+<section class="block" id="flags">
+  <div class="sechead">
+    <span class="clock">0:50 – 1:05</span>
+    <h2>Flags, dead code, and Hyrum's law</h2>
+  </div>
+  <p>A <strong>feature flag</strong> is a switch, read by running code, that turns a code path on or off without a deploy. The kit uses one to put passes on sale: <code>multi_day_passes</code>, stored in the database so that every server sees the same value. Pete Hodgson's article on feature toggles (martinfowler.com, 2016) sorts them by purpose: release toggles, experiment toggles, ops toggles and permissioning toggles. Release toggles, like ours, are meant to be temporary; ops and permissioning toggles can be long-lived on purpose, such as a kill switch. He is blunt about the cost of keeping toggles around: <q>Savvy teams view the Feature Toggles in their codebase as inventory which comes with a carrying cost and seek to keep that inventory as low as possible.</q> Some teams put expiry dates on their toggles, and some add <q>"time bombs" which will fail a test (or even refuse to start an application!)</q> once a toggle outlives its date.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 980 380" role="img" aria-label="The life of a temporary release flag as eight boxes in a snake: created with a name, an owner and an end date; off everywhere while its code ships dark; on for some; on for all, when the old path is dead; the old path deleted; no reader left in any live version; the row deleted from every configuration; the name retired and never reused. Two red notes: wristband_mode stopped halfway, off since 2025 but still read by v1 and v2; at Knight, an old name was given a new meaning while old code still read it.">
+        <defs>
+          <filter id="w13f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w13f6-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w13f6-r)">
+          <rect x="20" y="40" width="190" height="62" rx="10" class="s f-card"/>
+          <rect x="265" y="40" width="190" height="62" rx="10" class="s f-card"/>
+          <rect x="510" y="40" width="190" height="62" rx="10" class="s f-card"/>
+          <rect x="755" y="40" width="190" height="62" rx="10" class="s f-card"/>
+          <path d="M212,71 H261" class="s" marker-end="url(#w13f6-a)"/>
+          <path d="M457,71 H506" class="s" marker-end="url(#w13f6-a)"/>
+          <path d="M702,71 H751" class="s" marker-end="url(#w13f6-a)"/>
+          <path d="M850,104 V176" class="s" marker-end="url(#w13f6-a)"/>
+          <rect x="755" y="180" width="190" height="62" rx="10" class="s f-green"/>
+          <rect x="510" y="180" width="190" height="62" rx="10" class="s f-green"/>
+          <rect x="265" y="180" width="190" height="62" rx="10" class="s f-green"/>
+          <rect x="20" y="180" width="190" height="62" rx="10" class="s s-thick f-green"/>
+          <path d="M753,211 H704" class="s" marker-end="url(#w13f6-a)"/>
+          <path d="M508,211 H459" class="s" marker-end="url(#w13f6-a)"/>
+          <path d="M263,211 H214" class="s" marker-end="url(#w13f6-a)"/>
+          <rect x="300" y="290" width="400" height="62" rx="3" class="s s-red s-thin f-red"/>
+          <path d="M605,288 V248" class="s s-red s-dash" marker-end="url(#w13f6-ar)"/>
+          <rect x="20" y="290" width="250" height="62" rx="3" class="s s-red s-thin f-red"/>
+          <path d="M115,288 V248" class="s s-red s-dash" marker-end="url(#w13f6-ar)"/>
+        </g>
+        <text x="115" y="66" text-anchor="middle">created</text>
+        <text x="115" y="88" text-anchor="middle" class="t-sm t-2">name, owner, end date</text>
+        <text x="360" y="66" text-anchor="middle">off everywhere</text>
+        <text x="360" y="88" text-anchor="middle" class="t-sm t-2">its code ships dark</text>
+        <text x="605" y="66" text-anchor="middle">on for some</text>
+        <text x="605" y="88" text-anchor="middle" class="t-sm t-2">watch what happens</text>
+        <text x="850" y="66" text-anchor="middle">on for all</text>
+        <text x="850" y="88" text-anchor="middle" class="t-sm t-2">the old path is dead</text>
+        <text x="850" y="206" text-anchor="middle">old path deleted</text>
+        <text x="850" y="228" text-anchor="middle" class="t-sm t-2">the new one always runs</text>
+        <text x="605" y="206" text-anchor="middle">no reader left</text>
+        <text x="605" y="228" text-anchor="middle" class="t-sm t-2">in any live version</text>
+        <text x="360" y="206" text-anchor="middle">row deleted</text>
+        <text x="360" y="228" text-anchor="middle" class="t-sm t-2">from every config</text>
+        <text x="115" y="206" text-anchor="middle">name retired</text>
+        <text x="115" y="228" text-anchor="middle" class="t-sm t-2">never reused</text>
+        <text x="500" y="316" text-anchor="middle" class="t-sm t-red">stuck halfway: wristband_mode is off,</text>
+        <text x="500" y="338" text-anchor="middle" class="t-sm t-red">but v1 and v2 still read it</text>
+        <text x="145" y="316" text-anchor="middle" class="t-sm t-red">Knight: an old name, a new</text>
+        <text x="145" y="338" text-anchor="middle" class="t-sm t-red">meaning, old code still reading</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.6</b> The life of a temporary release flag, from creation to removal. The bottom row is the flag's own contract step: remove every reader first, then the stored value, and never give the name a new meaning. The red notes mark the two ways it goes wrong. A flag kept on purpose, such as a kill switch, stops at the top row and needs an owner and a regular review instead of an end date.</figcaption>
+  </figure>
+
+  <p>AfterHours has a flag stuck halfway. In the <code>flags</code> table there is a row called <code>wristband_mode</code>, off since 11 October 2025. Its note says that on the first night of the 2025 festival the scanners failed, so volunteers checked paper wristbands by eye and let every ticket in. The code is still there, in v1 and in v2, because v2 was copied from v1:</p>
+  <pre><code>if flags.enabled(conn, "wristband_mode"):
+    # Festival 2025: the scanners failed on the first night, so volunteers checked
+    # paper wristbands by eye and every ticket was let in.
+    return {"admitted": True, ...}</code></pre>
+  <p>That is dead code in the Knight sense: it never runs under today's settings, and it is still present and callable. Dead code costs you twice. People and agents have to read it and wonder whether it matters, and one wrong setting brings it back to life.</p>
+
+  <div class="callout try">
+    <span class="label">Predict (pairs, 3 minutes)</span>
+    <p>A pull request, written in the style an agent might produce, says: <em>"Reuse the unused <code>wristband_mode</code> flag to put passes on sale, instead of adding a new flag."</em> It changes one line in v2's <code>buy_pass</code>. The release steward merges it on Saturday afternoon, during the migration window, and switches the flag on. At 18:00 Maya scans her Friday ticket at a gate that still runs v1. What happens? What happens at a v2 gate?</p>
+    <p class="handnote">We authored this pull request for the lecture. It is not output from a real agent.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p>Both gates let her in. v1's <code>scan()</code> still reads <code>wristband_mode</code> as "let every ticket in", and so does v2's, because the pull request changed only <code>buy_pass</code>. Every ticket is now valid every day, at every gate. Passes are also on sale while v1 gates still run, which T6 forbids, and the kit's guard never fired: it protects the name <code>multi_day_passes</code>, and this switch has another name. The kit has a test that photographs exactly this for v1: with the flag on, a Friday ticket is admitted on Saturday (HTTP 200).</p>
+      <p>That is Knight in miniature: an old name given a new meaning, read by old code that was never removed. The rules that prevent it are short. A new behaviour gets a new flag. Delete a flag's readers before its row, and delete dead code once it is switched off for good; version control remembers it for you. Part A5 of the lab removes the reader from v2. v1's copy goes when v1 retires, and only then can the row go.</p>
+    </div>
+  </details>
+
+  <p>A flag is behaviour someone chose to make switchable. Much more behaviour is visible without anyone choosing it. Hyrum Wright made an observation about it while improving Google's core C++ libraries, where even a small library change could break some far-off system; Titus Winters named it Hyrum's law:</p>
+  <blockquote><p>With a sufficient number of users of an API, it does not matter what you promise in the contract: all observable behaviors of your system will be depended on by somebody.</p></blockquote>
+  <p>AfterHours shows it at small scale. Requirement T4 promises only that ticket codes are unique. What anyone can observe is more: codes look like <code>FRI-0001</code>, and they keep their prefix when the ticket moves, so Maya's Saturday ticket still says <code>FRI</code>. If a door volunteer's tablet colours the screen by those three letters, that format has become a promise nobody wrote down. The characterization tests in the kit photograph it and label it <q>observed, not promised</q>, and v2 keeps it for day tickets. Reading R2 goes further.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A release flag is a temporary branch in running code.</strong> Give every flag an owner, give a temporary one an end date, remove its readers before its value, and never give an old name a new meaning. Anything users can observe, somebody depends on: decide on purpose which of it you promise.</p>
+  </div>
+</section>
+
+<!-- ============ 5. AGENTS ============ -->
+<section class="block" id="agents">
+  <div class="sechead">
+    <span class="clock">1:05 – 1:20</span>
+    <h2>Agents in maintenance</h2>
+  </div>
+  <p>Maintenance offers agents three jobs they can help with: reading an unfamiliar codebase and explaining it, writing many tests quickly, and making the same edit in many places. Each job has a matching gap, and each output still needs checking. We tried the first two on v1.</p>
+  <div class="contract">
+    <span class="cardtitle">Task given to the agent (shortened)</span>
+    <dl>
+      <dt>Context</dt><dd>You have inherited AfterHours v1. Nobody who wrote the ticket code is around. We are about to migrate the tickets table.</dd>
+      <dt>Goal 1</dt><dd>Explain what <code>v1/tickets.py</code> does, in under 250 words, for a new teammate.</dd>
+      <dt>Goal 2</dt><dd>Write characterization tests for the ticket API that pin down what the code does today.</dd>
+      <dt>Limits</dt><dd>Work only in the repository. Do not change any file under <code>v1/</code>.</dd>
+      <dt>Deliver</dt><dd>The explanation, a summary of what the tests pin down, anything that looked surprising, and the pytest run.</dd>
+    </dl>
+  </div>
+  <p>We ran Codex CLI (model gpt-6-astra) twice on throwaway copies of v1, on 27 September 2026, with the same prompt. In run A the repository held only the code. In run B it also held <code>docs/requirements.md</code> with T1 to T4. The unedited prompts, answers, commands and test files are in <code>lectures/13-change-without-forgetting/demo/agent-characterization/</code>. Two runs are an anecdote: read them as an illustration of what can happen.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th></th><th>Run A: code only</th><th>Run B: code and requirements</th></tr></thead>
+      <tbody>
+        <tr><td>Explanation of changing day</td><td>Correct: <q>Allows a change strictly before midnight at the start of the destination day. It preserves the ID, holder, and original code. The old day and previous scans do not prevent a change.</q></td><td>Correct: <q>Allows a change strictly before midnight on the destination day. It preserves the ID, holder, and original code.</q></td></tr>
+        <tr><td>Tests written</td><td>75 cases, <code>82 passed</code> with the existing 7</td><td>80 cases, <code>87 passed</code></td></tr>
+        <tr><td>Stayed inside its limits</td><td>Yes: <code>git status</code> showed one new test file and nothing under <code>v1/</code></td><td>Yes: <code>git status</code> showed one new test file and nothing under <code>v1/</code></td></tr>
+        <tr><td>The Friday-evening move</td><td>Pinned as 200. Its summary listed it as a surprise: <q>used or expired tickets can move to future days</q></td><td>Pinned as 200, with a comment citing T3. Its summary: <q>written requirement T3 says <strong>both days must still be ahead</strong>, but the code checks only the destination.</q></td></tr>
+        <tr><td>Run against v2 (same behaviour, two extra fields in each ticket response)</td><td>13 of 75 fail</td><td>13 of 80 fail</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Both runs did the job they were given, and did it well. Both also show why the job needs a person. The tests pin the Friday-evening move as correct: one of run A's tests scans a Friday ticket in on Friday evening, moves it to Saturday, and asserts that it is admitted again the next day. That is what a characterization test should do; it is also exactly Week 5's warning, since the expected values came from the code. Whether it is a bug was decided by T3, which only run B could see, and by the product lead, whom neither could ask.</p>
+  <p>The last row surprised us. v2 answers every one of these requests exactly as v1 does, and adds two fields, <code>first_day</code> and <code>last_day</code>, to each ticket it returns. The agents' tests compare whole response bodies, so 13 tests fail on v2 in each run. With those two fields removed, every test passes. Is an extra field a change in behaviour? For a client that rejects unknown fields, yes: that is Hyrum's law again. The kit's own photographs compare only the four fields v1 returned, which is a decision we made and wrote down. Someone has to make that decision for each photograph.</p>
+  <p>The third job is the <strong>large mechanical change</strong>: rename <code>day</code> everywhere, add a column to every query. We did not measure an agent on this one. The risk is easy to see anyway: the edit is mechanical, the order is not. Which reads must stay on <code>day</code> during the window is the read rule, a decision written in the migration plan and at the top of <code>v2/tickets.py</code>; a rename applied everywhere at once breaks it. Give the agent the plan as context, ask for one step per change so that each diff can be reviewed and deployed alone, check that the edit reached every place it should (search for what is left, run every suite), and let the checks decide: the characterization tests on both versions, the step's own tests, and the rehearsal.</p>
+
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Job</th><th>What agents do well</th><th>What stays with you</th></tr></thead>
+      <tbody>
+        <tr><td>Explain unfamiliar code</td><td>Read everything, summarise the paths, notice odd cases</td><td>Check the claims against the code. An explanation says what the code does, never what it should do</td></tr>
+        <tr><td>Characterization tests</td><td>Many cases quickly, boundaries down to the microsecond (as in run A)</td><td>Label each photograph promise or quirk against the requirements; choose how tight each photograph is</td></tr>
+        <tr><td>Mechanical changes</td><td>The same edit across many files</td><td>The order of the steps, which reads stay old during the window, a check that every place was changed, and what counts as done</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout try">
+    <span class="label">In pairs (5 minutes)</span>
+    <p>Run A's test <code>test_scans_can_repeat_and_used_or_expired_tickets_can_move_to_a_future_day</code> is green. Write the two sentences you would send to the product lead about it. Then decide what happens to that test during the migration, and after it.</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief</summary>
+    <div class="inner">
+      <p>A good message states the behaviour and the requirement side by side, with an example: <em>"A ticket can be moved after its own day has begun, so a holder can scan in on Friday evening, move the ticket to Saturday and come in again. T3 says both days must still be ahead. Do we fix it after the passes migration, and do we need to check whether anyone has already done this?"</em></p>
+      <p>During the migration the test stays exactly as it is: v1 and v2 must agree, and the photograph proves they do. After the migration, fixing T3 is a behaviour change with its own commit. That commit replaces the photograph with a test written from T3, and a reviewer sees both in one diff. Deleting a photograph silently, or editing it until it passes, is the Week 5 mistake of weakening a test.</p>
+    </div>
+  </details>
+
+  <p>Here is today's work as an evidence packet, the way you will hand in the lab.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <tbody>
+        <tr><th>Requirement</th><td>M1: every ticket, including those sold or moved during the migration by v1 or v2, admits the same holder on exactly the same days afterwards. T5: passes. T6: passes only once no v1 server is left.</td></tr>
+        <tr><th>Decision</th><td>Expand, migrate, contract, with v2 keeping <code>day</code> in step and reading it for day tickets until the contract. Rejected: one migration that renames the column (breaks every live v1 server).</td></tr>
+        <tr><th>Change</th><td><code>migrations/expand.sql</code>, <code>migrations/backfill.py</code>, <code>migrations/contract.py</code>; v2 released next to v1</td></tr>
+        <tr><th>Check</th><td>Characterization tests pass on v1 and v2 for every table shape they must run on. Rehearsal: 3 of 3 PASS, with passes and contract refused while v1 was live and 0 differences in meaning at the end.</td></tr>
+        <tr><th>Result</th><td>Ready for the real window. Open: T3 quirk reported to the product lead; <code>wristband_mode</code> reader removed from v2, row to delete once v1 is gone.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 6. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:20 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>The organisers want each event's <code>venue</code> split into <code>building</code> and <code>room</code>, while v1 and v2 both run. Write the expand, migrate and contract steps, and for each step say what v1 and v2 read and write.</li>
+        <li>Your characterization test shows that cancelling a checked-in reservation frees a place, and no requirement decides whether it should. Promise or quirk? What do you do with the test before, during and after a migration?</li>
+        <li>A teammate wants to reuse the unused flag <code>early_entry</code> for a new feature, because "nothing reads it". What do you check, and what do you propose instead?</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 14</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Software that keeps its word</h2>
+  <p>The lecture changed one table. These four short readings are about why systems keep needing changes like it, and how to make them without surprises. Read them before the lab.</p>
+</div>
+
+<section class="block" id="lehman">
+  <div class="sechead"><span class="clock">R1</span><h2>Software that is used must change</h2></div>
+  <p>In 1980 M. M. Lehman published five laws of program evolution, formulated, in his words, <q>following quantitative studies of the evolution of a number of different systems.</q> He first sorted programs into kinds. <q>S-programs are programs whose function is formally defined by and derivable from a specification.</q> At the other end are E-programs, which <q>mechanize a human or societal activity</q>. A festival booking system is an E-program: the festival changes, so the program must.</p>
+  <p>His first two laws, in the 1980 wording:</p>
+  <ul>
+    <li><strong>Continuing change.</strong> <q>A program that is used and that as an implementation of its specification reflects some other reality, undergoes continual change or becomes progressively less useful.</q></li>
+    <li><strong>Increasing complexity.</strong> <q>As an evolving program is continually changed, its complexity, reflecting deteriorating structure, increases unless work is done to maintain or reduce it.</q></li>
+  </ul>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 360" role="img" aria-label="Illustrative chart of complexity against releases. A red curve, changed with nothing done to reduce complexity, climbs steeply. A blue saw-tooth line, changed with clean-up after each change, climbs slowly: each tooth is a rise followed by a small drop labelled contract step or flag removed. Illustrative, not measured.">
+        <defs>
+          <filter id="w13f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w13f7-r)">
+          <path d="M100,300 H850" class="s" marker-end="url(#w13f7-a)"/>
+          <path d="M100,300 V40" class="s" marker-end="url(#w13f7-a)"/>
+          <path d="M110,276 C320,262 560,190 830,70" class="s s-red s-thick"/>
+          <path d="M110,276 L230,250 L246,264 L380,238 L396,252 L530,228 L546,242 L680,220 L696,232 L830,212" class="s s-pen s-thick"/>
+        </g>
+        <text x="475" y="330" text-anchor="middle" class="t-sm">releases →</text>
+        <text x="72" y="170" text-anchor="middle" class="t-sm" transform="rotate(-90 72 170)">complexity</text>
+        <text x="790" y="58" text-anchor="end" class="t-sm t-red">changed, nothing done to reduce it</text>
+        <text x="840" y="254" text-anchor="end" class="t-sm t-pen">cleaned up after each change</text>
+        <text x="400" y="292" text-anchor="middle" class="t-sm t-2">each small drop: a contract step, a flag removed, dead code deleted</text>
+        <text x="880" y="30" text-anchor="end" class="t-sm t-2">illustrative, not measured</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.7</b> Lehman's second law as a picture. A model, not a measurement: the curves show the shape of the claim, and no data is plotted.</figcaption>
+  </figure>
+  <p>This week is a small case of both laws. Passes are continuing change. The migration adds complexity: v2 carries a write rule, a read rule and a new flag. The "unless work is done" part is the contract step, the removal of <code>wristband_mode</code>, and, after passes are permanent, removing the window code from v2. A migration that never contracts leaves the system more complex than before it started; Sato's article says the same about parallel change.</p>
+  <p>Read the laws as observations about the systems Lehman studied, which he kept revising: a 1997 paper with his colleagues lists eight, and restates the first as <q>E-type systems must be continually adapted else they become progressively less satisfactory.</q></p>
+</section>
+
+<section class="block" id="hyrum">
+  <div class="sechead"><span class="clock">R2</span><h2>Every behaviour has a user</h2></div>
+  <p>Hyrum's law comes from maintaining widely used code at Google: <q>With a sufficient number of users of an API, it does not matter what you promise in the contract: all observable behaviors of your system will be depended on by somebody.</q> The book <em>Software Engineering at Google</em> (2020) gives the classic example. The order in which a hash table returns its keys is not promised, yet programs come to depend on it, some even using it as a cheap source of randomness, so changing that order breaks them. Wright's own page names the result: <q>bug-for-bug compatibility.</q> That is exactly what the lab's characterization tests ask of v2 during the window.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 400" role="img" aria-label="A small yellow box, the promise in T4: codes are unique, sits inside a large dashed region of everything observable: the FRI-0001 code format, the prefix kept after a move, the exact response fields, the exact error text, and sales allowed after the day has passed. Arrows from four users land outside the promise: a door tablet on the code format, a print script on the prefix, the agent's tests on the exact response fields, and a phone app on the error text.">
+        <defs>
+          <filter id="w13f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w13f8-r)">
+          <ellipse cx="450" cy="210" rx="300" ry="160" class="s s-dash f-paper"/>
+          <rect x="360" y="180" width="180" height="60" rx="4" class="s s-thick f-mark"/>
+          <circle cx="300" cy="120" r="6" class="f-ink"/>
+          <circle cx="300" cy="300" r="6" class="f-ink"/>
+          <circle cx="600" cy="120" r="6" class="f-ink"/>
+          <circle cx="600" cy="300" r="6" class="f-ink"/>
+          <circle cx="450" cy="316" r="6" class="f-ink"/>
+          <rect x="20" y="44" width="120" height="40" rx="8" class="s f-card"/>
+          <rect x="20" y="316" width="120" height="40" rx="8" class="s f-card"/>
+          <rect x="760" y="44" width="120" height="40" rx="8" class="s f-card"/>
+          <rect x="760" y="316" width="120" height="40" rx="8" class="s f-card"/>
+          <path d="M142,72 L290,116" class="s s-thin" marker-end="url(#w13f8-a)"/>
+          <path d="M142,332 L290,304" class="s s-thin" marker-end="url(#w13f8-a)"/>
+          <path d="M758,72 L610,116" class="s s-thin" marker-end="url(#w13f8-a)"/>
+          <path d="M758,332 L610,304" class="s s-thin" marker-end="url(#w13f8-a)"/>
+        </g>
+        <text x="450" y="206" text-anchor="middle" class="t-sm t-mark">promised (T4):</text>
+        <text x="450" y="226" text-anchor="middle" class="t-sm t-mark">codes are unique</text>
+        <text x="312" y="146" class="t-sm">FRI-0001 format</text>
+        <text x="312" y="286" class="t-sm">prefix kept after a move</text>
+        <text x="588" y="146" text-anchor="end" class="t-sm">exact response fields</text>
+        <text x="588" y="286" text-anchor="end" class="t-sm">exact error text</text>
+        <text x="450" y="342" text-anchor="middle" class="t-sm">sales allowed after the day</text>
+        <text x="450" y="76" text-anchor="middle" class="t-sm t-2">everything anyone can observe</text>
+        <text x="80" y="69" text-anchor="middle" class="t-sm">door tablet</text>
+        <text x="80" y="341" text-anchor="middle" class="t-sm">print script</text>
+        <text x="820" y="69" text-anchor="middle" class="t-sm">agent's tests</text>
+        <text x="820" y="341" text-anchor="middle" class="t-sm">phone app</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.8</b> Hyrum's law in AfterHours. The promise is the small box; users depend on the big region around it. The five behaviours are real, observed in v1. The agent's tests are real too; the tablet, the script and the app are illustrative.</figcaption>
+  </figure>
+  <p>You can't stop people depending on behaviour, so manage it. Decide which observable behaviours are promises, write them into the requirements, and test them. Change the rest deliberately: say so in advance, and give users time (R3). Photograph at the level of the promise: the kit's characterization tests compare only the fields v1 returned, and they label the code format as observed and unpromised. When a photograph fails, the question is always the same: did a promise change, or only something nobody promised?</p>
+</section>
+
+<section class="block" id="deprecation">
+  <div class="sechead"><span class="clock">R3</span><h2>Deprecation is a process</h2></div>
+  <p>In the lab, retiring v1 ended with one command, <code>retire v1</code>, and that command only records a decision. Someone has to stop every v1 server and check first. The guards trust the record; they cannot see which servers are still running. In a real system, retiring an old version, an old API field or an old table takes months, and it rarely happens by itself. The chapter on deprecation in <em>Software Engineering at Google</em>, by Hyrum Wright, defines it as <q>the process of orderly migration away from and eventual removal of obsolete systems</q>, and starts from the premise <q>that code is a liability, not an asset.</q></p>
+  <p>It separates two kinds. <strong>Advisory</strong> deprecations <q>don't have a deadline and aren't high priority for the organization</q>; they announce and hope. <q>As our friends in SRE will readily tell you: "Hope is not a strategy."</q> <strong>Compulsory</strong> deprecations come with a deadline, an enforcement mechanism, and a team that owns the migration: <q>without explicit owners, a deprecation process is unlikely to make meaningful progress, no matter how many warnings and alerts a system might generate.</q></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 380" role="img" aria-label="Illustrative chart of calls to an old path over time, with milestones: announce, warn, no new users, migrate the rest, remove. A grey dashed curve, advisory, falls a little and levels off above zero. A blue curve, compulsory with an owner, falls to zero by the remove milestone. Illustrative, not measured.">
+        <defs>
+          <filter id="w13f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w13f9-r)">
+          <path d="M100,300 H850" class="s" marker-end="url(#w13f9-a)"/>
+          <path d="M100,300 V50" class="s" marker-end="url(#w13f9-a)"/>
+          <path d="M180,70 V300 M330,70 V300 M480,70 V300 M630,70 V300 M780,70 V300" class="s s-thin s-dash s-2"/>
+          <path d="M104,90 C260,94 380,150 500,166 C600,178 700,180 846,182" class="s s-2 s-thick s-dash"/>
+          <path d="M104,90 C240,96 360,130 480,166 C560,200 620,262 700,288 C730,296 760,298 778,298" class="s s-pen s-thick"/>
+          <rect x="632" y="148" width="218" height="22" class="f-card"/>
+          <rect x="396" y="248" width="176" height="22" class="f-card"/>
+        </g>
+        <text x="180" y="326" text-anchor="middle" class="t-sm">announce</text>
+        <text x="330" y="346" text-anchor="middle" class="t-sm">warn</text>
+        <text x="480" y="326" text-anchor="middle" class="t-sm">no new users</text>
+        <text x="630" y="346" text-anchor="middle" class="t-sm">migrate the rest</text>
+        <text x="780" y="326" text-anchor="middle" class="t-sm">remove</text>
+        <text x="70" y="175" text-anchor="middle" class="t-sm" transform="rotate(-90 70 175)">calls to the old path</text>
+        <text x="846" y="164" text-anchor="end" class="t-sm t-2">advisory: never reaches zero</text>
+        <text x="566" y="264" text-anchor="end" class="t-sm t-pen">compulsory, with an owner</text>
+        <text x="880" y="40" text-anchor="end" class="t-sm t-2">illustrative, not measured</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.9</b> Two deprecations of the same old path, as a model, not a measurement. Warnings slow new use; only an owner with a deadline gets the last users off, so that removal can happen.</figcaption>
+  </figure>
+  <p>AfterHours has a deprecation waiting. v2 still returns the field <code>day</code> in every ticket response, because any client written against v1 may read it. The database column is gone after the contract step, and the API field isn't. Removing it is its own expand, migrate, contract, on a slower clock, because you don't control the clients. Before removing it, measure: which clients still read <code>day</code>, and who owns moving them?</p>
+</section>
+
+<section class="block" id="meaning">
+  <div class="sechead"><span class="clock">R4</span><h2>Compare meaning, not bytes</h2></div>
+  <p>After a migration it is tempting to prove nothing was lost with a checksum: hash every row before, hash every row after, compare. Across a schema change that can't work. The rows have different columns, so the bytes differ even when nothing was lost. And a checksum of only the columns both shapes share (<code>id</code>, <code>holder</code>, <code>code</code>) would pass even if every ticket had lost its day.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Two tables hold the same two tickets. Left, the v1 table with id, holder, day and code: Maya, Saturday, FRI-0001; Sam, Saturday, SAT-0002. Right, the contracted table with first_day and last_day instead of day. Above them, a checksum of each table's rows: the two checksums differ, marked not equal in red. Below them, the meaning of each table: Maya's FRI-0001 admits on Saturday, Sam's SAT-0002 admits on Saturday. The two meanings are equal, marked in green.">
+        <defs>
+          <filter id="w13f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w13f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w13f10-r)">
+          <rect x="60" y="20" width="240" height="44" rx="6" class="s s-red f-red"/>
+          <rect x="660" y="20" width="240" height="44" rx="6" class="s s-red f-red"/>
+          <path d="M180,112 V70" class="s" marker-end="url(#w13f10-a)"/>
+          <path d="M780,112 V70" class="s" marker-end="url(#w13f10-a)"/>
+          <rect x="20" y="116" width="320" height="120" rx="4" class="s f-card"/>
+          <path d="M20,150 H340" class="s s-thin"/>
+          <rect x="620" y="116" width="320" height="120" rx="4" class="s f-card"/>
+          <path d="M620,150 H940" class="s s-thin"/>
+          <path d="M180,240 V282" class="s" marker-end="url(#w13f10-a)"/>
+          <path d="M780,240 V282" class="s" marker-end="url(#w13f10-a)"/>
+          <rect x="40" y="288" width="280" height="80" rx="6" class="s s-green f-green"/>
+          <rect x="640" y="288" width="280" height="80" rx="6" class="s s-green f-green"/>
+        </g>
+        <text x="180" y="48" text-anchor="middle" class="t-sm">checksum of the rows: A</text>
+        <text x="780" y="48" text-anchor="middle" class="t-sm">checksum of the rows: B</text>
+        <text x="480" y="52" text-anchor="middle" class="t-xl t-red">≠</text>
+        <text x="480" y="84" text-anchor="middle" class="t-sm t-red">different columns, different bytes</text>
+        <text x="32" y="140" xml:space="preserve" class="t-mono t-2">id holder day   code</text>
+        <text x="32" y="180" xml:space="preserve" class="t-mono">1  Maya   10-10 FRI-0001</text>
+        <text x="32" y="212" xml:space="preserve" class="t-mono">2  Sam    10-10 SAT-0002</text>
+        <text x="632" y="140" xml:space="preserve" class="t-mono t-2">id holder first last  code</text>
+        <text x="632" y="180" xml:space="preserve" class="t-mono">1  Maya   10-10 10-10 FRI-0001</text>
+        <text x="632" y="212" xml:space="preserve" class="t-mono">2  Sam    10-10 10-10 SAT-0002</text>
+        <text x="170" y="100" text-anchor="end" class="t-sm t-2">v1 table</text>
+        <text x="770" y="100" text-anchor="end" class="t-sm t-2">contracted table</text>
+        <text x="200" y="266" class="t-sm t-2">meaning()</text>
+        <text x="800" y="266" class="t-sm t-2">meaning()</text>
+        <text x="180" y="320" text-anchor="middle" class="t-sm">Maya, FRI-0001: Saturday</text>
+        <text x="180" y="346" text-anchor="middle" class="t-sm">Sam, SAT-0002: Saturday</text>
+        <text x="780" y="320" text-anchor="middle" class="t-sm">Maya, FRI-0001: Saturday</text>
+        <text x="780" y="346" text-anchor="middle" class="t-sm">Sam, SAT-0002: Saturday</text>
+        <text x="480" y="336" text-anchor="middle" class="t-xl t-green">=</text>
+        <text x="480" y="372" text-anchor="middle" class="t-sm t-green">same people, same days</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 13.10</b> Two shapes of the same data. Their checksums must differ; their meaning must not. Maya's ticket moved to Saturday before the migration, so it admits on Saturday in both, and its code still starts with FRI.</figcaption>
+  </figure>
+  <p>So define meaning in terms of what the application does with the data. For a ticket, that is who it admits and on which days. The kit's <code>migrations/meaning.py</code> reads that from any shape of the table, using the same read rule as v2, and <code>migrate.py meaning --compare</code> reports every ticket whose meaning changed.</p>
+  <p>Two cautions. First, "the same as before" is the wrong expectation for a live migration: tickets are sold and moved during it. The rehearsal handles that by keeping its own record of every write the apps confirmed and comparing against the record. Second, a meaning check is only as good as its definition. Ours includes the holder, the code and the days. It would not notice a lost <code>created_at</code>, so the contract step's tests check separately that every kept column is copied unchanged. Write down what your data means before you move it, and check that, with writes still arriving.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Legacy code</dt><dd>In Feathers's definition, code without tests: you can't change it and know whether you changed its behaviour.</dd>
+    <dt>Characterization test</dt><dd>A test that records what the code does now, right or wrong, so that a change shows up as a failure. Its expected values come from the code.</dd>
+    <dt>Rolling deploy</dt><dd>Replacing servers one at a time while the service keeps running, so old and new versions run side by side for a while.</dd>
+    <dt>Parallel change (expand, migrate, contract)</dt><dd>Making an incompatible change in three phases: add the new form next to the old, move everything to it, then remove the old.</dd>
+    <dt>Migration window</dt><dd>The time during which more than one version runs against the same data. In the lab: between deploying v2 and retiring v1.</dd>
+    <dt>Backfill</dt><dd>Filling new columns for rows that already exist. It must be safe to run again and able to catch up with late writes.</dd>
+    <dt>Guard</dt><dd>A check a step runs before it acts, refusing if its preconditions don't hold. The contract step's guard runs inside its own write transaction.</dd>
+    <dt>Feature flag</dt><dd>A switch read by running code that turns a path on or off without a deploy. Every flag needs an owner; a temporary one, such as a release flag, also needs an end date.</dd>
+    <dt>Dead code</dt><dd>Code that never runs under current settings but is still present and callable.</dd>
+    <dt>Hyrum's law</dt><dd>With enough users, every observable behaviour of a system is depended on by somebody, whatever the contract promises.</dd>
+    <dt>Deprecation</dt><dd>The managed process of moving users off an old system and then removing it. Advisory: no deadline. Compulsory: a deadline, enforcement and an owner.</dd>
+    <dt>Meaning check</dt><dd>Comparing what data means to the application (here: who is admitted on which days) instead of comparing bytes, so that data can be compared across schemas.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>US Securities and Exchange Commission, <em>In the Matter of Knight Capital Americas LLC</em>, Release No. 34-70694, 16 October 2013. <a href="https://www.sec.gov/litigation/admin/2013/34-70694.pdf">PDF</a></li>
+    <li>Michael C. Feathers, <em>Working Effectively with Legacy Code</em>, Prentice Hall, 2004 (first printing September 2004, copyright 2005); the definition of legacy code is in the Preface. <a href="https://www.informit.com/store/working-effectively-with-legacy-code-9780131177055">Publisher</a> · <a href="https://ptgmedia.pearsoncmg.com/images/9780131177055/samplepages/0131177052.pdf">sample pages</a></li>
+    <li>Michael Feathers, "Characterization Testing", 8 August 2016. <a href="https://michaelfeathers.silvrback.com/characterization-testing">michaelfeathers.silvrback.com</a></li>
+    <li>Danilo Sato, "ParallelChange", martinfowler.com, 13 May 2014. <a href="https://martinfowler.com/bliki/ParallelChange.html">martinfowler.com</a></li>
+    <li>Pramod Sadalage and Martin Fowler, "Evolutionary Database Design", martinfowler.com (rewritten May 2016). <a href="https://martinfowler.com/articles/evodb.html">martinfowler.com</a></li>
+    <li>Pete Hodgson, "Feature Toggles (aka Feature Flags)", martinfowler.com, 2016 (revised 2017). <a href="https://martinfowler.com/articles/feature-toggles.html">martinfowler.com</a></li>
+    <li>Hyrum Wright, "Hyrum's Law". <a href="https://www.hyrumslaw.com/">hyrumslaw.com</a> · Titus Winters, Tom Manshreck and Hyrum Wright (eds.), <em>Software Engineering at Google</em>, O'Reilly, 2020, chapter 1. <a href="https://abseil.io/resources/swe-book/html/ch01.html">Free online edition</a></li>
+    <li>Hyrum Wright, "Deprecation", chapter 15 of <em>Software Engineering at Google</em>, 2020. <a href="https://abseil.io/resources/swe-book/html/ch15.html">Free online edition</a></li>
+    <li>M. M. Lehman, "Programs, Life Cycles, and Laws of Software Evolution", <em>Proceedings of the IEEE</em> 68(9), pp. 1060–1076, September 1980. <a href="https://doi.org/10.1109/PROC.1980.11805">DOI</a></li>
+    <li>M. M. Lehman, J. F. Ramil, P. D. Wernick, D. E. Perry and W. M. Turski, "Metrics and Laws of Software Evolution: The Nineties View", 4th International Software Metrics Symposium, 1997. <a href="https://doi.org/10.1109/METRIC.1997.637156">DOI</a></li>
+    <li>SQLite, "ALTER TABLE" (the 12-step procedure for other schema changes). <a href="https://www.sqlite.org/lang_altertable.html">sqlite.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="12-release-and-recover.html">← Lecture 12: Release and Recover</a>
+  <span>Build It. Prove It. Own It. · Lecture 13 · <a href="../index.html">Course home</a></span>
+  <a href="14-hand-it-over.html">Lecture 14: Hand It Over →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

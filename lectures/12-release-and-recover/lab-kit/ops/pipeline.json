@@ -1,0 +1,11 @@
+{
+  "environments": {
+    "staging":    {"port": 9211, "flags": "flags/staging.json"},
+    "production": {"port": 9210, "flags": "flags/production.json", "must_pass_first": "staging"},
+    "restore":    {"port": 9212, "flags": "flags/production.json"}
+  },
+  "gates": ["live"],
+  "sli_target": 0.99,
+  "sli_probe_seconds": 3,
+  "auto_rollback": true
+}

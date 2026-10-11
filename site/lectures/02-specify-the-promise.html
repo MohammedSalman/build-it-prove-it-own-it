@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Discover the Problem, Specify the Promise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* Lecture 2 only: the one-line request, shown like a sticky note. */
+  .request {
+    font-family: var(--hand); font-size: var(--step-1); line-height: 1.35; color: var(--marker-ink);
+    background: var(--marker); border: 1.5px solid var(--ink); border-radius: 6px;
+    padding: 14px 18px; max-width: var(--measure); margin: 0;
+  }
+  .request small { display: block; font-family: var(--body); font-size: var(--step--1); margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 2 · Lecture 2 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 2 · Requirements when code is cheap</p>
+  <h1 id="page-title">Discover the Problem, Specify the Promise</h1>
+  <p class="lede">We gave two coding agents the same one-line request. Both wrote careful, tested code, and both left the most important decision unmade. This lecture is about finding the decisions hidden in a request, learning from real people which way to make them, and writing them down so that nobody, human or agent, has to guess.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~30 minutes of reading after class</span>
+    <span class="fact">Loop: Specify (from Understand)</span>
+    <span class="fact">Kit: two real agent waitlists</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Find the product decisions hidden in a one-line request, and say who should make each one.</li>
+      <li>Compare two implementations of the same request by what they do, not by how they look.</li>
+      <li>Explain what first come first served, a lottery, and a quota each reward, and who each one leaves out.</li>
+      <li>Interview without leading: ask about past behaviour, not opinions of your idea.</li>
+      <li>Write acceptance examples and a rules table that tell one reading of a request from another, including usability and accessibility criteria.</li>
+      <li>Draft a one-page scope agreement with an owner and open questions.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>One request, two waitlists</span></a></li>
+    <li><a href="#fair"><span class="t">0:12</span><span>What does fair mean?</span></a></li>
+    <li><a href="#discovery"><span class="t">0:25</span><span>Discovery: ask about the past</span></a></li>
+    <li><a href="#spec"><span class="t">0:45</span><span>From need to spec</span></a></li>
+    <li><a href="#divergence"><span class="t">1:05</span><span>The spec divergence test</span></a></li>
+    <li><a href="#scope"><span class="t">1:20</span><span>The one-page scope agreement</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#missing"><span class="t">R1</span><span>The cost of a missing decision</span></a></li>
+    <li><a href="#hundred"><span class="t">R2</span><span>Check a famous number</span></a></li>
+    <li><a href="#quality"><span class="t">R3</span><span>Quality from day one</span></a></li>
+    <li><a href="#specs"><span class="t">R4</span><span>Specs as input to agents</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:12</span>
+    <h2>One request, two waitlists</h2>
+  </div>
+  <p>Last week the promise was clear: confirmed reservations never exceed capacity. The hard part was keeping it. This week the hard part comes first. The festival committee sends a request, and nobody has yet worked out what it promises.</p>
+  <p class="request">Add a waitlist to AfterHours: when an event is full, people can join a waitlist.<small>The whole request, word for word. Each agent also got one line telling it where the Python environment was.</small></p>
+  <p>On 27 September 2026 we gave this request to two coding agents. Each worked alone, on its own copy of AfterHours as it stood after Week 1 (Patch B applied, 8 tests passing). Neither got a task contract, examples, or a person to ask.</p>
+  <div class="callout try">
+    <span class="label">Before you look (1 minute, alone)</span>
+    <p>Write down three questions this request does not answer. Keep the list; we come back to it in ten minutes.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th></th><th>Agent A</th><th>Agent B</th></tr></thead>
+      <tbody>
+        <tr><th>Tool and model</th><td>Codex CLI, gpt-6-astra</td><td>Claude Code subagent, Claude Opus 5.5</td></tr>
+        <tr><th>Change</th><td>6 files, 301 lines added, 23 removed</td><td>7 files, 268 lines added, 12 removed</td></tr>
+        <tr><th>New tests</th><td>15; <code>pytest</code>: 23 passed</td><td>13; <code>pytest</code>: 21 passed</td></tr>
+        <tr><th>Capacity promise</th><td><code>race.py</code> 10 of 10 kept</td><td><code>race.py</code> 10 of 10 kept</td></tr>
+        <tr><th>Final report</th><td>About 50 words</td><td>About 500 words</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Both are careful pieces of work. Each added a <code>waitlist</code> table, made two people joining at the same moment get different positions, stopped the same name from being listed twice, checked that an existing database picks up the new table, and wrote tests. Each also made choices the request never asked for, and some of those choices differ. We ran both apps side by side to find out exactly where.</p>
+
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Where they differ</th><th>Agent A</th><th>Agent B</th></tr></thead>
+      <tbody>
+        <tr><td>Sam presses <em>Join waitlist</em> twice</td><td>Same place in line. The second answer is <code>201 Created</code> again, identical to the first</td><td>Same place in line. The second answer is <code>200 OK</code> with <code>"created": false</code>, and the page says "You're already on the waitlist"</td></tr>
+        <tr><td>Maya already has a place and joins the waitlist</td><td><span class="tag bad">refused</span> 409, "You already have a reservation for this event."</td><td><span class="tag ok">allowed</span> 201: Maya now holds a place and a spot in line</td></tr>
+        <tr><td>A name of only spaces, sent to the API</td><td>Refused (422)</td><td>Accepted (201)</td></tr>
+        <tr><td>Anything else changed?</td><td>Yes: reservation names are now trimmed and blank names refused. Its final answer doesn't mention it</td><td>No change to reservations</td></tr>
+        <tr><td>A full event with nobody waiting</td><td>"Full · 0 on waitlist"</td><td>"Full"</td></tr>
+        <tr><td>While the request is on its way</td><td>Button disabled</td><td>Button stays active</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 1000 600" role="img" aria-label="Two state diagrams side by side, one per agent. In both, a person who is looking can reserve if places are left, or join the waitlist if the event is full. In both, a red dashed arrow with a question mark leads from waiting to a fourth state, has a place and still waiting: when a place frees up there is no rule, whoever completes a booking first gets it, and a person who was waiting stays on the list. Differences are in blue: when Sam joins again, Agent A answers 201 again and Agent B answers 200 already on it; when someone who already has a place joins a full event's waitlist, Agent A refuses with 409 and Agent B allows it with 201, which also leads to has a place and still waiting. A strip underneath lists what both have in common.">
+        <defs>
+          <filter id="w2f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w2f1-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+          <marker id="w2f1-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w2f1-r)">
+          <path d="M500,20 V470" class="s s-thin s-dash s-2"/>
+          <!-- Agent A -->
+          <rect x="30" y="64" width="120" height="52" rx="10" class="s f-card"/>
+          <rect x="330" y="64" width="140" height="52" rx="10" class="s f-card"/>
+          <rect x="30" y="330" width="140" height="58" rx="10" class="s f-card"/>
+          <rect x="310" y="330" width="170" height="58" rx="10" class="s f-card"/>
+          <path d="M152,90 H326" class="s" marker-end="url(#w2f1-a)"/>
+          <path d="M90,118 V326" class="s" marker-end="url(#w2f1-a)"/>
+          <path d="M172,359 H306" class="s s-red s-dash" marker-end="url(#w2f1-ar)"/>
+          <path d="M450,118 V196" class="s s-pen" marker-end="url(#w2f1-ap)"/>
+          <path d="M432,204 H468" class="s s-pen s-thick"/>
+          <path d="M70,390 C48,456 152,456 130,392" class="s s-pen" marker-end="url(#w2f1-ap)"/>
+          <!-- Agent B -->
+          <rect x="530" y="64" width="120" height="52" rx="10" class="s f-card"/>
+          <rect x="830" y="64" width="140" height="52" rx="10" class="s f-card"/>
+          <rect x="530" y="330" width="140" height="58" rx="10" class="s f-card"/>
+          <rect x="810" y="330" width="170" height="58" rx="10" class="s f-card"/>
+          <path d="M652,90 H826" class="s" marker-end="url(#w2f1-a)"/>
+          <path d="M590,118 V326" class="s" marker-end="url(#w2f1-a)"/>
+          <path d="M672,359 H806" class="s s-red s-dash" marker-end="url(#w2f1-ar)"/>
+          <path d="M950,118 V326" class="s s-pen" marker-end="url(#w2f1-ap)"/>
+          <path d="M570,390 C548,456 652,456 630,392" class="s s-pen" marker-end="url(#w2f1-ap)"/>
+          <!-- same in both -->
+          <rect x="20" y="486" width="960" height="96" rx="8" class="s s-thin f-mark"/>
+        </g>
+        <text x="250" y="36" text-anchor="middle" class="t-lg">Agent A · Codex CLI</text>
+        <text x="750" y="36" text-anchor="middle" class="t-lg">Agent B · Claude Code</text>
+        <!-- A labels -->
+        <text x="90" y="96" text-anchor="middle">looking</text>
+        <text x="400" y="96" text-anchor="middle">has a place</text>
+        <text x="100" y="356" text-anchor="middle">waiting</text>
+        <text x="100" y="377" text-anchor="middle" class="t-sm t-2">number n</text>
+        <text x="395" y="355" text-anchor="middle">has a place,</text>
+        <text x="395" y="377" text-anchor="middle">still waiting</text>
+        <text x="239" y="80" text-anchor="middle" class="t-sm">Reserve · places left</text>
+        <text x="82" y="214" text-anchor="end" class="t-sm">Join</text>
+        <text x="82" y="232" text-anchor="end" class="t-sm">if full</text>
+        <text x="240" y="346" text-anchor="middle" class="t-xl t-red">?</text>
+        <text x="240" y="272" text-anchor="middle" class="t-sm t-red">a place frees up:</text>
+        <text x="240" y="290" text-anchor="middle" class="t-sm t-red">no rule; the first</text>
+        <text x="240" y="308" text-anchor="middle" class="t-sm t-red">completed booking wins</text>
+        <text x="484" y="232" text-anchor="end" class="t-sm t-pen">Join: refused</text>
+        <text x="484" y="250" text-anchor="end" class="t-mono t-pen">409</text>
+        <text x="166" y="426" class="t-sm t-pen">Join again:</text>
+        <text x="166" y="444" class="t-sm t-pen">same spot, 201 again</text>
+        <!-- B labels -->
+        <text x="590" y="96" text-anchor="middle">looking</text>
+        <text x="900" y="96" text-anchor="middle">has a place</text>
+        <text x="600" y="356" text-anchor="middle">waiting</text>
+        <text x="600" y="377" text-anchor="middle" class="t-sm t-2">number n</text>
+        <text x="895" y="355" text-anchor="middle">has a place,</text>
+        <text x="895" y="377" text-anchor="middle">still waiting</text>
+        <text x="739" y="80" text-anchor="middle" class="t-sm">Reserve · places left</text>
+        <text x="582" y="214" text-anchor="end" class="t-sm">Join</text>
+        <text x="582" y="232" text-anchor="end" class="t-sm">if full</text>
+        <text x="740" y="346" text-anchor="middle" class="t-xl t-red">?</text>
+        <text x="740" y="272" text-anchor="middle" class="t-sm t-red">a place frees up:</text>
+        <text x="740" y="290" text-anchor="middle" class="t-sm t-red">no rule; the first</text>
+        <text x="740" y="308" text-anchor="middle" class="t-sm t-red">completed booking wins</text>
+        <text x="940" y="214" text-anchor="end" class="t-sm t-pen">Join if full:</text>
+        <text x="940" y="232" text-anchor="end" class="t-sm t-pen">allowed</text>
+        <text x="940" y="250" text-anchor="end" class="t-mono t-pen">201</text>
+        <text x="666" y="426" class="t-sm t-pen">Join again:</text>
+        <text x="666" y="444" class="t-sm t-pen">same spot, 200 "already"</text>
+        <!-- strip -->
+        <text x="44" y="541" class="t-lg t-mark">Same in both</text>
+        <text x="220" y="524" class="t-sm t-mark">waitlist in joining order · waiting uses no place · no payment · nobody is promoted or told</text>
+        <text x="220" y="552" class="t-sm t-mark">no way to leave · still counted after getting a place · can still join after the start</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.1</b> The two waitlists as state diagrams, from running both apps. Blue marks where the agents chose differently. The red dashed arrow is the same in both: when a place frees up, no rule offers it to anyone waiting, and whoever completes a booking first gets it. Someone who was waiting and gets the place stays on the waitlist, so both apps reach <em>has a place, still waiting</em>. Agent B also lets a person who already has a place join a full event's waitlist. (Neither app can free a place yet, because nobody can cancel. We freed one by deleting a row in the database.)</figcaption>
+  </figure>
+
+  <p>Now take out the three questions you wrote down. Most classes ask some of these. Here is what the agents' code answers. On every one of these questions both apps behave the same, so the table has one answer column.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>The question the request left open</th><th>Agent A and Agent B (same in both)</th></tr></thead>
+      <tbody>
+        <tr><td>Who gets a place that frees up?</td><td>Nobody is promoted from the waitlist. Whoever completes a booking first gets it, waiting or not.</td></tr>
+        <tr><td>In what order do people wait?</td><td>The order they joined. Neither report calls this a choice.</td></tr>
+        <tr><td>Is anyone told when a place frees up?</td><td>No.</td></tr>
+        <tr><td>Who pays, and when?</td><td>Nothing is charged to join. Nothing is defined for later.</td></tr>
+        <tr><td>What happens when the event starts?</td><td>Nothing. You can still join the waitlist of an event that has already started.</td></tr>
+        <tr><td>Can I leave the list, or check my number?</td><td>No. While the event is still full, joining again shows your number. Once a place frees up, joining again is refused ("reserve instead"), so you can no longer see it at all.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>On every big question the two agents agree, and in every case the agreement is an absence. Agent B's final report has a section headed <em>Not built, and the product owner should decide</em>, which lists who gets a freed place, whether newcomers can take it ahead of the waitlist, and how people are told. Agent A's final answer says, in full on this topic: <q>Automatic promotion isn't included.</q></p>
+  <p>Yet both apps already have a policy for a freed place. Lee, who never joined the waitlist, refreshes the page two minutes after a place frees up and presses <em>Reserve</em>. He gets it. Sam, number 1 on the waitlist, is never told. Nobody chose that rule. It is simply what the code does.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Ambiguity is a product decision waiting to happen.</strong> A coding agent turns a vague request into confident, tested code. Where the request is silent, the agent either guesses or leaves a gap, and the code's default quietly becomes the policy. Two agents can guess differently in the details and still both skip the decision that matters most.</p>
+  </div>
+  <div class="callout case">
+    <span class="label">About this experiment</span>
+    <p>We ran each agent once, on one day, with the same text. A second run would likely differ in details. Two runs say nothing general about which tool is better, and that was never the question. Both results are kept verbatim in the lab kit with their provenance, including Agent A's full event log.</p>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 160" role="img" aria-label="The engineering loop drawn as a row: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Specify is highlighted as this week.">
+        <defs>
+          <filter id="w2f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w2f2-r)">
+          <rect x="16" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <rect x="152" y="40" width="112" height="48" rx="10" class="s s-thick f-mark"/>
+          <rect x="288" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <rect x="424" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <rect x="560" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <rect x="696" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <rect x="832" y="40" width="112" height="48" rx="10" class="s f-card"/>
+          <path d="M130,64 H148" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M266,64 H284" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M402,64 H420" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M538,64 H556" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M674,64 H692" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M810,64 H828" class="s" marker-end="url(#w2f2-a)"/>
+          <path d="M888,90 V122 H72 V94" class="s s-thin s-dash s-2" marker-end="url(#w2f2-a)"/>
+        </g>
+        <text x="72" y="70" text-anchor="middle">Understand</text>
+        <text x="208" y="70" text-anchor="middle" class="t-mark"><tspan font-weight="700">Specify</tspan></text>
+        <text x="344" y="70" text-anchor="middle">Delegate</text>
+        <text x="480" y="70" text-anchor="middle">Inspect</text>
+        <text x="616" y="70" text-anchor="middle">Verify</text>
+        <text x="752" y="70" text-anchor="middle">Release</text>
+        <text x="888" y="70" text-anchor="middle">Observe</text>
+        <text x="72" y="28" text-anchor="middle" class="t-sm t-2">last week</text>
+        <text x="208" y="28" text-anchor="middle" class="t-sm t-pen">this week</text>
+        <text x="344" y="28" text-anchor="middle" class="t-sm t-2">week 3</text>
+        <text x="480" y="146" text-anchor="middle" class="t-sm t-2">and back to Understand</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.2</b> Where this week sits on the engineering loop from Lecture 1. <em>Understand</em> is finding out what people need. <em>Specify</em> turns that into promises precise enough that the next step, delegating to a person or an agent, needs no guessing.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 2. FAIR ============ -->
+<section class="block" id="fair">
+  <div class="sechead">
+    <span class="clock">0:12 – 0:25</span>
+    <h2>What does fair mean?</h2>
+  </div>
+  <p>"People can join a waitlist" hides two separate decisions. The first is who gets the places when booking opens and demand is far higher than supply. The second is who gets a place that frees up later. Most people's first answer to both is "it should be fair". The trouble is that several different rules are all fair in some sense, and they pick different winners.</p>
+  <ul>
+    <li><strong>First come, first served.</strong> The earliest requests win. Simple to explain and to build. AfterHours does nearly this today: a place goes to the first request that gets through payment and is saved, so a slow payment can lose to a later click. It rewards being fast: a quick connection, a free timetable at the moment booking opens, a page you can scan by eye.</li>
+    <li><strong>Lottery.</strong> Everyone who applies within a window (say 30 minutes) goes into a draw. Speed stops mattering; everyone in the window has the same chance. It needs a deadline, a draw, and a way to tell people the result.</li>
+    <li><strong>Quota.</strong> Some places are kept for a group, for example first-years who don't yet know how the festival works. Inside each group you still need a rule, such as first come, first served.</li>
+  </ul>
+  <p>Here is one made-up crowd: eight students want the last four places of an event, and booking opens at 12:00. Our script <code>who_wins.py</code> (in the lab kit) applies each policy to exactly this crowd.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Who</th><th>Year</th><th>Pressed <em>Reserve</em> at</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Kai</td><td>3</td><td>12:00:00.4</td><td>refreshing the page from 11:59</td></tr>
+        <tr><td>Maya</td><td>2</td><td>12:00:00.9</td><td></td></tr>
+        <tr><td>Sam</td><td>3</td><td>12:00:01.6</td><td></td></tr>
+        <tr><td>Ben</td><td>4</td><td>12:00:02.2</td><td></td></tr>
+        <tr><td>Lee</td><td>2</td><td>12:00:03.1</td><td></td></tr>
+        <tr><td>Ana</td><td>1</td><td>12:00:09.5</td><td>on the bus, slow mobile data</td></tr>
+        <tr><td>Zoe</td><td>1</td><td>12:00:38.0</td><td>uses a screen reader; busy page</td></tr>
+        <tr><td>Omar</td><td>1</td><td>12:25:00.0</td><td>in a lab until 12:25</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 430" role="img" aria-label="A decision tree. First question: should being fast win? Yes leads to first come, first served, whose winners are Kai, Maya, Sam and Ben, with no first-years. No leads to a second question: keep places for one group? No leads to a lottery: each of the 8 has a 4 in 8 chance, one draw gave Maya, Omar, Kai and Zoe, and on average 1.5 winners are first-years. Yes leads to a quota for first-years: Kai, Maya, Ana and Zoe, 2 first-years guaranteed, while Omar misses out.">
+        <defs>
+          <filter id="w2f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w2f3-r)">
+          <rect x="330" y="16" width="300" height="52" rx="26" class="s f-mark"/>
+          <rect x="560" y="120" width="300" height="52" rx="26" class="s f-mark"/>
+          <rect x="40" y="140" width="260" height="48" rx="8" class="s f-card"/>
+          <rect x="410" y="236" width="220" height="48" rx="8" class="s f-card"/>
+          <rect x="690" y="236" width="220" height="48" rx="8" class="s f-card"/>
+          <rect x="40" y="320" width="260" height="96" rx="8" class="s s-thin f-red"/>
+          <rect x="400" y="320" width="240" height="96" rx="8" class="s s-thin f-pen"/>
+          <rect x="680" y="320" width="240" height="96" rx="8" class="s s-thin f-green"/>
+          <path d="M398,70 L208,136" class="s" marker-end="url(#w2f3-a)"/>
+          <path d="M562,70 L676,116" class="s" marker-end="url(#w2f3-a)"/>
+          <path d="M650,174 L560,232" class="s" marker-end="url(#w2f3-a)"/>
+          <path d="M772,174 L798,232" class="s" marker-end="url(#w2f3-a)"/>
+          <path d="M170,190 V316" class="s s-thin" marker-end="url(#w2f3-a)"/>
+          <path d="M520,286 V316" class="s s-thin" marker-end="url(#w2f3-a)"/>
+          <path d="M800,286 V316" class="s s-thin" marker-end="url(#w2f3-a)"/>
+        </g>
+        <text x="40" y="36" class="t-sm t-2">8 people · 4 places</text>
+        <text x="40" y="56" class="t-sm t-2">booking opens 12:00</text>
+        <text x="480" y="48" text-anchor="middle" class="t-mark">Should being fast win?</text>
+        <text x="710" y="152" text-anchor="middle" class="t-mark">Keep places for one group?</text>
+        <text x="296" y="96" text-anchor="end" class="t-sm t-pen">yes</text>
+        <text x="630" y="88" class="t-sm t-pen">no</text>
+        <text x="596" y="202" text-anchor="end" class="t-sm t-pen">no</text>
+        <text x="796" y="202" class="t-sm t-pen">yes</text>
+        <text x="170" y="170" text-anchor="middle">First come, first served</text>
+        <text x="520" y="266" text-anchor="middle">Lottery</text>
+        <text x="800" y="266" text-anchor="middle">Quota for first-years</text>
+        <text x="170" y="348" text-anchor="middle">Kai · Maya · Sam · Ben</text>
+        <text x="170" y="372" text-anchor="middle" class="t-sm t-red">first-years: 0</text>
+        <text x="170" y="394" text-anchor="middle" class="t-sm t-2">Ana, Zoe and Omar miss out</text>
+        <text x="520" y="348" text-anchor="middle">Maya · Omar · Kai · Zoe</text>
+        <text x="520" y="372" text-anchor="middle" class="t-sm">one draw; each had a 4 in 8 chance</text>
+        <text x="520" y="394" text-anchor="middle" class="t-sm t-pen">first-years: 1.5 on average</text>
+        <text x="800" y="348" text-anchor="middle">Kai · Maya · Ana · Zoe</text>
+        <text x="800" y="372" text-anchor="middle" class="t-sm t-green">first-years: 2, guaranteed</text>
+        <text x="800" y="394" text-anchor="middle" class="t-sm t-2">Omar misses out (12:25)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.3</b> The fair decision tree for one made-up crowd. The winners come from <code>who_wins.py</code>: 2 of the 4 places are kept for first-years in the quota, and the lottery shows one seeded draw next to its average over 20,000 draws. Same demand, three different sets of winners.</figcaption>
+  </figure>
+
+  <p>No branch of this tree is neutral. First come, first served picked the four people with the fastest connections and no clash at 12:00. The lottery gave Omar, 25 minutes late, the same chance as Kai. The quota guaranteed two first-years a place and still left Omar out. Each rule is a defensible answer to a different question about what the festival is for.</p>
+
+  <h3>The second decision: a place frees up</h3>
+  <p>Now the question both agents skipped. On Friday at 14:00 someone cancels. Sam, Ana and Zoe are waiting, in that order. Lee is not waiting, but he happens to open the page at 14:02. Four possible policies:</p>
+  <ul>
+    <li><strong>Open to all.</strong> Nobody is told; whoever completes a booking first wins. This is what both agents' apps do.</li>
+    <li><strong>Auto-promote.</strong> Number 1 gets the place at once, and the payment is authorised without asking.</li>
+    <li><strong>Timed offer.</strong> Number 1 is offered the place for a fixed time (here 60 minutes). If the offer runs out, that person moves to the end of the list and the offer goes to the new number 1.</li>
+    <li><strong>Lottery among the waiting.</strong> One name is drawn from the waitlist.</li>
+  </ul>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 430" role="img" aria-label="Four timelines for Friday afternoon from 14:00 to 16:30. Open to all, what both apps do: Lee gets the place at 14:02 and Sam, Ana and Zoe are never told. Auto-promote number 1: Sam gets it at 14:00 with payment authorised, but only reads the message at 15:30. Timed offer of 60 minutes: the offer to Sam goes unread and runs out at 15:00, then Ana accepts at 15:03. Lottery among the waiting: a draw at 14:00 gives the place to Zoe.">
+        <defs>
+          <filter id="w2f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w2f4-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-pen"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-pen s-thin"/></pattern>
+        </defs>
+        <g filter="url(#w2f4-r)">
+          <circle cx="248" cy="84" r="7" class="s s-red f-redink"/>
+          <circle cx="240" cy="164" r="7" class="s s-pen f-penink"/>
+          <path d="M248,164 H592" class="s s-pen s-dash"/>
+          <circle cx="600" cy="164" r="7" class="s s-pen f-card"/>
+          <rect x="240" y="234" width="240" height="20" class="s s-thin s-pen" style="fill:url(#w2f4-h)"/>
+          <rect x="480" y="234" width="12" height="20" class="s s-thin s-pen f-pen"/>
+          <circle cx="492" cy="244" r="7" class="s s-green f-greenink"/>
+          <circle cx="240" cy="324" r="7" class="s s-pen f-penink"/>
+          <path d="M240,380 H840" class="s s-thin"/>
+          <path d="M240,374 V386 M360,374 V386 M480,374 V386 M600,374 V386 M720,374 V386 M840,374 V386" class="s s-thin"/>
+        </g>
+        <text x="240" y="30" class="t-sm t-2">Friday. 14:00: a place frees up. Waiting: 1 Sam, 2 Ana, 3 Zoe. Lee is not waiting.</text>
+        <text x="222" y="80" text-anchor="end">open to all</text>
+        <text x="222" y="98" text-anchor="end" class="t-sm t-red">what both apps do</text>
+        <text x="264" y="80">Lee gets it at 14:02</text>
+        <text x="264" y="100" class="t-sm t-red">Sam, Ana and Zoe are never told</text>
+        <text x="222" y="160" text-anchor="end">auto-promote</text>
+        <text x="222" y="178" text-anchor="end" class="t-sm t-2">authored</text>
+        <text x="254" y="150" class="t-sm">Sam gets it at 14:00; payment authorised</text>
+        <text x="614" y="168" class="t-sm">15:30: Sam reads it</text>
+        <text x="222" y="240" text-anchor="end">timed offer, 60 min</text>
+        <text x="222" y="258" text-anchor="end" class="t-sm t-2">authored</text>
+        <text x="246" y="226" class="t-sm">offer to Sam: unread, runs out at 15:00</text>
+        <text x="506" y="249" class="t-sm t-green">Ana accepts at 15:03</text>
+        <text x="222" y="320" text-anchor="end">lottery among waiting</text>
+        <text x="222" y="338" text-anchor="end" class="t-sm t-2">authored</text>
+        <text x="256" y="320" class="t-sm">draw at 14:00: Zoe gets it</text>
+        <text x="256" y="340" class="t-sm t-2">each of the 3 had a 1 in 3 chance</text>
+        <text x="240" y="404" text-anchor="middle" class="t-mono t-sm t-2">14:00</text>
+        <text x="360" y="404" text-anchor="middle" class="t-mono t-sm t-2">14:30</text>
+        <text x="480" y="404" text-anchor="middle" class="t-mono t-sm t-2">15:00</text>
+        <text x="600" y="404" text-anchor="middle" class="t-mono t-sm t-2">15:30</text>
+        <text x="720" y="404" text-anchor="middle" class="t-mono t-sm t-2">16:00</text>
+        <text x="840" y="404" text-anchor="middle" class="t-mono t-sm t-2">16:30</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.4</b> One freed place under four policies, drawn to scale in minutes from <code>who_wins.py</code>. The people, and every time on it, are made up (Sam is in a lecture until 15:30; Lee happens to look at 14:02). The top row's rule is the one both agents' apps really follow: a newcomer who completes a booking first gets the freed place. The other three policies are authored.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <span class="label">Authored, not generated</span>
+    <p>Auto-promote, timed offer and lottery were written by the course staff for this lecture. Neither agent built any of them. We added them because the real outputs don't disagree on this question: both skipped it.</p>
+  </div>
+  <div class="callout try">
+    <span class="label">In pairs (5 minutes)</span>
+    <p>You are the festival committee. Pick one policy for places that free up at the escape room. Write down who it helps, who it hurts, and one thing you would have to build for it (a notification? a clock? consent to charge later?). You will turn it into examples at 0:45.</p>
+  </div>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Fair names a choice about who wins.</strong> Code can carry that choice out, but it should not make it. A named person makes it, and the spec writes it down where everyone, including the next agent, can read it.</p>
+  </div>
+</section>
+
+<!-- ============ 3. DISCOVERY ============ -->
+<section class="block" id="discovery">
+  <div class="sechead">
+    <span class="clock">0:25 – 0:45</span>
+    <h2>Discovery: ask about the past</h2>
+  </div>
+  <p>You can't choose between those policies from a desk. Whether a timed offer should last 30 minutes or 3 hours depends on how quickly real students read messages. Whether a quota matters depends on whether first-years really miss out. That is what the <em>Understand</em> step is for: talking to the people the software is for.</p>
+  <p>Talking to people is easy to do badly. Ask "Would you use a waitlist?" and almost everyone says yes. They are being kind, and they are guessing about a future they haven't lived. Ask "What did you do the last time an event you wanted was full?" and you get a story with facts in it: times, numbers, workarounds. Facts about what people did are much harder to bend than opinions about your idea.</p>
+  <p>Rob Fitzpatrick's book <em>The Mom Test</em> (2013) sums this up in three rules: <q>Talk about their life instead of your idea</q>; <q>Ask about specifics in the past instead of generics or opinions about the future</q>; <q>Talk less and listen more.</q></p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Leading, hypothetical, or opinion</th><th>About the past</th></tr></thead>
+      <tbody>
+        <tr><td>"Would you use a waitlist?"</td><td>"Tell me about the last time something you wanted to go to was full. What did you do?"</td></tr>
+        <tr><td>"Wouldn't it be great to get a message when a place frees up?"</td><td>"How did you find out about the last change to an event you were going to?"</td></tr>
+        <tr><td>"Is first come, first served fair?"</td><td>"Last time tickets for something went fast, who got them? What did people say afterwards?"</td></tr>
+        <tr><td>"How long would you need to accept an offer?"</td><td>"When did you last miss a message you needed? Where were you?"</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The best questions are often the follow-ups: <em>What happened next? When was that? How many times? Can you show me?</em></p>
+
+  <div class="callout try">
+    <span class="label">Role-play in threes (15 minutes)</span>
+    <p>Each group gets one persona card. One person plays the persona and reads the back of the card; nobody else sees it. One person interviews. One person observes and tallies every question as <em>about the past</em>, <em>follow-up</em>, <em>opinion or hypothetical</em>, or <em>leading</em>, and writes down every fact learned.</p>
+    <ol>
+      <li>Round 1 (5 min): interview. Goal: find out what happens to people and places around a full event.</li>
+      <li>Swap roles, new card. Round 2 (5 min).</li>
+      <li>Observers report (5 min): how many facts did each round produce, and which questions produced them?</li>
+    </ol>
+  </div>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Persona card (front)</th><th>Who they are</th></tr></thead>
+      <tbody>
+        <tr><td>Priya, festival organiser</td><td>Third-year. Runs the escape room. Wants every place filled on the night.</td></tr>
+        <tr><td>Omar, first-year student</td><td>Second month at university. Doesn't know many people yet.</td></tr>
+        <tr><td>Zoe, uses a screen reader</td><td>Second-year, blind since childhood. Books everything online.</td></tr>
+        <tr><td>Ben, door volunteer</td><td>Fourth-year. Checks names off at the door.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="handnote">The personas are made up for practice. Real evidence comes from the two real interviews you do for homework.</p>
+
+  <details class="reveal">
+    <summary>Debrief: what the cards were hiding (open after round 2)</summary>
+    <div class="inner">
+      <p>Each card holds a few facts that come out only when someone asks about a specific past event. Asked for opinions, every persona politely says the waitlist sounds great. Here is what the facts turn into.</p>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Fact from the card</th><th>What it suggests for the spec</th></tr></thead>
+          <tbody>
+            <tr><td>Priya: 7 of 40 people with a place never came; she let the corridor in at 20:10</td><td>Freed places matter most in the last hour. An offer lasting hours is useless at 19:45. Decide what happens at the door.</td></tr>
+            <tr><td>Priya: a student called the waitlist "rigged" and she had no record</td><td>Keep a record of who was offered what, and when.</td></tr>
+            <tr><td>Omar: booking opened during his lab; he checked four more times that day</td><td>First come, first served excludes timetables. Show your position so people know whether waiting is worth it.</td></tr>
+            <tr><td>Zoe: a confirmation vanished before her screen reader reached it, so she booked twice</td><td>Keep the position on screen. Name each button so it says which event it is for.</td></tr>
+            <tr><td>Ben: the list at the door was printed at 17:00; three people said "I was on the waitlist"</td><td>The door needs an up-to-date list of who is next, readable offline.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Notice who did not appear in either agent's reading of the request: the organiser's no-shows, the door, the screen reader. An agent works from the words it is given. Discovery is how new words get into the request.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 4. SPEC ============ -->
+<section class="block" id="spec">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:05</span>
+    <h2>From need to spec</h2>
+  </div>
+  <p>A specification is a ladder from what someone asked for to something a machine can check. Each rung pins down decisions that the rung below leaves open. Where a rung is missing, whoever writes the code, person or agent, has to guess.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 520" role="img" aria-label="The spec ladder, from rung 0, the request, up through the user story, acceptance examples, rules table and quality requirements to rung 5, tests. Both agents jumped from the request straight to code and tests, drawn as one long arrow. Notes beside each skipped rung show the guesses: who it is for was never asked; on joining twice A answers 201 and B 200; on a freed place neither decided, and on a holder joining A refuses and B allows; whether the position stays on screen after the message fades, neither decided; at the top each agent wrote its own tests from its own guesses.">
+        <defs>
+          <filter id="w2f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f5-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w2f5-r)">
+          <path d="M40,14 V500 M380,14 V500" class="s s-thick s-2"/>
+          <rect x="40" y="24" width="340" height="56" rx="6" class="s f-card"/>
+          <rect x="40" y="104" width="340" height="56" rx="6" class="s f-card"/>
+          <rect x="40" y="184" width="340" height="56" rx="6" class="s f-card"/>
+          <rect x="40" y="264" width="340" height="56" rx="6" class="s f-card"/>
+          <rect x="40" y="344" width="340" height="56" rx="6" class="s f-card"/>
+          <rect x="40" y="424" width="340" height="56" rx="6" class="s s-thick f-mark"/>
+          <path d="M382,52 H416 M382,132 H416 M382,212 H416 M382,292 H416 M382,372 H416" class="s s-thin s-dash s-2"/>
+          <rect x="418" y="30" width="270" height="46" rx="4" class="s s-thin f-paper"/>
+          <rect x="418" y="108" width="270" height="48" rx="4" class="s s-thin s-red f-red"/>
+          <rect x="418" y="182" width="270" height="62" rx="4" class="s s-thin f-mark"/>
+          <rect x="418" y="268" width="270" height="48" rx="4" class="s s-thin s-pen f-pen"/>
+          <rect x="418" y="348" width="270" height="48" rx="4" class="s s-thin s-red f-red"/>
+          <rect x="730" y="24" width="210" height="70" rx="8" class="s f-card"/>
+          <path d="M384,454 C780,486 846,370 836,100" class="s s-red s-thick" marker-end="url(#w2f5-ar)"/>
+        </g>
+        <text x="210" y="50" text-anchor="middle">5 · Tests</text>
+        <text x="210" y="70" text-anchor="middle" class="t-sm t-2">the examples, run as code</text>
+        <text x="210" y="130" text-anchor="middle">4 · Quality requirements</text>
+        <text x="210" y="150" text-anchor="middle" class="t-sm t-2">usability · accessibility · privacy</text>
+        <text x="210" y="210" text-anchor="middle">3 · Rules table</text>
+        <text x="210" y="230" text-anchor="middle" class="t-sm t-2">every situation gets an outcome</text>
+        <text x="210" y="290" text-anchor="middle">2 · Acceptance examples</text>
+        <text x="210" y="310" text-anchor="middle" class="t-sm t-2">Given / When / Then</text>
+        <text x="210" y="370" text-anchor="middle">1 · User story</text>
+        <text x="210" y="390" text-anchor="middle" class="t-sm t-2">who, what, why</text>
+        <text x="210" y="450" text-anchor="middle" class="t-mark">0 · The request</text>
+        <text x="210" y="470" text-anchor="middle" class="t-sm t-mark">"Add a waitlist…"</text>
+        <text x="430" y="50" class="t-sm t-2">each agent tested its own guesses</text>
+        <text x="430" y="68" class="t-sm t-2">A: 15 new tests · B: 13 new tests</text>
+        <text x="430" y="128" class="t-sm t-red">Position still on screen after the</text>
+        <text x="430" y="146" class="t-sm t-red">message fades? Neither decided</text>
+        <text x="430" y="202" class="t-sm t-red">A freed place goes to? Neither</text>
+        <text x="430" y="220" class="t-sm t-pen">Holder joins: A refuses, B allows</text>
+        <text x="430" y="238" class="t-sm t-pen">"   " as a name: A no, B yes</text>
+        <text x="430" y="288" class="t-sm t-pen">Same name joins twice:</text>
+        <text x="430" y="306" class="t-sm t-pen">A answers 201, B answers 200</text>
+        <text x="430" y="368" class="t-sm t-red">Who is it for, and why?</text>
+        <text x="430" y="386" class="t-sm t-red">Neither asked</text>
+        <text x="835" y="54" text-anchor="middle">code + tests</text>
+        <text x="835" y="78" text-anchor="middle" class="t-sm t-green">all green: 23 and 21</text>
+        <text x="894" y="236" text-anchor="middle" class="t-sm t-red">both agents:</text>
+        <text x="894" y="254" text-anchor="middle" class="t-sm t-red">request to code</text>
+        <text x="894" y="272" text-anchor="middle" class="t-sm t-red">in one jump</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.5</b> The spec ladder. Both agents jumped from rung 0 straight to code, so every decision on the rungs in between became a guess. Blue notes: the agents guessed differently. Red notes: neither decided. Their tests are green because each agent tested its own guesses.</figcaption>
+  </figure>
+
+  <p>Climb it once with the waitlist, using the policy a pair chose at 0:12, a 60-minute timed offer.</p>
+  <p><strong>1 · User story.</strong> Who wants what, and why. The usual template is "As a …, I want …, so that …", usually credited to a team at the company Connextra in the early 2000s.</p>
+  <p class="handnote">As a student who missed out on a full event, I want a freed place to be offered to me in the order I joined, so that I don't have to keep refreshing the page.</p>
+  <p>A story is a reminder of a conversation. It says nothing yet about how long an offer lasts or what Lee sees at 14:02.</p>
+  <p><strong>2 · Acceptance examples.</strong> Concrete cases with names and numbers, written as <em>Given</em> (the starting situation), <em>When</em> (one action), <em>Then</em> (what must be true afterwards). This form comes from behaviour-driven development, where Daniel Terhorst-North and Chris Matts developed it.</p>
+  <pre><code>Given the workshop is full and Sam is number 1 on its waitlist
+When  Maya cancels at 14:00
+Then  Sam is offered her place until 15:00
+And   Lee, who is not waiting, still sees "Full"
+
+Given Sam's offer has not been answered
+When  15:00 passes
+Then  the offer moves to Ana until 16:00
+And   the waitlist is now Ana, Zoe, Sam
+
+Given Ana's offer has not been answered either
+When  16:00 passes
+Then  the offer moves to Zoe until 17:00
+And   the waitlist is now Zoe, Sam, Ana</code></pre>
+  <p>The second example forced a decision the story didn't mention: does Sam lose his spot when an offer runs out? We said he moves to the end of the list. The third checks that the rule still works when it happens twice in a row: nobody is skipped for ever, and nobody jumps ahead. You might decide instead that a missed offer removes you. Either way, it is now written down.</p>
+  <p><strong>3 · Rules table.</strong> One row per situation, and every row gets an outcome. Tables make missing cases visible: an empty cell is a question.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (5 minutes, no laptop)</span>
+    <p>Fill in the outcome for each row of "Sam presses <em>Join waitlist</em>". Decide as the committee; there is no single right answer. Then open the reveal and compare with the two agents.</p>
+    <div class="tablewrap">
+      <table class="grid">
+        <thead><tr><th>Event full?</th><th>Sam already has a place?</th><th>Sam already waiting?</th><th>Event started?</th><th>Outcome (yours)</th></tr></thead>
+        <tbody>
+          <tr><td>no</td><td>no</td><td>no</td><td>no</td><td></td></tr>
+          <tr><td>yes</td><td>no</td><td>no</td><td>no</td><td></td></tr>
+          <tr><td>yes</td><td>no</td><td>yes</td><td>no</td><td></td></tr>
+          <tr><td>yes</td><td>yes</td><td>no</td><td>no</td><td></td></tr>
+          <tr><td>yes</td><td>no</td><td>no</td><td>yes</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <details class="reveal">
+    <summary>Reveal: what the two agents' code does in each row</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Situation</th><th>Agent A</th><th>Agent B</th></tr></thead>
+          <tbody>
+            <tr><td>Places left</td><td>409, "reserve instead"</td><td>409, "reserve instead"</td></tr>
+            <tr><td>Full, new person</td><td>201, added at the end</td><td>201, added at the end</td></tr>
+            <tr><td>Full, already waiting</td><td>201, same position</td><td><span class="tag maybe">differs</span> 200, same position, "already"</td></tr>
+            <tr><td>Full, already has a place</td><td><span class="tag maybe">differs</span> 409, refused</td><td><span class="tag maybe">differs</span> 201, added</td></tr>
+            <tr><td>Event has started</td><td>201, added</td><td>201, added</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Every row has an outcome in both apps, because code always does something. The question the drill asks is whether anyone chose it. Two rows differ between the agents; the last row is the same in both and was chosen by neither.</p>
+    </div>
+  </details>
+
+  <p><strong>4 · Quality requirements.</strong> Also called non-functional requirements: how well the feature must work, and for whom. Write them as checkable examples too.</p>
+  <ul>
+    <li><strong>Usability:</strong> a first-year who has never used AfterHours joins the workshop waitlist on a phone and can say her position within 60 seconds, without help (3 of 3 test users).</li>
+    <li><strong>Accessibility:</strong> a screen reader user joins using only the keyboard, hears her position, and can find it again after the message has gone. Reading R3 ties this to WCAG 2.2.</li>
+    <li><strong>Privacy:</strong> other students see how many people are waiting, never their names. The waitlist is deleted after the event.</li>
+  </ul>
+  <p><strong>5 · Tests.</strong> Each example becomes a test that talks to the app the way a user would. That is the next section.</p>
+
+  <div class="callout try">
+    <span class="label">In pairs (8 minutes)</span>
+    <p>Write two Given / When / Then examples for the freed-place policy you chose at 0:12: one where things go normally, and one where something goes wrong (nobody answers, the event starts, someone cancels twice). Use names and times. Hand them in on a card; we will run some of them against both agents at 1:05.</p>
+  </div>
+</section>
+
+<!-- ============ 5. DIVERGENCE ============ -->
+<section class="block" id="divergence">
+  <div class="sechead">
+    <span class="clock">1:05 – 1:20</span>
+    <h2>The spec divergence test</h2>
+  </div>
+  <p>An acceptance example is a question you can put to any implementation. The lab kit's <code>scripts/compare.py</code> does exactly that: it copies an examples file into a scratch copy of each app, runs it, and prints which example passes where. The examples talk to each app through its HTTP API, so the same example can judge all three apps. Two teaching adapters bend that rule, and they only work because all three share Week 1's code: <code>free_a_place</code> deletes a reservation row, because no app can cancel yet (so it also skips anything a real cancel feature would trigger), and one example watches the shared payment module.</p>
+  <p>The kit gives you two examples. Each one encodes a decision the course staff made for this exercise; another team could decide the opposite.</p>
+<pre><code>def test_example_1_someone_with_a_place_cannot_also_wait_for_one(client):
+    """
+    Given Maya has just taken the last place at the escape room
+    When  Maya presses "Join waitlist" for the escape room
+    Then  she is told she already has a place (HTTP 409 Conflict)
+    And   the escape room's waitlist stays empty
+    """
+    escape_room = event_by_title(client, ESCAPE_ROOM)
+    assert reserve(client, escape_room, "Maya").status_code == 201
+
+    response = join_waitlist(client, escape_room, "Maya")
+
+    assert response.status_code == 409, f"got {response.status_code}: {response.json()}"
+    assert waiting_count(client, escape_room) == 0</code></pre>
+  <p>Now the class's examples. The instructor runs the kit's two plus six more of the kinds you wrote on your cards, against the app with no waitlist (<code>base</code>) and both agents' apps. Before you look: predict each row.</p>
+
+  <details class="reveal">
+    <summary>Debrief: the real run (open after your prediction)</summary>
+    <div class="inner">
+      <p>Output of <code>python scripts/compare.py --examples ../solutions/test_waitlist_examples.py</code>, run on 27 September 2026. The result was the same on three runs.</p>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Example</th><th>base</th><th>Agent A</th><th>Agent B</th></tr></thead>
+          <tbody>
+            <tr><td>1 · someone with a place cannot also wait for one</td><td>fail</td><td><span class="tag ok">pass</span></td><td><span class="tag bad">fail</span></td></tr>
+            <tr><td>2 · joining twice tells you that you were already on the list</td><td>fail</td><td><span class="tag bad">fail</span></td><td><span class="tag ok">pass</span></td></tr>
+            <tr><td>3 · a name of only spaces is refused</td><td>fail</td><td><span class="tag ok">pass</span></td><td><span class="tag bad">fail</span></td></tr>
+            <tr><td>4 · waiting uses no place and no payment</td><td>fail</td><td><span class="tag ok">pass</span></td><td><span class="tag ok">pass</span></td></tr>
+            <tr><td>5 · you cannot wait for an event that still has places</td><td>fail</td><td><span class="tag ok">pass</span></td><td><span class="tag ok">pass</span></td></tr>
+            <tr><td>6 · a freed place is held for the first person waiting</td><td>fail</td><td><span class="tag bad">fail</span></td><td><span class="tag bad">fail</span></td></tr>
+            <tr><td>7 · getting a place takes you off the waitlist</td><td>fail</td><td><span class="tag bad">fail</span></td><td><span class="tag bad">fail</span></td></tr>
+            <tr><td>8 · nobody joins a waitlist after the event has started</td><td>fail</td><td><span class="tag bad">fail</span></td><td><span class="tag bad">fail</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Read the table by pattern, not row by row.</p>
+      <ul>
+        <li><strong>Every example fails on <code>base</code>.</strong> Good: they all test the waitlist. An example that passes on an app without the feature tests something else.</li>
+        <li><strong>Examples 1 to 3 split the agents.</strong> Each is a detail one agent decided one way and the other the opposite way, silently. Example 2 is the only one where B's choice matches ours.</li>
+        <li><strong>Examples 4 and 5 pass on both.</strong> Agreement is reassuring, but it is not proof of correctness. Both agents also agreed on first come, first served, and nobody chose that either.</li>
+        <li><strong>Examples 6 to 8 fail everywhere.</strong> Failing everywhere means: investigate. Here we did. No code, README, test or report in either app states a rule for these cases, and each example says exactly what the class decided. So these are decisions nobody had made until the class made them.</li>
+      </ul>
+      <p>One more habit from Week 1: check the claims. Agent B's report said that when it weakened its transaction, its test of four people joining at once failed. We removed the transaction and ran B's tests 20 times: that test passed all 20 times, and a different test (the same person joining twice at once) failed 6 times. The transaction matters, but the evidence B cited is not what shows it.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>An example that fails on every implementation is a question to investigate.</strong> It can mean a bug in all of them, a wrong example, or, as with examples 6 to 8 here, a decision nobody had made. Examples that split two implementations show where the request allowed more than one reading. Write examples before you delegate, and each of those decisions has an owner instead of a default.</p>
+  </div>
+</section>
+
+<!-- ============ 6. SCOPE ============ -->
+<section class="block" id="scope">
+  <div class="sechead">
+    <span class="clock">1:20 – 1:25</span>
+    <h2>The one-page scope agreement</h2>
+  </div>
+  <p>Everything from today fits on one page that the team agrees to before anyone, human or agent, writes the feature. It says what is in, what is out for now, the rules, the examples that prove them, the quality requirements, the questions still open with who answers them by when, and one named owner.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 620" role="img" aria-label="A one-page scope agreement for waitlist version 1, owner Priya. Left column: the problem, what is in scope, what is out of scope, and owner and sign-off. Right column: a rules table, five acceptance examples including one usability and one accessibility example, quality requirements, and open questions with who decides and by when.">
+        <defs>
+          <filter id="w2f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w2f6-r)">
+          <rect x="30" y="10" width="900" height="600" rx="4" class="s f-paper"/>
+          <path d="M50,66 H910" class="s s-thin"/>
+          <rect x="50" y="80" width="420" height="76" rx="6" class="s s-thin f-card"/>
+          <rect x="50" y="168" width="420" height="120" rx="6" class="s s-thin f-card"/>
+          <rect x="50" y="300" width="420" height="100" rx="6" class="s s-thin f-card"/>
+          <rect x="50" y="412" width="420" height="184" rx="6" class="s s-thick f-mark"/>
+          <path d="M70,566 H150 M170,566 H250 M270,566 H350 M370,566 H450" class="s s-thin"/>
+          <rect x="490" y="80" width="420" height="150" rx="6" class="s s-thin f-card"/>
+          <path d="M680,112 V222 M500,114 H900" class="s s-thin s-2"/>
+          <rect x="490" y="242" width="420" height="150" rx="6" class="s s-thin f-card"/>
+          <rect x="490" y="404" width="420" height="96" rx="6" class="s s-thin f-card"/>
+          <rect x="490" y="512" width="420" height="84" rx="6" class="s s-thin s-red f-red"/>
+        </g>
+        <text x="56" y="50" class="t-lg">Scope agreement: waitlist v1</text>
+        <text x="904" y="50" text-anchor="end" class="t-sm t-2">docs/scope.md · 2 Oct · v1</text>
+        <text x="66" y="102" class="t-pen">Problem</text>
+        <text x="66" y="124" class="t-sm">Freed places go to whoever books first.</text>
+        <text x="66" y="144" class="t-sm">People waiting never hear about them.</text>
+        <text x="66" y="190" class="t-pen">In</text>
+        <text x="66" y="212" class="t-sm">· join a full event's waitlist; see your number</text>
+        <text x="66" y="232" class="t-sm">· leave the waitlist</text>
+        <text x="66" y="252" class="t-sm">· a freed place: 60-min offer to number 1</text>
+        <text x="66" y="272" class="t-sm">· the door list shows who is next</text>
+        <text x="66" y="322" class="t-pen">Out (this release)</text>
+        <text x="66" y="344" class="t-sm">· lottery or quotas for the rush: next year?</text>
+        <text x="66" y="364" class="t-sm">· email or text: offers show in the app only</text>
+        <text x="66" y="384" class="t-sm">· any change to payment</text>
+        <text x="66" y="436" class="t-mark"><tspan font-weight="700">Owner and sign-off</tspan></text>
+        <text x="66" y="462" class="t-sm t-mark">owner: Priya (organiser) answers questions</text>
+        <text x="66" y="484" class="t-sm t-mark">agreed by the whole team on 2 October</text>
+        <text x="66" y="506" class="t-sm t-mark">rules change only with the owner's OK</text>
+        <text x="66" y="528" class="t-sm t-mark">examples live in docs/examples.md</text>
+        <text x="260" y="588" text-anchor="middle" class="t-sm t-mark">four team signatures</text>
+        <text x="506" y="102" class="t-pen">Rules</text>
+        <text x="506" y="136" class="t-sm">event still has places</text>
+        <text x="692" y="136" class="t-sm">reserve instead</text>
+        <text x="506" y="158" class="t-sm">already has a place</text>
+        <text x="692" y="158" class="t-sm">refused</text>
+        <text x="506" y="180" class="t-sm">a place frees up</text>
+        <text x="692" y="180" class="t-sm">offer to number 1, 60 min</text>
+        <text x="506" y="202" class="t-sm">offer runs out</text>
+        <text x="692" y="202" class="t-sm">next; missed one goes last</text>
+        <text x="506" y="264" class="t-pen">Examples (5)</text>
+        <text x="506" y="288" class="t-sm">1 holder can't also wait · test</text>
+        <text x="506" y="310" class="t-sm">2 joining twice says "already" · test</text>
+        <text x="506" y="332" class="t-sm">3 freed place offered to number 1 · test</text>
+        <text x="506" y="354" class="t-sm">4 usability: number read out in 60 s, 3 of 3</text>
+        <text x="506" y="376" class="t-sm">5 access: screen reader hears it, finds it again</text>
+        <text x="506" y="426" class="t-pen">Quality</text>
+        <text x="506" y="448" class="t-sm">· WCAG 2.2 AA: 4.1.3, 2.5.8, keyboard only</text>
+        <text x="506" y="470" class="t-sm">· privacy: counts shown, never names</text>
+        <text x="506" y="490" class="t-sm">· waitlist deleted after the event</text>
+        <text x="506" y="534" class="t-red">Open questions (who · by when)</text>
+        <text x="506" y="558" class="t-sm">· 60 or 120 minutes for an offer? Priya · 5 Oct</text>
+        <text x="506" y="580" class="t-sm">· no-shows at 20:05: walk-ins? Ben · 5 Oct</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.6</b> A filled-in example of the one-page scope agreement for the waitlist. The template is in the lab kit (<code>templates/scope-agreement.md</code>). The owner box is the one that matters most: every consequential decision needs an accountable human.</figcaption>
+  </figure>
+  <p>Two rules make the page useful. <strong>Out</strong> is as important as <strong>In</strong>: saying "not in this release" is a decision, and it stops an agent from helpfully building it anyway. <strong>Open questions</strong> are allowed, but each one has a person and a date. In the lab you write this page for your own team's product.</p>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Write one acceptance example, in Given / When / Then with names and numbers, for what happens to a freed place under a policy you choose.</li>
+        <li>Name one question the one-line waitlist request left open that is not in today's tables, and the role that should answer it.</li>
+        <li>Rewrite this interview question so it asks about the past: <em>"Would you join a waitlist if we built one?"</em></li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 3</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 30 minutes</p>
+  <h2>Decisions, evidence, and quality</h2>
+  <p>Four short readings. The first two are about what an unmade decision costs, and how to check a famous claim about that cost. The last two are about writing requirements that people and agents can both use.</p>
+</div>
+
+<section class="block" id="missing">
+  <div class="sechead"><span class="clock">R1</span><h2>The cost of a missing decision</h2></div>
+  <p>A decision nobody makes still gets made. It gets made later, by someone with less time and less information: by the code's default, by a teammate fixing a bug late at night, by a volunteer at the door at 20:05, or by the next agent that touches the file.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 330" role="img" aria-label="Two timelines from Monday to Friday. Decided on purpose: on Monday a 10-minute decision, then a rule and three examples, then on Friday at 14:00 a place frees up and it is offered to Sam. Decided by default: on Monday nobody decides, the code's default ships, on Friday at 14:00 a place frees up, Lee takes it, and the decision is finally made at the door at 20:05 amid complaints. Illustrative, not measured.">
+        <defs>
+          <filter id="w2f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w2f7-r)">
+          <rect x="20" y="66" width="170" height="60" rx="8" class="s s-pen f-pen"/>
+          <rect x="210" y="66" width="170" height="60" rx="8" class="s f-card"/>
+          <rect x="400" y="66" width="170" height="60" rx="8" class="s f-card"/>
+          <rect x="590" y="66" width="170" height="60" rx="8" class="s s-green f-green"/>
+          <rect x="20" y="206" width="170" height="60" rx="8" class="s s-dash f-card"/>
+          <rect x="210" y="206" width="170" height="60" rx="8" class="s f-card"/>
+          <rect x="400" y="206" width="170" height="60" rx="8" class="s f-card"/>
+          <rect x="590" y="206" width="170" height="60" rx="8" class="s s-red f-red"/>
+          <rect x="780" y="196" width="160" height="80" rx="8" class="s s-red s-thick f-red"/>
+          <path d="M192,96 H206" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M382,96 H396" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M572,96 H586" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M192,236 H206" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M382,236 H396" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M572,236 H586" class="s" marker-end="url(#w2f7-a)"/>
+          <path d="M762,236 H776" class="s" marker-end="url(#w2f7-a)"/>
+        </g>
+        <text x="20" y="48" class="t-pen">decided on purpose</text>
+        <text x="20" y="188" class="t-red">decided by default</text>
+        <text x="105" y="92" text-anchor="middle" class="t-sm">Mon: a 10-minute</text>
+        <text x="105" y="112" text-anchor="middle" class="t-sm">decision</text>
+        <text x="295" y="92" text-anchor="middle" class="t-sm">rule + 3 examples</text>
+        <text x="295" y="112" text-anchor="middle" class="t-sm">in the spec</text>
+        <text x="485" y="92" text-anchor="middle" class="t-sm">Fri 14:00:</text>
+        <text x="485" y="112" text-anchor="middle" class="t-sm">a place frees up</text>
+        <text x="675" y="92" text-anchor="middle" class="t-sm t-green">offered to Sam,</text>
+        <text x="675" y="112" text-anchor="middle" class="t-sm t-green">number 1</text>
+        <text x="105" y="232" text-anchor="middle" class="t-sm">Mon: nobody</text>
+        <text x="105" y="252" text-anchor="middle" class="t-sm">decides</text>
+        <text x="295" y="232" text-anchor="middle" class="t-sm">the code's default</text>
+        <text x="295" y="252" text-anchor="middle" class="t-sm">ships, with tests</text>
+        <text x="485" y="232" text-anchor="middle" class="t-sm">Fri 14:00:</text>
+        <text x="485" y="252" text-anchor="middle" class="t-sm">a place frees up</text>
+        <text x="675" y="232" text-anchor="middle" class="t-sm t-red">Lee takes it;</text>
+        <text x="675" y="252" text-anchor="middle" class="t-sm t-red">Sam complains</text>
+        <text x="860" y="226" text-anchor="middle" class="t-sm t-red">decided at the</text>
+        <text x="860" y="246" text-anchor="middle" class="t-sm t-red">door, 20:05,</text>
+        <text x="860" y="266" text-anchor="middle" class="t-sm t-red">under pressure</text>
+        <text x="940" y="316" text-anchor="end" class="t-sm t-2">illustrative, not measured</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.7</b> A teaching model. The same decision, made on purpose on Monday or by default on Friday. On the second path the cost arrives later and lands on other people.</figcaption>
+  </figure>
+  <p>A missing decision also spreads. Each agent built on top of its guess. Agent A's own test <code>test_positions_and_retries_survive_app_restart</code> expects a repeated join to answer <code>201</code>. Agent B's <code>test_joining_twice_keeps_your_place_in_line</code> expects <code>200</code>. The page text, the API documentation in A's README and B's commit message all repeat the same guesses. If the committee now decides the other way, every one of those changes too, and the tests that used to protect the code now defend the guess.</p>
+  <p>The cheapest moment to decide is while someone is asking, before any code exists. It costs a conversation, and an agent can't have that conversation for you. It can list the questions (Agent B did), but the answer has to come from a person who can be held to it.</p>
+</section>
+
+<section class="block" id="hundred">
+  <div class="sechead"><span class="clock">R2</span><h2>Check the evidence behind a famous number</h2></div>
+  <div class="callout">
+    <span class="label">Learning objective</span>
+    <p>Trace a much-repeated claim back to its sources, notice which qualifications fell off along the way, and look for the evidence that tests it. The number here happens to be about requirements, but the skill applies to any statistic on a slide.</p>
+  </div>
+  <p>You may have seen a slide saying that a bug found in production costs 100 times more to fix than one caught during requirements. It is often used to argue for exactly this week's topic. Here is where it comes from.</p>
+  <p><strong>The source most people mean.</strong> In January 2001, Barry Boehm and Victor Basili published a "Software Defect Reduction Top 10 List" in IEEE <em>Computer</em>. Item one reads: <q>Finding and fixing a software problem after delivery is often 100 times more expensive than finding and fixing it during the requirements and design phase.</q> The same item continues: they <q>added the word "often"</q> because <q>the cost-escalation factor for small, noncritical software systems</q> is <q>more like 5:1 than 100:1</q>, and <q>good architectural practices can significantly reduce the cost-escalation factor even for large critical systems.</q></p>
+  <p><strong>Older roots.</strong> That item updates Boehm's 1987 "Industrial Metrics Top 10 List". A 2017 study by Menzies and colleagues reports that nearly every citation of the effect traces back to Boehm's 1981 book <em>Software Engineering Economics</em> or related works, and that the book's figure drew on data from large systems of the late 1970s.</p>
+  <p><strong>A second, weaker trail.</strong> Another version of the numbers is credited to the "IBM Systems Sciences Institute". Laurent Bossavit traced it to 1981 IBM course notes cited in a textbook, and found that <q>the Institute was a corporate training program, not a research body</q>. The sources checked here do not identify the project data behind those notes.</p>
+  <p><strong>A test.</strong> Menzies, Nichols, Shull and Layman looked for the effect in 171 software projects from 2006 to 2014. They <q>found no evidence for the delayed issue effect</q>: resolving issues later <q>was not consistently or substantially</q> more expensive. Their projects all used a disciplined process with heavy inspection, which the authors discuss. It is one strong counter-example; it does not show that late fixes are always cheap.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 460" role="img" aria-label="A citation map. Late-1970s data from large systems feeds Boehm's 1981 book. Boehm 1987 feeds Boehm and Basili 2001, which says often 100 times, and more like 5 to 1 for small noncritical systems. 1981 IBM Systems Sciences Institute course notes feed textbook ratio tables. Both lead to the slide version, a bug costs 100 times more to fix in production, where often and 5 to 1 have disappeared. In red, Menzies and colleagues 2017 tested the effect in 171 projects and found no consistent effect, and Bossavit found the Institute was a training programme, not a research body.">
+        <defs>
+          <filter id="w2f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w2f8-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w2f8-r)">
+          <rect x="20" y="30" width="280" height="64" rx="8" class="s f-card"/>
+          <rect x="20" y="124" width="280" height="56" rx="8" class="s f-card"/>
+          <rect x="20" y="224" width="280" height="56" rx="8" class="s f-card"/>
+          <rect x="20" y="340" width="280" height="64" rx="8" class="s f-card"/>
+          <rect x="340" y="196" width="290" height="112" rx="8" class="s s-thick f-card"/>
+          <rect x="340" y="340" width="290" height="64" rx="8" class="s f-card"/>
+          <rect x="670" y="226" width="270" height="92" rx="8" class="s s-thick f-mark"/>
+          <rect x="670" y="30" width="270" height="92" rx="8" class="s s-red f-red"/>
+          <rect x="670" y="352" width="270" height="92" rx="8" class="s s-red f-red"/>
+          <path d="M160,96 V120" class="s" marker-end="url(#w2f8-a)"/>
+          <path d="M302,252 H336" class="s" marker-end="url(#w2f8-a)"/>
+          <path d="M302,372 H336" class="s" marker-end="url(#w2f8-a)"/>
+          <path d="M632,256 H666" class="s" marker-end="url(#w2f8-a)"/>
+          <path d="M632,372 C652,372 648,300 666,300" class="s" marker-end="url(#w2f8-a)"/>
+          <path d="M805,124 V222" class="s s-red" marker-end="url(#w2f8-ar)"/>
+          <path d="M668,398 H634" class="s s-red" marker-end="url(#w2f8-ar)"/>
+          <path d="M302,152 C340,152 352,170 362,192" class="s s-thin s-dash"/>
+        </g>
+        <text x="160" y="56" text-anchor="middle" class="t-sm">late-1970s data from large</text>
+        <text x="160" y="76" text-anchor="middle" class="t-sm">systems (IBM, TRW, GTE, Bell Labs)</text>
+        <text x="160" y="148" text-anchor="middle" class="t-sm">Boehm 1981, the book</text>
+        <text x="160" y="168" text-anchor="middle" class="t-sm t-2">Software Engineering Economics</text>
+        <text x="160" y="248" text-anchor="middle" class="t-sm">Boehm 1987</text>
+        <text x="160" y="268" text-anchor="middle" class="t-sm t-2">Industrial Metrics Top 10</text>
+        <text x="160" y="366" text-anchor="middle" class="t-sm">IBM Systems Sciences Institute</text>
+        <text x="160" y="386" text-anchor="middle" class="t-sm t-2">course notes, 1981</text>
+        <text x="485" y="222" text-anchor="middle">Boehm and Basili 2001</text>
+        <text x="485" y="248" text-anchor="middle" class="t-sm">"often 100 times more expensive"</text>
+        <text x="485" y="272" text-anchor="middle" class="t-sm t-pen">small, noncritical systems:</text>
+        <text x="485" y="292" text-anchor="middle" class="t-sm t-pen">"more like 5:1 than 100:1"</text>
+        <text x="485" y="366" text-anchor="middle" class="t-sm">textbook ratio tables</text>
+        <text x="485" y="386" text-anchor="middle" class="t-sm t-2">cited from those notes</text>
+        <text x="805" y="254" text-anchor="middle" class="t-mark">on a slide:</text>
+        <text x="805" y="278" text-anchor="middle" class="t-sm t-mark">"a bug costs 100x more</text>
+        <text x="805" y="298" text-anchor="middle" class="t-sm t-mark">to fix in production"</text>
+        <text x="805" y="56" text-anchor="middle" class="t-sm t-red">Menzies et al. 2017: 171</text>
+        <text x="805" y="76" text-anchor="middle" class="t-sm t-red">projects, 2006 to 2014: no</text>
+        <text x="805" y="96" text-anchor="middle" class="t-sm t-red">consistent effect found</text>
+        <text x="805" y="378" text-anchor="middle" class="t-sm t-red">Bossavit: a training</text>
+        <text x="805" y="398" text-anchor="middle" class="t-sm t-red">programme, not a research</text>
+        <text x="805" y="418" text-anchor="middle" class="t-sm t-red">body; data not identified</text>
+        <text x="374" y="150" class="t-sm t-2">most citations</text>
+        <text x="374" y="168" class="t-sm t-2">trace back here</text>
+        <text x="712" y="186" text-anchor="middle" class="t-sm t-2">"often" and "5:1"</text>
+        <text x="712" y="206" text-anchor="middle" class="t-sm t-2">fall off here</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.8</b> Where the 100× number comes from, as far as the sources we checked show. Black arrows: one source feeding the next. Red: the critiques. The dashed line is Menzies and colleagues' account that most citations trace back to Boehm's 1981 book. Checked 27 September 2026; the sources are listed at the end.</figcaption>
+  </figure>
+  <p>What survives? Some late fixes are very expensive, especially in large, safety-critical systems, and especially when a decision has spread into data, contracts, and habits, as in R1. A fixed multiplier that applies to every project does not survive. The honest version of the argument for this week is smaller and stronger: an unmade decision gets made anyway, by default, and changing it later means changing everything built on it.</p>
+  <div class="callout try">
+    <span class="label">Try it (15 minutes, optional)</span>
+    <p>Pick a number about software you have seen on a slide or in a post this year. Find the original source. Write down the exact sentence, what it measured, when, and on whom. Which qualifications did the slide leave out?</p>
+  </div>
+</section>
+
+<section class="block" id="quality">
+  <div class="sechead"><span class="clock">R3</span><h2>Quality from day one</h2></div>
+  <p>Functional requirements say what the system does: join, leave, offer. Quality requirements, often called non-functional requirements, say how well and for whom: fast enough, usable by a first-timer, usable with a screen reader, careful with personal data. The international quality model ISO/IEC 25010 was revised in 2023; its nine characteristics now include safety, and what used to be called usability is now "interaction capability". You don't need the list. You need the habit of asking about quality when you ask about features. Neither agent asked about accessibility or usability; Agent B made one privacy decision on purpose, showing counts instead of names.</p>
+  <p>Both agents' pages inherit a message pop-up (a <em>toast</em>) from Week 1's page. Here is what the waitlist card and its toast look like against a few checks.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 410" role="img" aria-label="Agent A's waitlist card for the maker workshop, reading Full, 0 on waitlist, with a Join waitlist button, and below it the message You're number 1 on the waitlist, which disappears after 3.5 seconds. Notes: the button is 44 pixels tall, which passes WCAG 2.2 target size; the message has role status, the right idea for WCAG 4.1.3, but it is hidden until it changes so test it with a screen reader; after 3.5 seconds the number is shown nowhere; every card's button has the same name, so a screen reader user cannot tell which event each is for; the page shows counts, never names.">
+        <defs>
+          <filter id="w2f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w2f9-r)">
+          <rect x="30" y="40" width="570" height="140" rx="14" class="s f-card"/>
+          <rect x="440" y="70" width="136" height="44" rx="10" class="s f-mark"/>
+          <path d="M54,160 H576" class="s s-thick"/>
+          <rect x="120" y="222" width="400" height="62" rx="12" class="s s-green f-green"/>
+          <circle cx="548" cy="304" r="18" class="s s-red"/>
+          <path d="M548,304 V292 M548,304 L557,309" class="s s-red"/>
+          <path d="M578,86 C610,86 620,66 640,66" class="s s-thin s-dash s-2"/>
+          <path d="M578,104 C610,110 620,164 640,164" class="s s-thin s-dash s-2"/>
+          <path d="M522,246 C580,246 610,262 640,262" class="s s-thin s-dash s-2"/>
+          <path d="M566,308 C600,312 620,356 640,356" class="s s-thin s-dash s-2"/>
+          <rect x="642" y="36" width="300" height="60" rx="4" class="s s-thin s-green f-green"/>
+          <rect x="642" y="134" width="300" height="60" rx="4" class="s s-thin s-red f-red"/>
+          <rect x="642" y="232" width="300" height="60" rx="4" class="s s-thin s-pen f-pen"/>
+          <rect x="642" y="326" width="300" height="60" rx="4" class="s s-thin s-red f-red"/>
+          <rect x="30" y="326" width="470" height="60" rx="4" class="s s-thin s-green f-green"/>
+        </g>
+        <text x="54" y="76"><tspan font-weight="700">Maker Workshop: Solder Your Own Badge</tspan></text>
+        <text x="54" y="104" class="t-sm t-2">Sat 02:00 PM · Makerspace</text>
+        <text x="54" y="136" class="t-sm t-red">Full · 0 on waitlist</text>
+        <text x="508" y="98" text-anchor="middle" class="t-mark">Join waitlist</text>
+        <text x="140" y="248" class="t-sm">You're #1 on the waitlist for Maker Workshop…</text>
+        <text x="140" y="270" class="t-sm">This is not a reservation.</text>
+        <text x="522" y="310" text-anchor="end" class="t-sm t-red">gone after 3.5 s</text>
+        <text x="656" y="60" class="t-sm t-green">button 44 px tall: passes</text>
+        <text x="656" y="80" class="t-sm t-green">2.5.8 Target Size (24 px)</text>
+        <text x="656" y="158" class="t-sm t-red">every card's button has the</text>
+        <text x="656" y="178" class="t-sm t-red">same name: which event is it?</text>
+        <text x="656" y="256" class="t-sm t-pen">role="status": right idea (4.1.3),</text>
+        <text x="656" y="276" class="t-sm t-pen">but hidden until it changes: test it</text>
+        <text x="656" y="350" class="t-sm t-red">after 3.5 s, where is my</text>
+        <text x="656" y="370" class="t-sm t-red">number? Nowhere on the page</text>
+        <text x="46" y="350" class="t-sm t-green">privacy: the page shows how many wait,</text>
+        <text x="46" y="370" class="t-sm t-green">never who</text>
+        <text x="30" y="24" class="t-sm t-2">Agent A's page (Agent B's differs only in wording and button style)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.9</b> Agent A's waitlist card and message, redrawn from the running app, with five quality checks. Green passes, red fails, blue needs a test with real assistive technology. None of these checks was in the request. Neither agent raised the accessibility or usability ones; Agent B chose the privacy one on purpose.</figcaption>
+  </figure>
+  <p><strong>Accessibility.</strong> The Web Content Accessibility Guidelines, WCAG 2.2, became a W3C Recommendation on 5 October 2023. Its success criteria are testable statements, which makes them easy to turn into acceptance examples. Four are relevant to the waitlist:</p>
+  <ul>
+    <li><strong>4.1.3 Status Messages (AA):</strong> status messages <q>can be programmatically determined through role or properties such that they can be presented to the user by assistive technologies without receiving focus.</q> The toast has <code>role="status"</code>. But it is hidden until its text changes, and screen readers differ in how they handle that, so test it with one.</li>
+    <li><strong>2.5.8 Target Size (Minimum) (AA, new in 2.2):</strong> pointer targets at least 24 by 24 CSS pixels, with some exceptions. The button is about 44 pixels tall. It passes.</li>
+    <li><strong>2.2.1 Timing Adjustable (A):</strong> for each time limit set by the content, users can turn it off, adjust it, or extend it. W3C's explanation of this criterion settles the toast question: a disappearing message is fine if <q>there is an alternative that does not rely on a timer</q>, some other way to find the same information. In both apps there isn't. Your number appears nowhere else, joining again is the only way to see it, and once a place frees up even that answers "reserve instead". Keep the position on the page and the criterion is met, and the usability problem is fixed too. (Whether the toast is read out at all is the separate screen-reader test in 4.1.3.)</li>
+    <li><strong>3.3.1 Error Identification (A):</strong> when an input error is detected, the item in error is identified and described in text. A missing name gets a message and the cursor moves to the field. Check it with a screen reader too.</li>
+  </ul>
+  <p>Some problems fall between criteria. On a page with five events, every card's button says the same thing: <em>Reserve</em> or <em>Join waitlist</em>. A screen reader user who moves from button to button hears the same name five times. That is Zoe's persona card, and it is a one-line fix once somebody writes it down.</p>
+  <p><strong>Privacy.</strong> The GDPR's data-minimisation principle says personal data must be <q>adequate, relevant and limited to what is necessary in relation to the purposes for which they are processed</q>. For the waitlist: store the name you need, show counts rather than names (Agent B chose this on purpose, and A does the same), and decide when the list is deleted. That last one is a decision nobody made.</p>
+  <p><strong>Usability.</strong> "Easy to use" is not checkable. "A first-year joins a waitlist on a phone and can say her position within 60 seconds, 3 of 3 test users, no help" is. Week 9 runs real usability sessions; this week you write the criterion.</p>
+</section>
+
+<section class="block" id="specs">
+  <div class="sechead"><span class="clock">R4</span><h2>Specs as input to agents</h2></div>
+  <p>If an agent guesses where the request is silent, the obvious fix is to give it fewer silences. Several tools now build that into the workflow, under the name <strong>spec-driven development</strong>.</p>
+  <ul>
+    <li><strong>GitHub Spec Kit</strong>, released in September 2025, is an open-source toolkit that has you write a specification, then a technical plan, then a task list, before the agent implements anything. Its command names have changed since launch, so check its README rather than a blog post.</li>
+    <li><strong>Kiro</strong>, announced in preview in July 2025, turns a prompt into three files, <code>requirements.md</code>, <code>design.md</code> and <code>tasks.md</code>, and writes acceptance criteria in <strong>EARS</strong> (Easy Approach to Requirements Syntax), a sentence pattern published in 2009 by engineers at Rolls-Royce: <em>WHEN [condition or event] THE SYSTEM SHALL [expected behaviour]</em>.</li>
+  </ul>
+  <p>In EARS, today's policy reads: <em>WHEN a place frees up at an event with a waitlist, THE SYSTEM SHALL offer the place to the first person waiting for 60 minutes.</em> That is a good requirement. Notice that it still needs the examples: what happens when the offer runs out, or when number 1 already has a place.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 370" role="img" aria-label="Two pipelines. Top: the request alone goes to the agent, which produces code, with every open question becoming a silent guess. Bottom: the request plus a spec, with examples, rules, quality requirements and open questions, goes to the agent, which produces code; the examples run against the code as the check, and open questions go to the owner instead of the agent. Illustrative.">
+        <defs>
+          <filter id="w2f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w2f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w2f10-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+          <marker id="w2f10-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w2f10-r)">
+          <rect x="30" y="50" width="200" height="56" rx="8" class="s f-mark"/>
+          <circle cx="370" cy="78" r="34" class="s f-card"/>
+          <rect x="560" y="50" width="180" height="56" rx="8" class="s f-card"/>
+          <path d="M232,78 H332 M406,78 H556" class="s" marker-end="url(#w2f10-a)"/>
+          <rect x="30" y="200" width="200" height="104" rx="8" class="s f-card"/>
+          <path d="M30,226 H230" class="s s-thin"/>
+          <circle cx="370" cy="252" r="34" class="s f-card"/>
+          <rect x="560" y="224" width="180" height="56" rx="8" class="s f-card"/>
+          <path d="M232,252 H332 M406,252 H556" class="s" marker-end="url(#w2f10-a)"/>
+          <path d="M650,222 C650,180 190,170 190,196" class="s s-green" marker-end="url(#w2f10-ag)"/>
+          <path d="M232,288 C300,300 400,318 470,320" class="s s-pen s-dash" marker-end="url(#w2f10-ap)"/>
+          <circle cx="500" cy="302" r="12" class="s f-card"/>
+          <path d="M480,340 Q480,318 500,316 Q520,318 520,340 Z" class="s f-card"/>
+        </g>
+        <text x="30" y="36" class="t-sm t-2">request only</text>
+        <text x="130" y="84" text-anchor="middle" class="t-mark">the request</text>
+        <text x="370" y="84" text-anchor="middle">agent</text>
+        <text x="650" y="84" text-anchor="middle">code</text>
+        <text x="440" y="58" class="t-xl t-red">? ? ?</text>
+        <text x="480" y="134" text-anchor="middle" class="t-sm t-red">each open question becomes a silent guess</text>
+        <text x="30" y="190" class="t-sm t-2">request + spec</text>
+        <text x="130" y="219" text-anchor="middle" class="t-sm"><tspan font-weight="700">the spec</tspan></text>
+        <text x="46" y="248" class="t-sm">examples · rules</text>
+        <text x="46" y="268" class="t-sm">quality</text>
+        <text x="46" y="288" class="t-sm t-pen">open questions</text>
+        <text x="370" y="258" text-anchor="middle">agent</text>
+        <text x="650" y="258" text-anchor="middle">code</text>
+        <text x="390" y="168" text-anchor="middle" class="t-sm t-green">the examples run against the code: pass or fail</text>
+        <text x="330" y="358" text-anchor="middle" class="t-sm t-pen">open questions go to a person, not the agent</text>
+        <text x="532" y="334" class="t-sm">owner</text>
+        <text x="940" y="26" text-anchor="end" class="t-sm t-2">illustrative</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2.10</b> A model, not a measurement. A spec narrows what the agent has to guess, its examples become the check on what comes back, and the questions nobody has answered go to a person instead of into the code.</figcaption>
+  </figure>
+  <p>Two warnings. First, a spec an agent writes from a vague request contains the same guesses, now in fluent prose. It deserves the review you would give code, and its examples should come from decisions people made, not from the code they will test (Week 5 is about exactly this). Second, tools and command names in this area change month by month; the ideas underneath, examples, rules, quality requirements, named owners, are decades old. Next week you turn today's vague request into a task contract for an agent.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Requirement</dt><dd>A statement of what the software must do or how well it must do it, precise enough to check.</dd>
+    <dt>User story</dt><dd>"As a …, I want …, so that …": who wants what, and why. A reminder of a conversation; the details come later.</dd>
+    <dt>Acceptance example</dt><dd>A concrete case with names and numbers, usually written Given / When / Then, that the finished feature must satisfy.</dd>
+    <dt>Given / When / Then</dt><dd>The starting situation, one action, and what must be true afterwards.</dd>
+    <dt>Rules table</dt><dd>One row per situation, one outcome per row. An empty cell is an open question.</dd>
+    <dt>Quality requirement</dt><dd>Also non-functional requirement. How well and for whom: usability, accessibility, privacy, performance.</dd>
+    <dt>Persona</dt><dd>A made-up but realistic user, used to practise and to keep real kinds of people in mind. Not evidence.</dd>
+    <dt>Leading question</dt><dd>A question that suggests its answer ("Wouldn't it be great if…?"). Hypothetical and opinion questions have the same problem.</dd>
+    <dt>First come, first served · lottery · quota</dt><dd>Allocation policies that reward speed, luck within a window, or membership of a protected group.</dd>
+    <dt>Promotion, timed offer</dt><dd>Moving someone from a waitlist into a place, either at once or by offering the place for a fixed time.</dd>
+    <dt>Spec divergence test</dt><dd>Running the same acceptance examples against several implementations to see where their readings of a request differ.</dd>
+    <dt>Scope agreement</dt><dd>One page: in, out, rules, examples, quality, open questions, and a named owner.</dd>
+    <dt>WCAG 2.2</dt><dd>W3C's Web Content Accessibility Guidelines, a set of testable success criteria at levels A, AA and AAA.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>The two agent runs, 27 September 2026: <code>lectures/02-specify-the-promise/lab-kit/waitlist-agent-a/PROVENANCE.md</code> (Codex CLI, gpt-6-astra, with its full event log) and <code>…/waitlist-agent-b/PROVENANCE.md</code> (Claude Code subagent, Claude Opus 5.5). Behaviour checks in <code>lectures/02-specify-the-promise/verification.md</code>.</li>
+    <li>Barry Boehm and Victor R. Basili, "Software Defect Reduction Top 10 List", <em>Computer</em> 34(1), January 2001, pp. 135–137. <a href="https://www.cs.umd.edu/projects/SoftEng/ESEG/papers/82.78.pdf">PDF</a></li>
+    <li>Tim Menzies, William Nichols, Forrest Shull and Lucas Layman, "Are delayed issues harder to resolve? Revisiting cost-to-fix of defects throughout the lifecycle", <em>Empirical Software Engineering</em> 22(4), 2017, pp. 1903–1935. <a href="https://arxiv.org/abs/1609.04886">arXiv</a></li>
+    <li>Laurent Bossavit, "The IBM Systems Science Institute" (notes). <a href="https://gist.github.com/Morendil/ebfa32d10528af04e2ccb8995e3cb4a7">gist.github.com/Morendil</a> · <em>The Leprechauns of Software Engineering</em>, Leanpub, 2012–2017. <a href="https://leanpub.com/leprechauns">leanpub.com</a></li>
+    <li>W3C, <em>Web Content Accessibility Guidelines (WCAG) 2.2</em>, Recommendation 5 October 2023 (edition of 12 December 2024). <a href="https://www.w3.org/TR/WCAG22/">w3.org</a> · "Understanding SC 2.2.1: Timing Adjustable". <a href="https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html">w3.org/WAI</a></li>
+    <li>ISO/IEC 25010:2023, <em>Systems and software Quality Requirements and Evaluation (SQuaRE): Product quality model</em>. <a href="https://webstore.iec.ch/en/publication/90024">IEC webstore</a></li>
+    <li>Regulation (EU) 2016/679 (GDPR), Article 5(1)(c). <a href="https://eur-lex.europa.eu/eli/reg/2016/679/oj">EUR-Lex</a></li>
+    <li>Rob Fitzpatrick, <em>The Mom Test</em>, 2013. <a href="https://www.momtestbook.com/">momtestbook.com</a></li>
+    <li>Martin Fowler, "GivenWhenThen", 21 August 2013. <a href="https://martinfowler.com/bliki/GivenWhenThen.html">martinfowler.com</a> · Dan North, "Introducing BDD", <em>Better Software</em>, March 2006. <a href="https://dannorth.net/blog/introducing-bdd/">dannorth.net</a></li>
+    <li>Mike Cohn, "Why the Three-Part User Story Template Works So Well". <a href="https://www.mountaingoatsoftware.com/agile/why-the-three-part-user-story-template-works-so-well">mountaingoatsoftware.com</a></li>
+    <li>Den Delimarsky, "Spec-driven development with AI: Get started with a new open source toolkit", GitHub Blog, 2 September 2025. <a href="https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/">github.blog</a> · <a href="https://github.com/github/spec-kit">github/spec-kit</a></li>
+    <li>Nikhil Swaminathan and Deepak Singh, "Introducing Kiro", 14 July 2025. <a href="https://kiro.dev/blog/introducing-kiro/">kiro.dev</a> · Kiro docs, "Specs". <a href="https://kiro.dev/docs/specs/">kiro.dev/docs</a></li>
+    <li>Alistair Mavin, Philip Wilkinson, Adrian Harwood and Mark Novak, "Easy Approach to Requirements Syntax (EARS)", 17th IEEE International Requirements Engineering Conference, 2009. <a href="https://doi.org/10.1109/RE.2009.9">doi.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="01-code-is-cheap.html">← Lecture 1: Code Is Cheap. Software Isn't.</a>
+  <span>Build It. Prove It. Own It. · Lecture 2</span>
+  <a href="03-inside-the-agent.html">Lecture 3: Inside the Agent →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

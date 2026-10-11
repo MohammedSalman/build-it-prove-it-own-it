@@ -1,0 +1,1174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hand It Over</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 14 · Lecture 14 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 14 · Someone else's turn</p>
+  <h1 id="page-title">Hand It Over</h1>
+  <p class="lede">On Friday another team takes over your AfterHours. They will add a feature using only what is in your repository, and you will not be allowed to answer their questions. This last lecture is about software that someone else can own: what a handover needs, how to explain code you did not type, what you answer for when you ship, and how the whole course fits on one page.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~30 minutes of reading after class</span>
+    <span class="fact">Loop: Release → Understand</span>
+    <span class="fact">Kit: fallback repository and handover documents</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Walk a new team's path from <code>git clone</code> to a safe change, and name the part of the repository that answers each question on it.</li>
+      <li>Find the parts of your product that only one person understands, and move that knowledge into the repository.</li>
+      <li>Explain a code path you did not write, unaided, and predict what a change to it will do.</li>
+      <li>Name what you owe the people who use and inherit your software: honest limits, privacy and accessibility by default, and care when you change it.</li>
+      <li>Place every week of the course on the engineering loop, and trace a decision as a chain of evidence.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The handover test</span></a></li>
+    <li><a href="#package"><span class="t">0:15</span><span>What goes in the package</span></a></li>
+    <li><a href="#defend"><span class="t">0:30</span><span>Defend code you didn't type</span></a></li>
+    <li><a href="#answer"><span class="t">0:45</span><span>Who answers for it</span></a></li>
+    <li><a href="#loop"><span class="t">1:05</span><span>The loop, one last time</span></a></li>
+    <li><a href="#demo"><span class="t">1:17</span><span>Demo day and what is left</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#decay"><span class="t">R1</span><span>Documents that decay</span></a></li>
+    <li><a href="#provenance"><span class="t">R2</span><span>Who owns generated code?</span></a></li>
+    <li><a href="#compound"><span class="t">R3</span><span>Skills that compound</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>The handover test</h2>
+  </div>
+  <p>On Friday your team gives its AfterHours to another team and takes theirs. On Monday the festival organisers write to the new owners:</p>
+  <div class="callout">
+    <span class="label">From the organisers</span>
+    <p>Some of our events don't need booking: the open jam in the courtyard, the chill-out room, the late-night food stalls. People just turn up. We'd like them in the programme as <strong>drop-in events</strong>. They must be clearly marked, nobody should be able to book one by mistake, and nothing about the events that do need booking may change. Each drop-in event still has a door limit, which we'd like to show.</p>
+  </div>
+  <p>The new owners must build it using only your repository. Until the challenge closes, you may not answer their questions, in person or in chat. This is the <strong>maintenance challenge</strong>, and it starts in this week's lab.</p>
+  <div class="callout try">
+    <span class="label">Predict, then list (1 minute alone, 4 minutes in pairs)</span>
+    <ol>
+      <li>Alone: how many minutes will the other team need, from <code>git clone</code> to a change they could safely release? Write a number.</li>
+      <li>In pairs: list every question they will ask on the way. Next to each, write where in your repository the answer is. Leave it blank if the answer is only in someone's head.</li>
+    </ol>
+  </div>
+  <p>Whatever the product, newcomers ask much the same questions, in much the same order. Here they are as a path, with the part of a repository that answers each one.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 500" role="img" aria-label="The newcomer's path through a repository as ten stops, each a question with the document that answers it: can we get it (repository access), how do we set it up (README section 1), does it work here (README: 15 passed), can we see it run (README section 2), where is what (AGENTS.md map), what must stay true (promises and tests), why is it like this (ADRs), how does the schema change safely (runbook section 3), what is already wrong (known risks), how do we release and undo (runbook section 5). Stops 2 to 4 are the README's job. The schema stop is red: without a written procedure, the tests pass while the festival's existing database fails with no such column.">
+        <defs>
+          <filter id="w14f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w14f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w14f1-r)">
+          <path d="M195,42 V50 H705 V42" class="s s-thin s-pen"/>
+          <path d="M40,130 H870 Q935,130 935,255 Q935,380 870,380 H40" class="s s-thick" marker-end="url(#w14f1-a)"/>
+          <circle cx="90" cy="130" r="13" class="s f-card"/>
+          <circle cx="270" cy="130" r="13" class="s f-card"/>
+          <circle cx="450" cy="130" r="13" class="s f-card"/>
+          <circle cx="630" cy="130" r="13" class="s f-card"/>
+          <circle cx="810" cy="130" r="13" class="s f-card"/>
+          <circle cx="810" cy="380" r="13" class="s f-card"/>
+          <circle cx="630" cy="380" r="13" class="s f-card"/>
+          <circle cx="450" cy="380" r="13" class="s s-red s-thick f-red"/>
+          <circle cx="270" cy="380" r="13" class="s f-card"/>
+          <circle cx="90" cy="380" r="13" class="s f-card"/>
+          <rect x="15" y="158" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="195" y="158" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="375" y="158" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="555" y="158" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="735" y="158" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="735" y="408" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="555" y="408" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="375" y="408" width="150" height="34" rx="6" class="s s-red f-red"/>
+          <rect x="195" y="408" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+          <rect x="15" y="408" width="150" height="34" rx="6" class="s s-thin f-pen"/>
+        </g>
+        <text x="450" y="30" text-anchor="middle" class="t-sm t-pen">the first hour: the README alone</text>
+        <text x="90" y="135" text-anchor="middle" class="t-sm">1</text>
+        <text x="270" y="135" text-anchor="middle" class="t-sm">2</text>
+        <text x="450" y="135" text-anchor="middle" class="t-sm">3</text>
+        <text x="630" y="135" text-anchor="middle" class="t-sm">4</text>
+        <text x="810" y="135" text-anchor="middle" class="t-sm">5</text>
+        <text x="810" y="385" text-anchor="middle" class="t-sm">6</text>
+        <text x="630" y="385" text-anchor="middle" class="t-sm">7</text>
+        <text x="450" y="385" text-anchor="middle" class="t-sm t-red">8</text>
+        <text x="270" y="385" text-anchor="middle" class="t-sm">9</text>
+        <text x="90" y="385" text-anchor="middle" class="t-sm">10</text>
+        <text x="90" y="100" text-anchor="middle" class="t-sm">can we get it?</text>
+        <text x="270" y="100" text-anchor="middle" class="t-sm">how do we set it up?</text>
+        <text x="450" y="100" text-anchor="middle" class="t-sm">does it work here?</text>
+        <text x="630" y="100" text-anchor="middle" class="t-sm">can we see it run?</text>
+        <text x="810" y="100" text-anchor="middle" class="t-sm">where is what?</text>
+        <text x="810" y="350" text-anchor="middle" class="t-sm">what must stay true?</text>
+        <text x="630" y="350" text-anchor="middle" class="t-sm">why is it like this?</text>
+        <text x="450" y="332" text-anchor="middle" class="t-sm t-red">how does the schema</text>
+        <text x="450" y="350" text-anchor="middle" class="t-sm t-red">change safely?</text>
+        <text x="270" y="350" text-anchor="middle" class="t-sm">what is already wrong?</text>
+        <text x="90" y="332" text-anchor="middle" class="t-sm">how do we release,</text>
+        <text x="90" y="350" text-anchor="middle" class="t-sm">and undo it?</text>
+        <text x="90" y="180" text-anchor="middle" class="t-mono">repository access</text>
+        <text x="270" y="180" text-anchor="middle" class="t-mono">README §1</text>
+        <text x="450" y="180" text-anchor="middle" class="t-mono">"15 passed"</text>
+        <text x="630" y="180" text-anchor="middle" class="t-mono">README §2</text>
+        <text x="810" y="180" text-anchor="middle" class="t-mono">AGENTS.md map</text>
+        <text x="810" y="430" text-anchor="middle" class="t-mono">promises + tests</text>
+        <text x="630" y="430" text-anchor="middle" class="t-mono">docs/adr/</text>
+        <text x="450" y="430" text-anchor="middle" class="t-mono t-red">runbook §3</text>
+        <text x="270" y="430" text-anchor="middle" class="t-mono">known-risks.md</text>
+        <text x="90" y="430" text-anchor="middle" class="t-mono">runbook §5</text>
+        <text x="450" y="466" text-anchor="middle" class="t-sm t-red">without it: the tests pass, and the</text>
+        <text x="450" y="484" text-anchor="middle" class="t-sm t-red">festival's database says "no such column"</text>
+        <text x="90" y="470" text-anchor="middle" class="t-sm t-pen">safe to change</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.1</b> The onboarding path. Each stop is a question the new team will ask; the card under it is the part of the repository that answers it (here, the kit's fallback repository). Stops 2 to 4 are the README's job. Stop 8 is red because AfterHours as it stood after Week 1 fails it silently, as the run below shows.</figcaption>
+  </figure>
+
+  <p>Stop 8 deserves a closer look. The Week 1 app creates its tables with <code>CREATE TABLE IF NOT EXISTS</code>. The obvious way to add a column is to edit <code>schema.sql</code>. We did exactly that on a copy, with the code that reads the new column, and started it against a database created by the previous version, the way the festival's laptop would:</p>
+  <pre><code>$ python -m pytest -q               # every test makes a fresh database
+8 passed in 0.12s
+$ uvicorn app.main:app --port 9400  # on the festival's database, made last week
+GET /api/events -&gt; HTTP 500
+sqlite3.OperationalError: no such column: e.kind</code></pre>
+  <p class="handnote">A real run, trimmed. The steps are in verification.md.</p>
+  <p><code>IF NOT EXISTS</code> skips a table that already exists, so the edit reached every fresh database, including the one each test makes, and never reached the one in use. Nothing in the Week 1 repository says how its schema is supposed to change. The person who knew that would have had to be in the room. The kit's fallback repository answers it in its runbook and in a decision record: schema changes are numbered migration files that the app applies at startup, and a test checks that an existing database keeps its data.</p>
+
+  <div class="callout case">
+    <span class="label">What a fresh agent did (one run on each repository, 28 September 2026)</span>
+    <p>A coding agent starts every session knowing only what is in the repository and the prompt, so it is the most extreme newcomer there is. We gave the organisers' request and this week's acceptance examples to a fresh Codex session (gpt-6-astra) twice: once on the bare Week 1 repository, once on the kit's fallback repository with its handover documents. Its commands, answers and changes are saved in <code>lectures/14-hand-it-over/demo/</code>.</p>
+    <ul>
+      <li><strong>Both worked.</strong> Each run made drop-in events work in about four minutes, kept every existing test unchanged, and wrote tests for the examples. On a codebase this small, the documents did not decide <em>whether</em> the change worked.</li>
+      <li><strong>The documents decided where the decisions went.</strong> On the fallback repository it read the README and <code>AGENTS.md</code> first, wrote the test before the code as the README asks, added a numbered migration, and recorded its decision next to the existing ones. On the bare repository it edited <code>schema.sql</code>, invented its own migration code, and started a new folder for decisions. Sensible choices, made in passing, that the next team would inherit as if someone had decided them.</li>
+      <li><strong>Some questions no repository can answer.</strong> Both runs asked whether someone counts people at the door, and whether an existing event can become drop-in. Those belong to the organisers, on an open-questions list with an owner (Week 2).</li>
+    </ul>
+    <p>One run each, with one agent: an observation, not a measurement.</p>
+  </div>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Quality includes whether someone else can own it.</strong> A repository someone else can own answers a newcomer's questions in the order they ask them, and it records the decisions so the next person follows them instead of making new ones by accident.</p>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 330" role="img" aria-label="Two engineering loops drawn as strips, one for your team and one for the team that receives the product. Your team's Release box connects by an arrow to the receiving team's Understand box. The arrow is labelled: only the repository crosses; your Release is their Understand.">
+        <defs>
+          <filter id="w14f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w14f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w14f2-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w14f2-r)">
+          <rect x="20" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="156" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="292" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="428" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="564" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="700" y="44" width="110" height="50" rx="10" class="s s-thick f-mark"/>
+          <rect x="836" y="44" width="110" height="50" rx="10" class="s f-card"/>
+          <path d="M132,69 H153 M268,69 H289 M404,69 H425 M540,69 H561 M676,69 H697 M812,69 H833" class="s"/>
+          <rect x="20" y="236" width="110" height="50" rx="10" class="s s-thick f-mark"/>
+          <rect x="156" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="292" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="428" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="564" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="700" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="836" y="236" width="110" height="50" rx="10" class="s f-card"/>
+          <path d="M132,261 H153 M268,261 H289 M404,261 H425 M540,261 H561 M676,261 H697 M812,261 H833" class="s"/>
+          <path d="M755,96 V160 H75 V230" class="s s-pen s-thick" marker-end="url(#w14f2-p)"/>
+        </g>
+        <text x="20" y="30" class="t-sm t-2">your team's loop</text>
+        <text x="75" y="74" text-anchor="middle">Understand</text>
+        <text x="211" y="74" text-anchor="middle">Specify</text>
+        <text x="347" y="74" text-anchor="middle">Delegate</text>
+        <text x="483" y="74" text-anchor="middle">Inspect</text>
+        <text x="619" y="74" text-anchor="middle">Verify</text>
+        <text x="755" y="75" text-anchor="middle" class="t-mark"><tspan font-weight="700">Release</tspan></text>
+        <text x="891" y="74" text-anchor="middle">Observe</text>
+        <text x="415" y="150" text-anchor="middle" class="t-sm t-pen">only the repository crosses</text>
+        <text x="415" y="192" text-anchor="middle" class="t-lg t-pen">your Release is their Understand</text>
+        <text x="100" y="222" class="t-sm t-2">the team that receives it</text>
+        <text x="75" y="266" text-anchor="middle" class="t-mark"><tspan font-weight="700">Understand</tspan></text>
+        <text x="211" y="266" text-anchor="middle">Specify</text>
+        <text x="347" y="266" text-anchor="middle">Delegate</text>
+        <text x="483" y="266" text-anchor="middle">Inspect</text>
+        <text x="619" y="266" text-anchor="middle">Verify</text>
+        <text x="755" y="266" text-anchor="middle">Release</text>
+        <text x="891" y="266" text-anchor="middle">Observe</text>
+        <text x="75" y="310" text-anchor="middle" class="t-sm t-2">read, run, find</text>
+        <text x="483" y="310" text-anchor="middle" class="t-sm t-2">and round again, now as its owners</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.2</b> Where this week sits on the engineering loop from Lecture 1. Every earlier week went round your own team's loop. This week your Release becomes another team's Understand, and nothing crosses from one loop to the other except what is in the repository.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 2. PACKAGE ============ -->
+<section class="block" id="package">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:30</span>
+    <h2>What goes in the package</h2>
+  </div>
+  <p>A <strong>handover package</strong> is the set of documents and checks that answers the newcomer's questions. You have been building most of it all term, one product-checklist item at a time. This week adds the pieces that only matter when you leave: a README a stranger can run, a list of what is already wrong, and the licences you depend on.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Part</th><th>The question it answers</th><th>Built in</th><th>How you know it is not lying</th></tr></thead>
+      <tbody>
+        <tr><td>README that runs</td><td>Can we get it working here?</td><td>Weeks 1, 3</td><td>Someone who did not write it follows it from a clean clone, and it says what output to expect (<code>15 passed</code>)</td></tr>
+        <tr><td><code>AGENTS.md</code></td><td>Where is what, and what are the rules?</td><td>Week 3</td><td>Its commands run, and each promise names the test that protects it</td></tr>
+        <tr><td>Decision records (ADRs)</td><td>Why is it like this?</td><td>Week 4</td><td>Each is dated and never edited; a new decision supersedes an old one</td></tr>
+        <tr><td>Runbook</td><td>How do we change the schema, release, back up, restore?</td><td>Weeks 12, 13</td><td>A rehearsal log. In the fallback repository a test runs its commands</td></tr>
+        <tr><td>Known risks</td><td>What is already wrong?</td><td>Week 14</td><td>Each risk says how you know: a command anyone can run, or "by reading" with the file</td></tr>
+        <tr><td>Licences</td><td>What may we do with the code we depend on?</td><td>Weeks 8, 14</td><td>Generated from what is installed, with the date and the command</td></tr>
+        <tr><td>Product checklist</td><td>Is everything else there?</td><td>All term</td><td>Every item links to evidence a stranger can check</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The kit's <code>handover-checklist.md</code> turns this table into 32 items, grouped along the path in Fig 14.1. Most of them are a link to something you already have.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Every document in a handover is a claim about the software, and the course rule applies to it: <strong>a claim needs evidence</strong>. Give each document a way to be checked: a command that runs, a test it names, the date it was true.</p>
+  </div>
+
+  <h3>Knowledge that lives in one head</h3>
+  <p>Some knowledge never reaches a document. One person set up the deploy, one person understands the retry logic, and everyone else is happy to leave it that way. The <strong>truck factor</strong> (also called the bus factor) names the risk: the smallest number of people who would have to leave before a project is in serious trouble. Avelino and colleagues estimated it from the commit history of 133 popular open-source projects on GitHub, and 65% came out at 1 or 2. When they asked developers what helps a project survive losing its key people, the most common answer was documentation, followed by an active community and automated tests. Their numbers are an algorithm's estimate for open-source projects, and they say nothing about student teams. The mechanism is the same everywhere, though, and you can draw it for your own team.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 420" role="img" aria-label="A knowledge map for an illustrative team of four, Ana, Ben, Chi and Dev. Rows are parts of the product; a dot means that person could change the part tomorrow without help. The reservation rule has four people; ownership checks and the booking page have two. Retries, schema migrations, deploy and restore, and the performance budget each have one person, marked in red. A last column asks whether a stranger with only the repository could change it: yes for the reservation rule, ownership checks, the booking page, and deploy and restore thanks to the runbook; no for retries, migrations and performance.">
+        <defs>
+          <filter id="w14f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f3-r)">
+          <rect x="665" y="70" width="210" height="304" rx="8" class="s s-thin s-pen s-dash f-pen"/>
+          <path d="M20,94 H880 M20,134 H880 M20,174 H880 M20,214 H880 M20,254 H880 M20,294 H880 M20,334 H880" class="s s-thin s-2"/>
+          <circle cx="300" cy="114" r="9" class="f-ink"/><circle cx="370" cy="114" r="9" class="f-ink"/><circle cx="440" cy="114" r="9" class="f-ink"/><circle cx="510" cy="114" r="9" class="f-ink"/>
+          <circle cx="370" cy="154" r="9" class="f-redink"/>
+          <circle cx="300" cy="194" r="9" class="f-ink"/><circle cx="440" cy="194" r="9" class="f-ink"/>
+          <circle cx="440" cy="234" r="9" class="f-ink"/><circle cx="510" cy="234" r="9" class="f-ink"/>
+          <circle cx="510" cy="274" r="9" class="f-redink"/>
+          <circle cx="370" cy="314" r="9" class="f-redink"/>
+          <circle cx="300" cy="354" r="9" class="f-redink"/>
+          <path d="M758,114 l8,9 l16,-18" class="s s-green s-thick"/>
+          <path d="M760,146 l18,16 M778,146 l-18,16" class="s s-red s-thick"/>
+          <path d="M758,194 l8,9 l16,-18" class="s s-green s-thick"/>
+          <path d="M758,234 l8,9 l16,-18" class="s s-green s-thick"/>
+          <path d="M760,266 l18,16 M778,266 l-18,16" class="s s-red s-thick"/>
+          <path d="M758,314 l8,9 l16,-18" class="s s-green s-thick"/>
+          <path d="M760,346 l18,16 M778,346 l-18,16" class="s s-red s-thick"/>
+        </g>
+        <text x="300" y="62" text-anchor="middle">Ana</text>
+        <text x="370" y="62" text-anchor="middle">Ben</text>
+        <text x="440" y="62" text-anchor="middle">Chi</text>
+        <text x="510" y="62" text-anchor="middle">Dev</text>
+        <text x="600" y="62" text-anchor="middle" class="t-sm t-2">people</text>
+        <text x="770" y="42" text-anchor="middle" class="t-sm t-pen">a stranger with</text>
+        <text x="770" y="60" text-anchor="middle" class="t-sm t-pen">only the repository</text>
+        <text x="30" y="120">reservation rule</text>
+        <text x="30" y="160">retries (idempotency)</text>
+        <text x="30" y="200">ownership checks</text>
+        <text x="30" y="240">booking page</text>
+        <text x="30" y="280">schema migrations</text>
+        <text x="30" y="320">deploy and restore</text>
+        <text x="30" y="360">performance budget</text>
+        <text x="600" y="120" text-anchor="middle" class="t-mono">4</text>
+        <text x="600" y="160" text-anchor="middle" class="t-mono t-red">1</text>
+        <text x="600" y="200" text-anchor="middle" class="t-mono">2</text>
+        <text x="600" y="240" text-anchor="middle" class="t-mono">2</text>
+        <text x="600" y="280" text-anchor="middle" class="t-mono t-red">1</text>
+        <text x="600" y="320" text-anchor="middle" class="t-mono t-red">1</text>
+        <text x="600" y="360" text-anchor="middle" class="t-mono t-red">1</text>
+        <text x="800" y="327" class="t-sm t-pen">runbook</text>
+        <text x="30" y="400" class="t-sm t-red">one red dot: one person away from nobody</text>
+        <text x="870" y="400" text-anchor="end" class="t-sm t-pen">a tick moves a part out of one head</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.3</b> A knowledge map for an illustrative team, not data. A dot means that person could change the part tomorrow without help. This team's truck factor is 1: Ben, Dev or Ana leaving would leave a part nobody can change. The last column is the handover's job. The runbook already moved "deploy and restore" out of Ben's head; retries, migrations and performance are still in someone's.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Your team's knowledge map (pairs from the same team, 5 minutes)</span>
+    <ol>
+      <li>List the five parts of your product most likely to change.</li>
+      <li>For each, write who could change it tomorrow without help. Circle every part with one name.</li>
+      <li>For each circled part: which document or test would let a stranger change it? Does it exist?</li>
+    </ol>
+    <p>Keep the list. It is your handover to-do list, and it is your revision list for the defences.</p>
+  </div>
+
+  <h3>Licences travel with the code</h3>
+  <p>The new owners inherit your dependencies, and every dependency comes with a licence: the terms under which you may use, change and share it. Week 8 asked where a package comes from. The handover has to say what each one allows. The kit's <code>scripts/licences.py</code> follows <code>requirements.txt</code> down to the dependencies of dependencies and prints the licence each package <em>declares</em>. For the fallback repository that is 21 packages from 4 lines of requirements, all under permissive licences (MIT, BSD, Apache-2.0, PSF-2.0), which allow use, change and redistribution as long as you keep their copyright and licence notices. Declared metadata is a starting point, not proof: for anything unusual, read the licence file. Reading R2 goes on to code that an agent wrote.</p>
+</section>
+
+<!-- ============ 3. DEFEND ============ -->
+<section class="block" id="defend">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>Defend code you didn't type</h2>
+  </div>
+  <p>The receiving team will own code they did not type. So do you, already: your product holds code your teammates wrote, code an agent wrote, and soon code the receiving team wrote. The course rule says every consequential decision needs an accountable human, and nobody can answer for code they cannot explain. The practical defences check exactly that. They are 25% of the course mark, and they run in their own slot after demo day.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Minutes</th><th>Part</th><th>What you may use</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Sample</td><td>nothing</td><td>The assessor draws two of the twelve question families at random; you choose one. They name a path in <em>your team's</em> product</td></tr>
+        <tr><td>5</td><td><strong>Explain</strong></td><td><strong>unaided</strong>: your code on screen, paper to draw on</td><td>Walk the path. Say where the decision is made and which promise it protects</td></tr>
+        <tr><td>3</td><td><strong>Predict</strong></td><td><strong>unaided</strong></td><td>The assessor proposes a change. Say what happens, why, and which tests fail</td></tr>
+        <tr><td>6</td><td><strong>Diagnose or modify</strong></td><td>anything: editor, tests, docs, an agent</td><td>Make the change or find the cause, and show evidence that you are right</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 920 334" role="img" aria-label="One defence drawn to scale on a 20-minute line. One minute of changeover and one of sampling, five minutes of explaining and three of predicting, both unaided, six minutes of diagnosing or modifying with tools allowed, three minutes of the assessor's notes, and one minute of slack. The student is in the room for 15 minutes; the booked slot is 20 assessor-minutes; with moderation and a reserve for reassessments the planning figure is about 23 assessor-minutes per student.">
+        <defs>
+          <filter id="w14f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f4-r)">
+          <path d="M140,88 V80 H460 V88" class="s s-thin"/>
+          <path d="M460,88 V80 H700 V88" class="s s-thin s-pen"/>
+          <rect x="60" y="100" width="40" height="44" class="s s-dash f-paper"/>
+          <rect x="100" y="100" width="40" height="44" class="s f-paper"/>
+          <rect x="140" y="100" width="200" height="44" class="s f-mark"/>
+          <rect x="340" y="100" width="120" height="44" class="s f-mark"/>
+          <rect x="460" y="100" width="240" height="44" class="s s-pen f-pen"/>
+          <rect x="700" y="100" width="120" height="44" class="s s-dash f-card"/>
+          <rect x="820" y="100" width="40" height="44" class="s s-dash f-paper"/>
+          <path d="M60,176 H860 M60,170 V182 M260,170 V182 M460,170 V182 M660,170 V182 M860,170 V182" class="s s-thin"/>
+          <path d="M100,210 V218 H700 V210" class="s s-thin"/>
+          <path d="M60,255 V263 H860 V255" class="s s-thin"/>
+        </g>
+        <text x="300" y="70" text-anchor="middle" class="t-sm">unaided: your code on screen, paper, nothing else</text>
+        <text x="580" y="70" text-anchor="middle" class="t-sm t-pen">tools allowed</text>
+        <text x="80" y="93" text-anchor="middle" class="t-sm t-2">changeover</text>
+        <text x="120" y="161" text-anchor="middle" class="t-sm">sample</text>
+        <text x="240" y="128" text-anchor="middle" class="t-mark">explain</text>
+        <text x="400" y="128" text-anchor="middle" class="t-mark">predict</text>
+        <text x="580" y="128" text-anchor="middle">diagnose or modify</text>
+        <text x="760" y="127" text-anchor="middle" class="t-sm t-2">notes</text>
+        <text x="60" y="198" text-anchor="middle" class="t-mono t-2">0</text>
+        <text x="260" y="198" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="460" y="198" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="660" y="198" text-anchor="middle" class="t-mono t-2">15</text>
+        <text x="860" y="198" text-anchor="middle" class="t-mono t-2">20 min</text>
+        <text x="400" y="238" text-anchor="middle" class="t-sm">the student is in the room: 15 minutes</text>
+        <text x="460" y="283" text-anchor="middle" class="t-sm">the booked slot: 20 assessor-minutes</text>
+        <text x="460" y="318" text-anchor="middle" class="t-sm t-2">+ 2 for moderation + 1.2 reserved for reassessments = about 23 assessor-minutes per student</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.4</b> One defence, drawn to scale in minutes. Eight of the fifteen minutes with you are unaided. The assessor's budget is what makes defences possible for a whole class: at 23 minutes each, 100 students need about 38 assessor-hours. The full budget is in the kit's <code>defence/rubric.md</code>.</figcaption>
+  </figure>
+
+  <p>Each part is scored 0 to 4; the kit proposes equal weights, and your instructor publishes the final scheme before the defences. Three rules from the rubric are worth knowing now:</p>
+  <ul>
+    <li><strong>Reasoning over luck.</strong> A wrong prediction with a clear mechanism scores higher than a right guess without one. If you find your mistake in the tools part and explain it, that counts too.</li>
+    <li><strong>"I don't know, and here is how I would find out" is honest.</strong> Bluffing is not.</li>
+    <li><strong>A second chance, and fair conditions.</strong> A student who cannot explain their part gets a targeted reassessment on that part. Approved adjustments (extra time, a written explanation, your own screen set-up) apply. How much you used an agent is never graded; whether you checked its work is.</li>
+  </ul>
+  <p>The twelve question families are public, in <code>defence/question-bank.md</code>. That is deliberate. By the time you can defend every path in your product, you can own it.</p>
+
+  <h3>How to explain code you did not type</h3>
+  <ol>
+    <li><strong>Start from the promise.</strong> What must stay true on this path? Say it in one line, the way Lecture 1 wrote <code>confirmed ≤ capacity</code>.</li>
+    <li><strong>Find the test that protects it.</strong> Its name and its expected values tell you what the authors thought mattered.</li>
+    <li><strong>Draw the request map.</strong> Files and functions in order, and the one place where the decision is made.</li>
+    <li><strong>If two things can happen at once, draw the timeline.</strong> The race timeline from Lecture 1 shows which orders are dangerous.</li>
+    <li><strong>Predict with tests.</strong> For any change, ask which tests would fail, which would still pass, and what a person using the app would notice.</li>
+  </ol>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill: a practice defence (pairs, 5 minutes, no laptop)</span>
+    <p>This is <code>reserve()</code> from the kit's fallback repository, simplified:</p>
+<pre><code>def reserve(event_id, attendee):
+    event = SELECT id, capacity FROM events WHERE id = ?
+    taken = SELECT COUNT(*) FROM reservations WHERE event_id = ?   # first check
+    if taken &gt;= event.capacity: raise SoldOut                      # → 409
+    payments.authorize(attendee)                                   # about 300 ms
+    BEGIN IMMEDIATE                                                # SQLite's write lock
+    taken = SELECT COUNT(*) FROM reservations WHERE event_id = ?   # second check
+    if taken &gt;= event.capacity: ROLLBACK; raise SoldOut            # → 409
+    INSERT INTO reservations (event_id, attendee); COMMIT          # → 201</code></pre>
+    <ol>
+      <li><strong>Explain (2 minutes).</strong> Maya and Sam press Reserve for the escape room's last place at almost the same moment, and Maya's request takes the lock first. Walk both requests through the code. Where does Sam find out he lost, and what has already happened to him by then?</li>
+      <li><strong>Predict (2 minutes, the other person).</strong> A teammate deletes the second check: "we already checked". Which tests fail, which still pass, and what does a person using the app see?</li>
+      <li><strong>One minute:</strong> the listener says what was missing from each answer.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: what a strong answer says</summary>
+    <div class="inner">
+      <p><strong>Explain.</strong> Both requests pass the first check (39 of 40 taken) and both authorise a payment, which is simulated and takes about 300 ms. Maya takes the write lock first, counts 39, inserts and commits: 201. Sam waits a millisecond or so for the lock, counts 40, and gets <code>SoldOut</code>: 409. By then Sam's payment has been authorised, and nothing releases it. The fallback repository lists that as known risk KR-3, which is exactly what its known-risks file is for.</p>
+      <p><strong>Predict.</strong> Without the second check both insert, and the escape room has 41 reservations for 40 places. We deleted it in a copy of the fallback repository and ran the tests three times: every time, <code>1 failed, 14 passed</code>. The one failure is the concurrency test, because its helper holds both people at the payment step until both have passed the first check. The sequential test "the last place goes to whoever asks first" still passes, because one request at a time never produces the dangerous order. A person sees what Maya and Sam saw in Lecture 1: two confirmations for one place.</p>
+      <p>A prediction that names the test and the reason it fails is a strong answer before anyone runs anything.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 4. ANSWER ============ -->
+<section class="block" id="answer">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:05</span>
+    <h2>Who answers for it</h2>
+  </div>
+  <p>In Week 3 we drew the chain of responsibility for one delegated change: a person starts it, the agent does the middle, and a person decides, on evidence, whether it goes in. A handover stretches that chain across two teams. During the challenge the receiving team answers for every claim in its pull request, and your team still decides whether to merge it, because the product is still yours. In a real handover the whole product changes hands, and the new owners can only take responsibility for what they can see. That is why the known risks belong in the package.</p>
+
+  <h3>What professionals have written down</h3>
+  <p>The ACM (the Association for Computing Machinery), a professional society for computing, publishes a Code of Ethics and Professional Conduct. The current version was adopted on 22 June 2018. It is addressed to "all computing professionals, including current and aspiring practitioners, instructors, students", and it calls itself "a basis for ethical decision-making". Four of its principles read like a handover checklist:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Principle</th><th>In its own words</th><th>This week, in AfterHours</th></tr></thead>
+      <tbody>
+        <tr><td>1.3 Be honest and trustworthy</td><td>"provide full disclosure of all pertinent system capabilities, limitations, and potential problems to the appropriate parties"</td><td>Your known risks, handed over before the new team finds them the hard way</td></tr>
+        <tr><td>1.6 Respect privacy</td><td>"Only the minimum amount of personal information necessary should be collected in a system. The retention and disposal periods for that information should be clearly defined, enforced, and communicated to data subjects."</td><td>Where attendees' names go, and when they are deleted (Fig 14.5)</td></tr>
+        <tr><td>1.4 Be fair and take action not to discriminate</td><td>"Failure to design for inclusiveness and accessibility may constitute unfair discrimination."</td><td>WCAG 2.2 AA as the default bar (Week 9); example D5 of the challenge</td></tr>
+        <tr><td>3.6 Use care when modifying or retiring systems</td><td>"Interface changes, the removal of features, and even software updates have an impact on the productivity of users and the quality of their work."</td><td>Example D3: bookable events must not change; think before you roll back</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The Code is a professional code, not a law, and most of it says <em>should</em>. It is useful because it names duties that no test will check for you.</p>
+
+  <h3>Privacy by default</h3>
+  <p>Some of this is law. In the EU and the EEA, Article 25 of the GDPR requires the organisation that decides how personal data is used (the <em>controller</em>) to make privacy the default:</p>
+  <div class="callout">
+    <span class="label">GDPR, Article 25(2)</span>
+    <p>"The controller shall implement appropriate technical and organisational measures for ensuring that, by default, only personal data which are necessary for each specific purpose of the processing are processed. That obligation applies to the amount of personal data collected, the extent of their processing, the period of their storage and their accessibility."</p>
+  </div>
+  <p>A name is personal data: the regulation's definition names "an identifier such as a name". The UK has its own version, with the same wording in this paragraph, and other countries have other laws. None of this is legal advice; for your product, follow your university's data-protection rules. The engineering question is simpler and the same everywhere: where does a person's data go, and who chose that?</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 440" role="img" aria-label="The request map from Lecture 1, redrawn to follow a name. Maya's phone sends attendee Maya to reserve(). From there her name goes into the terminal log on every step, into the reservations table with no deletion date, and from the table into every backup. The public list of events, GET /api/events, shows only counts, never names.">
+        <defs>
+          <filter id="w14f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w14f5-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w14f5-r)">
+          <rect x="20" y="170" width="170" height="80" rx="12" class="s f-card"/>
+          <rect x="262" y="170" width="160" height="80" rx="10" class="s f-card"/>
+          <rect x="530" y="24" width="236" height="100" rx="6" class="s s-red f-paper"/>
+          <path d="M560,170 V270 A85,12 0 0 0 730,270 V170" class="s s-red f-card"/>
+          <ellipse cx="645" cy="170" rx="85" ry="12" class="s s-red f-card"/>
+          <rect x="822" y="176" width="110" height="64" rx="6" class="s s-red f-card"/>
+          <rect x="814" y="184" width="110" height="64" rx="6" class="s s-red f-card"/>
+          <rect x="806" y="192" width="110" height="64" rx="6" class="s s-red f-card"/>
+          <rect x="540" y="340" width="210" height="76" rx="10" class="s s-green f-green"/>
+          <path d="M192,210 H258" class="s" marker-end="url(#w14f5-a)"/>
+          <path d="M424,186 Q470,92 526,80" class="s" marker-end="url(#w14f5-a)"/>
+          <path d="M424,222 H556" class="s" marker-end="url(#w14f5-a)"/>
+          <path d="M732,222 H802" class="s" marker-end="url(#w14f5-a)"/>
+          <path d="M645,284 V336" class="s" marker-end="url(#w14f5-a)"/>
+        </g>
+        <text x="20" y="40" class="t-pen">this time, follow the name</text>
+        <text x="105" y="202" text-anchor="middle">Maya's phone</text>
+        <text x="105" y="228" text-anchor="middle" class="t-mono">{"attendee": "Maya"}</text>
+        <text x="342" y="204" text-anchor="middle">reserve()</text>
+        <text x="342" y="228" text-anchor="middle" class="t-mono t-2">reservations.py</text>
+        <text x="648" y="44" text-anchor="middle" class="t-sm t-2">terminal log</text>
+        <text x="542" y="66" class="t-mono">[Maya] checked: 39 of 40</text>
+        <text x="542" y="86" class="t-mono">[Maya] payment authorised</text>
+        <text x="542" y="106" class="t-mono">[Maya] reservation #228 saved</text>
+        <text x="780" y="66" class="t-sm t-red">her name on</text>
+        <text x="780" y="84" class="t-sm t-red">every step</text>
+        <text x="645" y="208" text-anchor="middle">reservations</text>
+        <text x="645" y="232" text-anchor="middle" class="t-mono">attendee: Maya</text>
+        <text x="645" y="256" text-anchor="middle" class="t-sm t-red">no deletion date</text>
+        <text x="861" y="230" text-anchor="middle">backups</text>
+        <text x="861" y="280" text-anchor="middle" class="t-sm t-red">copies of all of it</text>
+        <text x="645" y="364" text-anchor="middle" class="t-mono">GET /api/events</text>
+        <text x="645" y="384" text-anchor="middle" class="t-mono">"reserved": 40,</text>
+        <text x="645" y="402" text-anchor="middle" class="t-mono">"places_left": 0</text>
+        <text x="764" y="370" class="t-sm t-green">counts, never names:</text>
+        <text x="764" y="388" class="t-sm t-green">a good default to keep</text>
+        <text x="20" y="300" class="t-sm t-2">a name identifies a person:</text>
+        <text x="20" y="318" class="t-sm t-2">it is personal data</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.5</b> Lecture 1's request map, following a name instead of a request, in the kit's fallback repository. The code writes Maya's name into the log on every step, keeps it in the database with no deletion date, and copies it into every backup. The public programme shows counts only. Each of these is a default somebody set, or never thought about. The log lines are shortened from the real ones.</figcaption>
+  </figure>
+
+  <p><strong>Accessibility by default</strong> works the same way. Week 9 made WCAG 2.2 at level AA the bar and gave you manual checks for it. In a handover, the default is that every new part meets that bar too. That is why the maintenance challenge has an accessibility example (D5): the drop-in marking must be text, and a keyboard user must meet no control that does nothing.</p>
+
+  <div class="callout try">
+    <span class="label">Defaults audit (pairs, 8 minutes)</span>
+    <p>In the fallback repository, the booking code logs <code>log.info("[%s] checked: …", attendee, …)</code> on each step; the <code>reservations</code> table keeps <code>attendee</code> and <code>created_at</code> with no deletion rule; <code>GET /api/events</code> returns <code>reserved</code> and <code>places_left</code> for each event; and after a reservation the page rebuilds every card with <code>replaceChildren</code> and hides its message after 3,500 ms.</p>
+    <ol>
+      <li>Find three defaults that a person using AfterHours never chose.</li>
+      <li>For each: who does it affect, what is the cheapest change, and <strong>who decides</strong>: your team, or the organisers?</li>
+      <li>Find one default that is already good. How would you stop a later change from undoing it?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: the defaults we found</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Default</th><th>Affects</th><th>Cheapest change</th><th>Who decides</th></tr></thead>
+          <tbody>
+            <tr><td>The name on every log line of a booking (three for a successful one)</td><td>Attendees</td><td>Log the reservation number instead; the name is in the database if it is ever needed</td><td>The team</td></tr>
+            <tr><td>Names kept forever, in the database and in every backup</td><td>Attendees</td><td>Delete reservations a set time after the festival, backups included, and say how long in the privacy notice</td><td>The organisers choose how long; the team builds it</td></tr>
+            <tr><td>Focus thrown away after reserving; the message gone after 3.5 s</td><td>Keyboard and screen-reader users</td><td>Update the card in place and keep the result on it (Week 9)</td><td>The team</td></tr>
+            <tr><td><em>Good:</em> the public programme shows counts, never names</td><td>Everyone</td><td>Keep it: write it in <code>AGENTS.md</code> as a promise, with a test that fails if a name ever appears in <code>GET /api/events</code></td><td>The team</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Notice the last column. Some defaults are engineering decisions, and some are product decisions that engineers must not make alone. A handover should say which is which.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Defaults are decisions.</strong> Most people never change them, so whoever sets a default decides for everyone who never looks. In a handover, write down the defaults you chose and the ones you did not get to, so the next owner knows which is which.</p>
+  </div>
+</section>
+
+<!-- ============ 5. LOOP ============ -->
+<section class="block" id="loop">
+  <div class="sechead">
+    <span class="clock">1:05 – 1:17</span>
+    <h2>The loop, one last time</h2>
+  </div>
+  <p>In Lecture 1 the engineering loop was a plan for the term. Now it is a record of it. Fig 14.6 puts every week on the loop, with what your team built at that step.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 1000 780" role="img" aria-label="The whole course on the engineering loop. Understand, weeks 1 and 9: the promise as an invariant, usability sessions and a keyboard pass. Specify, weeks 2 and 4: a scope agreement and five examples, a module map and an ADR. Delegate, weeks 3 and 10: AGENTS.md, task contracts, the CI gate, parallel work against a contract. Inspect, week 7: reviews with a checklist, request ids in every log line. Verify, weeks 5, 6, 8 and the extension: tests from requirements, safe retries, ownership checks, a threat model. Release, weeks 12 and 14: a runbook and a restore rehearsal, the handover package. Observe, weeks 11 and 13: a performance budget, expand, migrate, contract. In the centre: AfterHours, a named human owns each decision, 17 checklist items each with evidence. From Release, week 14 hands over to the next team's Understand.">
+        <defs>
+          <filter id="w14f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w14f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w14f6-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w14f6-r)">
+          <path class="s" marker-end="url(#w14f6-a)" d="M613.9,118.8 A330,305 0 0 1 670.1,143.6"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M803.8,286.0 A330,305 0 0 1 830.0,401.0"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M793.4,544.7 A330,305 0 0 1 745.7,608.6"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M529.4,708.8 A330,305 0 0 1 470.6,708.8"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M254.3,608.6 A330,305 0 0 1 206.6,544.7"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M170.0,401.0 A330,305 0 0 1 196.2,286.0"/>
+          <path class="s" marker-end="url(#w14f6-a)" d="M329.9,143.6 A330,305 0 0 1 386.1,118.8"/>
+          <rect x="397.0" y="39.0" width="206" height="122" rx="10" class="s f-card"/>
+          <rect x="655.0" y="153.8" width="206" height="122" rx="10" class="s f-card"/>
+          <rect x="718.7" y="411.9" width="206" height="122" rx="10" class="s f-card"/>
+          <rect x="540.2" y="618.8" width="206" height="122" rx="10" class="s f-card"/>
+          <rect x="253.8" y="618.8" width="206" height="122" rx="10" class="s f-card"/>
+          <rect x="75.3" y="411.9" width="206" height="122" rx="10" class="s s-thick f-mark"/>
+          <rect x="139.0" y="153.8" width="206" height="122" rx="10" class="s f-card"/>
+          <path d="M112,536 V642" class="s s-pen s-thick" marker-end="url(#w14f6-p)"/>
+          <rect x="20" y="648" width="176" height="58" rx="10" class="s s-pen s-dash f-pen"/>
+        </g>
+        <text x="500.0" y="66.0" text-anchor="middle" class="t-lg">Understand</text>
+        <text x="500.0" y="85.0" text-anchor="middle" class="t-mono t-pen">wk 1 · 9</text>
+        <text x="500.0" y="107.0" text-anchor="middle" class="t-sm">the promise as an invariant;</text>
+        <text x="500.0" y="125.0" text-anchor="middle" class="t-sm">usability sessions and</text>
+        <text x="500.0" y="143.0" text-anchor="middle" class="t-sm">a keyboard pass</text>
+        <text x="758.0" y="180.8" text-anchor="middle" class="t-lg">Specify</text>
+        <text x="758.0" y="199.8" text-anchor="middle" class="t-mono t-pen">wk 2 · 4</text>
+        <text x="758.0" y="221.8" text-anchor="middle" class="t-sm">scope agreement and five</text>
+        <text x="758.0" y="239.8" text-anchor="middle" class="t-sm">examples; a module map</text>
+        <text x="758.0" y="257.8" text-anchor="middle" class="t-sm">and an ADR</text>
+        <text x="821.7" y="438.9" text-anchor="middle" class="t-lg">Delegate</text>
+        <text x="821.7" y="457.9" text-anchor="middle" class="t-mono t-pen">wk 3 · 10</text>
+        <text x="821.7" y="479.9" text-anchor="middle" class="t-sm">AGENTS.md, task contracts,</text>
+        <text x="821.7" y="497.9" text-anchor="middle" class="t-sm">the CI gate; parallel work</text>
+        <text x="821.7" y="515.9" text-anchor="middle" class="t-sm">against a contract</text>
+        <text x="643.2" y="645.8" text-anchor="middle" class="t-lg">Inspect</text>
+        <text x="643.2" y="664.8" text-anchor="middle" class="t-mono t-pen">wk 7</text>
+        <text x="643.2" y="686.8" text-anchor="middle" class="t-sm">reviews with a checklist;</text>
+        <text x="643.2" y="704.8" text-anchor="middle" class="t-sm">request ids in every</text>
+        <text x="643.2" y="722.8" text-anchor="middle" class="t-sm">log line</text>
+        <text x="356.8" y="645.8" text-anchor="middle" class="t-lg">Verify</text>
+        <text x="356.8" y="664.8" text-anchor="middle" class="t-mono t-pen">wk 5 · 6 · 8 · E</text>
+        <text x="356.8" y="686.8" text-anchor="middle" class="t-sm">tests from requirements;</text>
+        <text x="356.8" y="704.8" text-anchor="middle" class="t-sm">safe retries; ownership</text>
+        <text x="356.8" y="722.8" text-anchor="middle" class="t-sm">checks, a threat model</text>
+        <text x="178.3" y="438.9" text-anchor="middle" class="t-lg t-mark">Release</text>
+        <text x="178.3" y="457.9" text-anchor="middle" class="t-mono t-mark">wk 12 · 14</text>
+        <text x="178.3" y="479.9" text-anchor="middle" class="t-sm t-mark">a runbook and a restore</text>
+        <text x="178.3" y="497.9" text-anchor="middle" class="t-sm t-mark">rehearsal; the handover</text>
+        <text x="178.3" y="515.9" text-anchor="middle" class="t-sm t-mark">package</text>
+        <text x="242.0" y="180.8" text-anchor="middle" class="t-lg">Observe</text>
+        <text x="242.0" y="199.8" text-anchor="middle" class="t-mono t-pen">wk 11 · 13</text>
+        <text x="242.0" y="221.8" text-anchor="middle" class="t-sm">a performance budget;</text>
+        <text x="242.0" y="239.8" text-anchor="middle" class="t-sm">expand, migrate,</text>
+        <text x="242.0" y="257.8" text-anchor="middle" class="t-sm">contract</text>
+        <text x="500" y="372" text-anchor="middle" class="t-lg">AfterHours</text>
+        <text x="500" y="398" text-anchor="middle" class="t-sm">a named human owns</text>
+        <text x="500" y="416" text-anchor="middle" class="t-sm">each decision</text>
+        <text x="500" y="446" text-anchor="middle" class="t-sm t-pen">17 checklist items,</text>
+        <text x="500" y="464" text-anchor="middle" class="t-sm t-pen">each with evidence</text>
+        <text x="124" y="590" class="t-sm t-pen">wk 14:</text>
+        <text x="124" y="608" class="t-sm t-pen">hand it over</text>
+        <text x="108" y="672" text-anchor="middle" class="t-sm t-pen">the next team's</text>
+        <text x="108" y="694" text-anchor="middle" class="t-pen">Understand</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.6</b> The course on one page. Each step of the loop shows the weeks that trained it and what your team built there; every item comes from the product checklist, so each one points at evidence. The extension week (E) is optional. Code generation still lives inside one step of seven, Delegate. The rest of the page is what made the generated code worth trusting.</figcaption>
+  </figure>
+
+  <p>Three sketches from Lecture 1 kept coming back, because each one is a way of thinking you can use on any system:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Anchor sketch</th><th>First drawn for</th><th>It came back as</th></tr></thead>
+      <tbody>
+        <tr><td>The request map (Fig 1.2)</td><td>One request's path, with the assumption on each step</td><td>Where each promise is enforced (Fig 6.6); one booking's trace and where the evidence disappears (Fig 7.5); the keyboard path through the booking flow (Fig 9.4); Week 8's data flow across trust boundaries; today, where a name goes (Fig 14.5)</td></tr>
+        <tr><td>The race timeline (Fig 1.3)</td><td>Two people, one last place</td><td>The lost answer and the retry (Fig 6.2); forcing the dangerous order in a test (Fig 6.7); what the screen said against what the database held (Fig 9.1); Week 12's recovery timeline; Week 13's schema states against app versions</td></tr>
+        <tr><td>The engineering loop (Fig 1.5)</td><td>The course on one page</td><td>"Where this week sits" in every chapter (Figs 2.2, 3.8, 4.6, 5.2, 6.1, 7.1, 9.2); today, the course map (Fig 14.6)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>And the course rule held all the way through. <strong>Every important claim about the software needs evidence</strong>: that is why each checklist item has an evidence column, each lab ended with an evidence packet, and each chapter's facts have a sources file. <strong>Every consequential decision needs an accountable human</strong>: that is why each contract and each decision record names an owner, and why you will defend your code in person.</p>
+
+  <h3>What your own numbers say</h3>
+  <p>Lecture 1 drew a model (Fig 1.9): agents widened the "write code" part of the pipe, so the narrow part may have moved to checking. It said that whether this was true for your team was something to measure. Every lab from 1 to 13 ended by asking each of you, on your own and under a pseudonym, for three numbers: minutes spent producing (code, tests, text, prompts), minutes spent checking (running, reading, reviewing, comparing, measuring), and minutes spent integrating (merging, resolving conflicts, wiring parts together; 0 when there was none). Integrating is its own category, so it never counts as checking.</p>
+  <div class="callout try">
+    <span class="label">Predict (1 minute, alone)</span>
+    <p>What share of your recorded lab time was checking? Write a number. Which lab do you think had the most checking, and why?</p>
+  </div>
+  <p>Here is the method on a made-up class, so you can see what the chart shows before your own numbers appear.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 420" role="img" aria-label="SYNTHETIC data, made up by a script to show the method. For Labs 1 to 13, the median of individual shares of recorded lab time spent checking, with the middle half of students drawn as a bar: Lab 1 50, Lab 2 41, Lab 3 46, Lab 4 46, Lab 5 56, Lab 6 55, Lab 7 63, Lab 8 59, Lab 9 56, Lab 10 36, Lab 11 57, Lab 12 52, Lab 13 45 percent. Between 24 and 36 made-up answers per lab.">
+        <defs>
+          <filter id="w14f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f7-r)">
+          <path d="M120,350.0 H860" class="s s-thin s-2"/>
+          <path d="M120,282.5 H860" class="s s-thin s-2"/>
+          <path d="M120,215.0 H860" class="s s-thin s-2 s-dash"/>
+          <path d="M120,147.5 H860" class="s s-thin s-2"/>
+          <path d="M120,80.0 H860" class="s s-thin s-2"/>
+          <rect x="136.5" y="181.2" width="24" height="50.3" rx="4" class="s s-pen f-pen"/>
+          <circle cx="148.5" cy="215.0" r="6" class="f-penink"/>
+          <rect x="128.5" y="155.2" width="40" height="20" class="f-card"/>
+          <rect x="193.4" y="221.4" width="24" height="42.2" rx="4" class="s s-pen f-pen"/>
+          <circle cx="205.4" cy="240.0" r="6" class="f-penink"/>
+          <rect x="185.4" y="195.4" width="40" height="20" class="f-card"/>
+          <rect x="250.3" y="197.9" width="24" height="51.7" rx="4" class="s s-pen f-pen"/>
+          <circle cx="262.3" cy="226.2" r="6" class="f-penink"/>
+          <rect x="242.3" y="171.9" width="40" height="20" class="f-card"/>
+          <rect x="307.2" y="210.3" width="24" height="39.2" rx="4" class="s s-pen f-pen"/>
+          <circle cx="319.2" cy="225.8" r="6" class="f-penink"/>
+          <rect x="299.2" y="184.3" width="40" height="20" class="f-card"/>
+          <rect x="364.2" y="179.0" width="24" height="41.0" rx="4" class="s s-pen f-pen"/>
+          <circle cx="376.2" cy="198.8" r="6" class="f-penink"/>
+          <rect x="356.2" y="153.0" width="40" height="20" class="f-card"/>
+          <rect x="421.1" y="182.1" width="24" height="46.2" rx="4" class="s s-pen f-pen"/>
+          <circle cx="433.1" cy="202.7" r="6" class="f-penink"/>
+          <rect x="413.1" y="156.1" width="40" height="20" class="f-card"/>
+          <rect x="478.0" y="165.3" width="24" height="33.2" rx="4" class="s s-pen f-pen"/>
+          <circle cx="490.0" cy="179.5" r="6" class="f-penink"/>
+          <rect x="470.0" y="139.3" width="40" height="20" class="f-card"/>
+          <rect x="534.9" y="176.3" width="24" height="38.7" rx="4" class="s s-pen f-pen"/>
+          <circle cx="546.9" cy="191.2" r="6" class="f-penink"/>
+          <rect x="526.9" y="150.3" width="40" height="20" class="f-card"/>
+          <rect x="591.8" y="166.4" width="24" height="56.3" rx="4" class="s s-pen f-pen"/>
+          <circle cx="603.8" cy="199.1" r="6" class="f-penink"/>
+          <rect x="583.8" y="140.4" width="40" height="20" class="f-card"/>
+          <rect x="648.8" y="242.0" width="24" height="33.0" rx="4" class="s s-pen f-pen"/>
+          <circle cx="660.8" cy="252.8" r="6" class="f-penink"/>
+          <rect x="640.8" y="216.0" width="40" height="20" class="f-card"/>
+          <rect x="705.7" y="174.4" width="24" height="42.4" rx="4" class="s s-pen f-pen"/>
+          <circle cx="717.7" cy="195.7" r="6" class="f-penink"/>
+          <rect x="697.7" y="148.4" width="40" height="20" class="f-card"/>
+          <rect x="762.6" y="198.8" width="24" height="27.5" rx="4" class="s s-pen f-pen"/>
+          <circle cx="774.6" cy="208.6" r="6" class="f-penink"/>
+          <rect x="754.6" y="172.8" width="40" height="20" class="f-card"/>
+          <rect x="819.5" y="202.4" width="24" height="38.2" rx="4" class="s s-pen f-pen"/>
+          <circle cx="831.5" cy="228.5" r="6" class="f-penink"/>
+          <rect x="811.5" y="176.4" width="40" height="20" class="f-card"/>
+        </g>
+        <text x="108" y="355.0" text-anchor="end" class="t-sm t-2">0%</text>
+        <text x="108" y="287.5" text-anchor="end" class="t-sm t-2">25%</text>
+        <text x="108" y="220.0" text-anchor="end" class="t-sm t-2">50%</text>
+        <text x="108" y="152.5" text-anchor="end" class="t-sm t-2">75%</text>
+        <text x="108" y="85.0" text-anchor="end" class="t-sm t-2">100%</text>
+        <text x="148.5" y="170.2" text-anchor="middle" class="t-sm t-pen">50%</text>
+        <text x="148.5" y="377" text-anchor="middle">1</text>
+        <text x="148.5" y="397" text-anchor="middle" class="t-sm t-2">35</text>
+        <text x="205.4" y="210.4" text-anchor="middle" class="t-sm t-pen">41%</text>
+        <text x="205.4" y="377" text-anchor="middle">2</text>
+        <text x="205.4" y="397" text-anchor="middle" class="t-sm t-2">34</text>
+        <text x="262.3" y="186.9" text-anchor="middle" class="t-sm t-pen">46%</text>
+        <text x="262.3" y="377" text-anchor="middle">3</text>
+        <text x="262.3" y="397" text-anchor="middle" class="t-sm t-2">35</text>
+        <text x="319.2" y="199.3" text-anchor="middle" class="t-sm t-pen">46%</text>
+        <text x="319.2" y="377" text-anchor="middle">4</text>
+        <text x="319.2" y="397" text-anchor="middle" class="t-sm t-2">36</text>
+        <text x="376.2" y="168.0" text-anchor="middle" class="t-sm t-pen">56%</text>
+        <text x="376.2" y="377" text-anchor="middle">5</text>
+        <text x="376.2" y="397" text-anchor="middle" class="t-sm t-2">29</text>
+        <text x="433.1" y="171.1" text-anchor="middle" class="t-sm t-pen">55%</text>
+        <text x="433.1" y="377" text-anchor="middle">6</text>
+        <text x="433.1" y="397" text-anchor="middle" class="t-sm t-2">35</text>
+        <text x="490.0" y="154.3" text-anchor="middle" class="t-sm t-pen">63%</text>
+        <text x="490.0" y="377" text-anchor="middle">7</text>
+        <text x="490.0" y="397" text-anchor="middle" class="t-sm t-2">28</text>
+        <text x="546.9" y="165.3" text-anchor="middle" class="t-sm t-pen">59%</text>
+        <text x="546.9" y="377" text-anchor="middle">8</text>
+        <text x="546.9" y="397" text-anchor="middle" class="t-sm t-2">27</text>
+        <text x="603.8" y="155.4" text-anchor="middle" class="t-sm t-pen">56%</text>
+        <text x="603.8" y="377" text-anchor="middle">9</text>
+        <text x="603.8" y="397" text-anchor="middle" class="t-sm t-2">30</text>
+        <text x="660.8" y="231.0" text-anchor="middle" class="t-sm t-pen">36%</text>
+        <text x="660.8" y="377" text-anchor="middle">10</text>
+        <text x="660.8" y="397" text-anchor="middle" class="t-sm t-2">25</text>
+        <text x="717.7" y="163.4" text-anchor="middle" class="t-sm t-pen">57%</text>
+        <text x="717.7" y="377" text-anchor="middle">11</text>
+        <text x="717.7" y="397" text-anchor="middle" class="t-sm t-2">28</text>
+        <text x="774.6" y="187.8" text-anchor="middle" class="t-sm t-pen">52%</text>
+        <text x="774.6" y="377" text-anchor="middle">12</text>
+        <text x="774.6" y="397" text-anchor="middle" class="t-sm t-2">29</text>
+        <text x="831.5" y="191.4" text-anchor="middle" class="t-sm t-pen">45%</text>
+        <text x="831.5" y="377" text-anchor="middle">13</text>
+        <text x="831.5" y="397" text-anchor="middle" class="t-sm t-2">24</text>
+        <text x="108" y="377" text-anchor="end" class="t-sm t-2">lab</text>
+        <text x="108" y="397" text-anchor="end" class="t-sm t-2">answers</text>
+        <text x="120" y="40" class="t-sm t-2">checking ÷ (producing + checking + integrating), per student</text>
+        <text x="120" y="60" class="t-sm t-2">dot: the median student · bar: the middle half of students</text>
+        <text x="860" y="40" text-anchor="end" class="t-lg t-red">SYNTHETIC</text>
+        <text x="860" y="62" text-anchor="end" class="t-sm t-red">made-up numbers, not your class</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.7</b> <strong>Synthetic.</strong> Every number here was made up by <code>class-data/make_synthetic.py</code> to show the method, and says nothing about any class. The chart is drawn to scale from what <code>analyse_minutes.py</code> computes for that made-up file. Each dot is the <em>median of individual shares</em>: every student's own checking share for that lab, then the middle student. (Lecture 11's chart pooled everyone's minutes instead, so the two can differ.) The made-up class spends the most time integrating in Lab 10, which lowers its checking share by construction. Your instructor runs the same script on your class's real answers.</figcaption>
+  </figure>
+
+  <p>Your instructor will now show the same chart made from your class's answers by the same script, <code>analyse_minutes.py</code>. It never shows a row about one student, and it hides any lab with fewer than five valid answers.</p>
+  <details class="reveal">
+    <summary>Before you believe the chart (open after you have seen the real one)</summary>
+    <div class="inner">
+      <ul>
+        <li><strong>These are estimates from memory</strong>, written at the end of each lab. In the METR study from Lecture 1, developers believed AI had made them 20% faster and were measured as 19% slower. Feeling and measurement can disagree by a lot.</li>
+        <li><strong>Every lab had a different task.</strong> A review lab (Lab 7) should show more checking than a lab where you built a feature. A difference between labs is mostly a difference between tasks, not a trend in how you work.</li>
+        <li><strong>There is no comparison group.</strong> Nobody did the same lab without agents, so the chart cannot say what agents changed.</li>
+        <li><strong>People stopped answering.</strong> If the students who stopped differ from those who kept going, the later labs describe a different group.</li>
+        <li><strong>It cannot say whether the checking was worth it</strong>: how many problems it caught, or what it missed.</li>
+      </ul>
+      <p>What it can do is replace impressions with numbers you can question, and give you a baseline for the next time you measure your own work. Say what it shows, and say what it cannot.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. DEMO ============ -->
+<section class="block" id="demo">
+  <div class="sechead">
+    <span class="clock">1:17 – 1:25</span>
+    <h2>Demo day and what is left</h2>
+  </div>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>When</th><th>What</th><th>Who</th><th>Described in the kit</th></tr></thead>
+      <tbody>
+        <tr><td>Before Lab 14</td><td>Fill in the handover checklist (about 1.5 to 2 hours) and rehearse a clean clone</td><td>Your team</td><td><code>handover-checklist.md</code></td></tr>
+        <tr><td>Lab 14</td><td>The swap: each team starts on the other's repository while its owners watch and do not help</td><td>Both teams</td><td><code>lab-14.md</code></td></tr>
+        <tr><td>Until the challenge closes (about 3 hours)</td><td>Drop-in events on your partner's product, or on the fallback repository if theirs will not run</td><td>The receiving team</td><td><code>maintenance-challenge.md</code></td></tr>
+        <tr><td>When it closes</td><td>Review their pull request with the Week 7 checklist, decide whether to merge, tag the <code>defence</code> commit</td><td>Your team</td><td><code>maintenance-challenge.md</code></td></tr>
+        <tr><td>Demo day</td><td>Ten minutes per team: two acceptance examples live, one reliability check, one user finding, the handover</td><td>Your team</td><td><code>demo-day-rubric.md</code></td></tr>
+        <tr><td>A separate slot after demo day</td><td>Practical defences, 15 minutes each</td><td>Each of you</td><td><code>defence/rubric.md</code></td></tr>
+        <tr><td>A date your instructor sets</td><td>Individual evidence portfolio: four decisions</td><td>Each of you</td><td>Below</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>This is the assessment from the course plan, unchanged:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Component</th><th>Weight</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Team product and releases</td><td>40%</td><td>Acceptance demos, user observations, reliability checks, successful handover</td></tr>
+        <tr><td>Individual evidence portfolio</td><td>20%</td><td>Four selected decisions, each traced requirement → decision → change → check → result</td></tr>
+        <tr><td>Practical defences</td><td>25%</td><td>Explain a sampled code path unaided, predict a change's effect, then diagnose or modify it (tools allowed after the unaided part)</td></tr>
+        <tr><td>Studio practice</td><td>15%</td><td>Substantive reviews, experiments, role rotation, follow-through</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Whether your product could be handed over counts in the first row. Your work as the receiving team counts in the last. As all term: agents are allowed and meaningful help is disclosed; nobody grades lines of code, prompt length, how much you used an agent, commit counts or chat logs; and a failed experiment can earn strong marks when the reasoning and evidence are sound.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 940 430" role="img" aria-label="The evidence portfolio as four chains of five links each: requirement, decision, change, check, result. Row one, from Week 1: confirmed at most capacity; re-check inside the transaction; Patch B; race.py 10 of 10 and rush.py 0.35 seconds; ready for staging, open issues listed. Row two, from Week 6: a retry never books twice; idempotency key in one transaction; stored answer and unique index; same key gives same answer and one row; merged with its evidence. Row three, from Week 5, is broken: check-in closes at 22:00; the end is exclusive; the window check; a test copied from the code, in red, so the result is a red question mark. Row four, from this week: drop-in events are never booked; 409 before payment, recorded in an ADR; migration and refusal; tests for D1 to D4 and a keyboard pass; handed over.">
+        <defs>
+          <filter id="w14f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f8-r)">
+          <rect x="20" y="60" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="205" y="60" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="390" y="60" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="575" y="60" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="760" y="60" width="150" height="56" rx="14" class="s f-card"/>
+          <path d="M170,88 H205 M355,88 H390 M540,88 H575 M725,88 H760" class="s s-thick"/>
+          <rect x="20" y="140" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="205" y="140" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="390" y="140" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="575" y="140" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="760" y="140" width="150" height="56" rx="14" class="s f-card"/>
+          <path d="M170,168 H205 M355,168 H390 M540,168 H575 M725,168 H760" class="s s-thick"/>
+          <rect x="20" y="220" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="205" y="220" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="390" y="220" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="575" y="220" width="150" height="56" rx="14" class="s s-red s-thick s-dash f-red"/>
+          <rect x="760" y="220" width="150" height="56" rx="14" class="s s-red s-dash f-card"/>
+          <path d="M170,248 H205 M355,248 H390 M540,248 H575" class="s s-thick"/>
+          <path d="M727,248 l7,-9 l7,18 l7,-18 l7,18 l3,-9" class="s s-red s-thick"/>
+          <rect x="20" y="300" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="205" y="300" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="390" y="300" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="575" y="300" width="150" height="56" rx="14" class="s f-card"/>
+          <rect x="760" y="300" width="150" height="56" rx="14" class="s s-thick f-mark"/>
+          <path d="M170,328 H205 M355,328 H390 M540,328 H575 M725,328 H760" class="s s-thick"/>
+        </g>
+        <text x="95" y="42" text-anchor="middle" class="t-sm t-pen">requirement</text>
+        <text x="280" y="42" text-anchor="middle" class="t-sm t-pen">decision</text>
+        <text x="465" y="42" text-anchor="middle" class="t-sm t-pen">change</text>
+        <text x="650" y="42" text-anchor="middle" class="t-sm t-pen">check</text>
+        <text x="835" y="42" text-anchor="middle" class="t-sm t-pen">result</text>
+        <text x="95" y="84" text-anchor="middle" class="t-sm">confirmed ≤</text>
+        <text x="95" y="102" text-anchor="middle" class="t-sm">capacity</text>
+        <text x="280" y="84" text-anchor="middle" class="t-sm">re-check inside</text>
+        <text x="280" y="102" text-anchor="middle" class="t-sm">the transaction</text>
+        <text x="465" y="93" text-anchor="middle" class="t-sm">Patch B</text>
+        <text x="650" y="84" text-anchor="middle" class="t-sm">race.py 10 of 10;</text>
+        <text x="650" y="102" text-anchor="middle" class="t-sm">rush.py 0.35 s</text>
+        <text x="835" y="84" text-anchor="middle" class="t-sm">ready for staging;</text>
+        <text x="835" y="102" text-anchor="middle" class="t-sm">open issues listed</text>
+        <text x="95" y="164" text-anchor="middle" class="t-sm">a retry never</text>
+        <text x="95" y="182" text-anchor="middle" class="t-sm">books twice</text>
+        <text x="280" y="164" text-anchor="middle" class="t-sm">idempotency key,</text>
+        <text x="280" y="182" text-anchor="middle" class="t-sm">one transaction</text>
+        <text x="465" y="164" text-anchor="middle" class="t-sm">stored answer +</text>
+        <text x="465" y="182" text-anchor="middle" class="t-sm">unique index</text>
+        <text x="650" y="164" text-anchor="middle" class="t-sm">same key: same</text>
+        <text x="650" y="182" text-anchor="middle" class="t-sm">answer, one row</text>
+        <text x="835" y="164" text-anchor="middle" class="t-sm">merged, with</text>
+        <text x="835" y="182" text-anchor="middle" class="t-sm">its evidence</text>
+        <text x="95" y="244" text-anchor="middle" class="t-sm">check-in closes</text>
+        <text x="95" y="262" text-anchor="middle" class="t-sm">at 22:00</text>
+        <text x="280" y="253" text-anchor="middle" class="t-sm">the end is exclusive</text>
+        <text x="465" y="244" text-anchor="middle" class="t-sm">the window</text>
+        <text x="465" y="262" text-anchor="middle" class="t-sm">check</text>
+        <text x="650" y="244" text-anchor="middle" class="t-sm t-red">a test copied</text>
+        <text x="650" y="262" text-anchor="middle" class="t-sm t-red">from the code</text>
+        <text x="835" y="256" text-anchor="middle" class="t-lg t-red">?</text>
+        <text x="95" y="324" text-anchor="middle" class="t-sm">drop-in events are</text>
+        <text x="95" y="342" text-anchor="middle" class="t-sm">never booked</text>
+        <text x="280" y="324" text-anchor="middle" class="t-sm">409 before</text>
+        <text x="280" y="342" text-anchor="middle" class="t-sm">payment (ADR)</text>
+        <text x="465" y="324" text-anchor="middle" class="t-sm">migration +</text>
+        <text x="465" y="342" text-anchor="middle" class="t-sm">refusal</text>
+        <text x="650" y="324" text-anchor="middle" class="t-sm">D1–D4 tests,</text>
+        <text x="650" y="342" text-anchor="middle" class="t-sm">keyboard pass</text>
+        <text x="835" y="333" text-anchor="middle" class="t-sm t-mark">handed over</text>
+        <text x="20" y="390" class="t-sm t-red">row 3: a test whose answer was copied from the code agrees with its mistake; the chain breaks there</text>
+        <text x="20" y="414" class="t-sm t-pen">each link is a claim, and each claim needs evidence you can show and explain</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.8</b> The evidence portfolio as four chains, one per decision, each running requirement → decision → change → check → result. The rows are examples from Weeks 1, 6, 5 and 14. Row 3 is the Week 5 trap: a check whose expected answer came from the code cannot catch the code's mistake, so everything after it is unproven.</figcaption>
+  </figure>
+  <p>The portfolio is four evidence packets like the one that ended Lecture 1. Choose decisions whose chains are complete, and that you can explain link by link without notes: the same skill the defences test. A decision that went wrong, traced honestly, can be one of your strongest links.</p>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Name one part of your team's product that only one person could change tomorrow. What would let a stranger change it?</li>
+        <li>Pick one path in your product. Write the promise it keeps, the test that protects it, and one change to it with the effect you predict.</li>
+        <li>Name one thing you are still unsure about before the swap, demo day or your defence.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · DEMO DAY</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 30 minutes</p>
+  <h2>After the handover</h2>
+  <p>The lecture handed AfterHours over. These three readings follow what comes after: what happens to its documents, who owns the code nobody on the team typed, and which skills you take with you.</p>
+</div>
+
+<section class="block" id="decay">
+  <div class="sechead"><span class="clock">R1</span><h2>Documents that decay</h2></div>
+  <p>Documents drift away from the code they describe. In a 1994 essay on software aging, David Parnas described what happens when people who never understood a design keep changing it: <q>After many such changes, the original designers no longer understand the product. Those who made the changes, never did. In other words, nobody understands the modified product.</q> He added a sentence every maintainer recognises: <q>The documentation becomes increasingly inaccurate thereby making future changes even more difficult.</q></p>
+  <p>Studies of working engineers agree, with a twist. In 2003 Lethbridge, Singer and Forward confirmed that engineers do not update documentation as promptly or as completely as their managers want, and also found that out-of-date documentation <q>remains useful in many circumstances</q>. So the realistic aim is documents whose staleness you can see, and some kinds of document manage that much better than others.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 390" role="img" aria-label="Three kinds of document over time, as a teaching model. Prose that nobody runs drifts slowly away from the code, and the gap grows unnoticed. Documents that run follow the code; when they drift, CI turns red and they are fixed. Dated records such as ADR 0001, 0002 and 0003 stay true about their dates; a new record supersedes an old one instead of editing it.">
+        <defs>
+          <filter id="w14f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w14f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w14f9-r)">
+          <path d="M600,70 H870 V120 C760,108 680,94 600,86 Z" class="f-red"/>
+          <path d="M200,70 H870" class="s s-2"/>
+          <path d="M200,70 C400,72 600,94 870,120" class="s s-pen s-thick"/>
+          <path d="M200,180 H870" class="s s-2"/>
+          <path d="M200,183 H480 L512,206" class="s s-pen s-thick"/>
+          <path d="M548,183 H870" class="s s-pen s-thick"/>
+          <path d="M520,196 l16,16 M536,196 l-16,16" class="s s-red s-thick"/>
+          <path d="M200,300 H870" class="s s-2"/>
+          <path d="M690,278 Q480,238 285,278" class="s s-2 s-dash" marker-end="url(#w14f9-a)"/>
+          <rect x="230" y="280" width="110" height="44" rx="6" class="s f-card"/>
+          <rect x="420" y="280" width="110" height="44" rx="6" class="s f-card"/>
+          <rect x="610" y="280" width="170" height="44" rx="6" class="s f-card"/>
+          <path d="M200,362 H870" class="s s-thin" marker-end="url(#w14f9-a)"/>
+        </g>
+        <text x="870" y="24" text-anchor="end" class="t-sm t-2">a teaching model, not a measurement</text>
+        <text x="20" y="84">prose that</text>
+        <text x="20" y="104">nobody runs</text>
+        <text x="20" y="190">documents</text>
+        <text x="20" y="210">that run</text>
+        <text x="20" y="300">dated records</text>
+        <text x="200" y="58" class="t-sm t-2">the code</text>
+        <text x="330" y="102" class="t-sm t-pen">the document</text>
+        <text x="610" y="150" class="t-sm t-red">the gap grows, and nobody notices</text>
+        <text x="560" y="232" class="t-sm t-red">CI turns red: fixed the same day</text>
+        <text x="285" y="307" text-anchor="middle" class="t-mono">ADR 0001</text>
+        <text x="475" y="307" text-anchor="middle" class="t-mono">ADR 0002</text>
+        <text x="695" y="301" text-anchor="middle" class="t-mono">ADR 0003</text>
+        <text x="695" y="318" text-anchor="middle" class="t-sm t-2">supersedes 0001</text>
+        <text x="870" y="348" text-anchor="end" class="t-sm t-green">each stays true about its own date</text>
+        <text x="870" y="384" text-anchor="end" class="t-sm t-2">time since it was written</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.9</b> Three kinds of document, and how each one ages. Prose that nobody runs drifts without anyone noticing. A document that runs fails loudly when it drifts, so someone fixes it. A dated record never claims to be current: it says what was decided, when and why.</figcaption>
+  </figure>
+
+  <ul>
+    <li><strong>Make it run.</strong> Python's doctest <q>searches for pieces of text that look like interactive Python sessions, and then executes those sessions to verify that they work exactly as shown</q>. The same idea works beyond Python: CI can run the README's commands; <code>scripts/licences.py</code> regenerates the licence table from what is installed; the fallback repository's <code>tests/test_runbook.py</code> runs the runbook's backup and check commands on every test run.</li>
+    <li><strong>Date it and never edit it.</strong> Michael Nygard's decision records are kept after they are reversed, marked superseded, because it is still worth knowing what the decision <em>was</em>. A dated record cannot go stale about its own date.</li>
+    <li><strong>Otherwise, keep it short, or delete it.</strong> Every sentence nobody checks is one more sentence that will one day be wrong.</li>
+  </ul>
+  <p>The fallback repository's README says <code>15 passed</code>. The moment the maintenance challenge adds tests, that line is wrong. The reference solution fixes it in the same pull request, which is exactly what example D6 asks for.</p>
+</section>
+
+<section class="block" id="provenance">
+  <div class="sechead"><span class="clock">R2</span><h2>Who owns generated code?</h2></div>
+  <p>Your repository now holds code from many hands: yours, your teammates', an agent's, a package's, perhaps a snippet from a web page. Handing it over raises three separate questions, and the law answers them differently in different countries. This reading describes what we could check in September 2026. It is not legal advice, and your university and any future employer have their own rules about who owns what you write.</p>
+
+  <h3>1. Can anyone own what an agent wrote?</h3>
+  <p>In the United States, the Copyright Office concluded in January 2025 that <q>Copyright does not extend to purely AI-generated material, or material where there is insufficient human control over the expressive elements</q>, and that, with today's tools, <q>prompts do not alone provide sufficient control</q>. What a person adds is protectable: their own expression that shows in the output, and their <q>creative selection, coordination, or arrangement</q> or <q>creative modifications</q> of it. In March 2025 a federal appeals court held, in <em>Thaler v. Perlmutter</em>, that the Copyright Act requires a human author, while noting that this <q>does not prohibit copyrighting work that was made by or with the assistance of artificial intelligence</q>. The Supreme Court declined to hear the case in March 2026. That case was about a picture, not code.</p>
+  <p>The United Kingdom is unusual. Since 1988 its copyright law has protected "computer-generated" works that have no human author, treating as the author <q>the person by whom the arrangements necessary for the creation of the work are undertaken</q>. In March 2026 the UK government proposed removing that protection; as of September 2026 the law has not changed. Two countries, two answers, and both still moving.</p>
+
+  <h3>2. What came with it?</h3>
+  <p>Code arrives with obligations. Every dependency carries a licence. Python packages can now declare it as a standard SPDX identifier such as <code>MIT</code>, in a metadata field that PEP 639 introduced, which is what the kit's <code>licences.py</code> reads first. A snippet copied from a web page carries the page's terms: write down where it came from, next to the code. And code an agent suggests can occasionally match public code. GitHub's Copilot, for example, can block such suggestions, or show where matching public code came from and its licence; GitHub says matches typically happen in less than one percent of suggestions, and it only searches public code on GitHub.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 380" role="img" aria-label="One source file drawn as five bands, each from a different origin, with the question each origin raises. Written by you or a teammate: who can explain it? Suggested by an agent and reviewed by you: was the help disclosed, and could it match public code? Copied from a web page: where from, under what licence? What it uses from packages: which licence, and are its notices kept? The whole file: who answers for it? Whoever ships it.">
+        <defs>
+          <filter id="w14f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f10-r)">
+          <rect x="40" y="40" width="330" height="300" rx="8" class="s f-card"/>
+          <rect x="52" y="64" width="306" height="54" class="s s-thin f-paper"/>
+          <rect x="52" y="124" width="306" height="54" class="s s-thin s-pen f-pen"/>
+          <rect x="52" y="184" width="306" height="44" class="s s-thin s-red f-red"/>
+          <rect x="52" y="234" width="306" height="44" class="s s-thin s-green f-green"/>
+          <path d="M360,91 H440 M360,151 H440 M360,206 H440 M360,256 H440" class="s s-thin s-2 s-dash"/>
+        </g>
+        <text x="205" y="30" text-anchor="middle" class="t-mono t-2">app/reservations.py</text>
+        <text x="205" y="97" text-anchor="middle">written by you or a teammate</text>
+        <text x="205" y="148" text-anchor="middle">suggested by an agent,</text>
+        <text x="205" y="168" text-anchor="middle">reviewed by you</text>
+        <text x="205" y="212" text-anchor="middle">copied from a web page</text>
+        <text x="205" y="262" text-anchor="middle">what it uses from packages</text>
+        <text x="205" y="306" text-anchor="middle" class="t-sm t-2">…and the file as a whole</text>
+        <text x="450" y="96">who can explain it, unaided?</text>
+        <text x="450" y="146">was the help disclosed?</text>
+        <text x="450" y="166" class="t-sm t-2">could it match public code?</text>
+        <text x="450" y="211">where from, under what licence?</text>
+        <text x="450" y="261">which licence? keep its notice</text>
+        <text x="450" y="306">who answers for it?</text>
+        <text x="450" y="330" class="t-pen">whoever ships it</text>
+        <text x="40" y="376" class="t-sm t-2">illustrative: any real file mixes these differently</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.10</b> One file, code from several origins, and the question each origin raises. Who may own each part depends on the country. Who answers for the whole file does not: whoever ships it.</figcaption>
+  </figure>
+
+  <h3>3. Who answers for it?</h3>
+  <p>Whoever ships it. Even where nobody can own generated code, somebody answers for what it does. That is why the course asks you to disclose meaningful help from agents and to own every claim you submit, and why the handover checklist asks you to record where copied material came from (item F3), without asking for chat logs.</p>
+</section>
+
+<section class="block" id="compound">
+  <div class="sechead"><span class="clock">R3</span><h2>Skills that compound</h2></div>
+  <p>Nobody knows what software jobs will look like when you graduate, and anyone who tells you with certainty is making a prediction. What this course can show you is which skills it needed every week, whichever tool wrote the code:</p>
+  <ul>
+    <li>Saying precisely what must stay true (Weeks 1, 2, 6).</li>
+    <li>Getting expected answers from somewhere other than the code (Week 5).</li>
+    <li>Reading code you did not write, in order of risk (Weeks 7, 14).</li>
+    <li>Putting each decision that will change behind a boundary (Week 4).</li>
+    <li>Making the dangerous case happen on purpose (Weeks 1, 6, 10).</li>
+    <li>Measuring instead of trusting a feeling (Weeks 1, 11).</li>
+    <li>Running software for real, and getting back from failure (Weeks 12, 13).</li>
+  </ul>
+  <p>None of these belongs to one tool, so each new tool makes them more useful instead of replacing them. That is what compounding means here. DORA's 2025 report says something similar about teams: <q>AI's primary role is as an amplifier, magnifying an organization's existing strengths and weaknesses.</q></p>
+
+  <h3>Learning with agents, without hollowing out</h3>
+  <p>The worry is simple: if the agent does the work while you learn, do you learn? A few careful studies give a first, partial answer.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 380" role="img" aria-label="Bar chart drawn to scale from Bastani and colleagues' published percentages, relative to students with no AI. During practice with AI: plain GPT-4 chat plus 48 percent, a tutor giving teacher-designed hints plus 127 percent. On the exam without AI: plain chat minus 17 percent; for the tutor group no bar is drawn, because the study found no statistically significant difference from students who never had AI.">
+        <defs>
+          <filter id="w14f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w14f11-r)">
+          <path d="M120,80 V300" class="s s-thin"/>
+          <path d="M114,292.5 H120 M114,260 H120 M114,227.5 H120 M114,195 H120 M114,162.5 H120 M114,130 H120 M114,97.5 H120" class="s s-thin"/>
+          <rect x="250" y="197.6" width="70" height="62.4" class="s s-pen f-pen"/>
+          <rect x="340" y="94.9" width="70" height="165.1" class="s s-green f-green"/>
+          <rect x="560" y="260" width="70" height="22.1" class="s s-red f-red"/>
+          <path d="M120,260 H860" class="s"/>
+          <rect x="560" y="58" width="22" height="16" class="s s-pen f-pen"/>
+          <rect x="560" y="86" width="22" height="16" class="s s-green f-green"/>
+        </g>
+        <text x="120" y="40" class="t-sm t-2">grades compared with students who had no AI</text>
+        <text x="108" y="297" text-anchor="end" class="t-mono t-2">−25%</text>
+        <text x="108" y="264" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="108" y="232" text-anchor="end" class="t-mono t-2">+25%</text>
+        <text x="108" y="199" text-anchor="end" class="t-mono t-2">+50%</text>
+        <text x="108" y="167" text-anchor="end" class="t-mono t-2">+75%</text>
+        <text x="108" y="134" text-anchor="end" class="t-mono t-2">+100%</text>
+        <text x="108" y="102" text-anchor="end" class="t-mono t-2">+125%</text>
+        <text x="592" y="71" class="t-sm">plain GPT-4 chat</text>
+        <text x="592" y="99" class="t-sm">tutor giving teacher-designed hints</text>
+        <text x="285" y="189" text-anchor="middle" class="t-mono t-pen">+48%</text>
+        <text x="375" y="86" text-anchor="middle" class="t-mono t-green">+127%</text>
+        <text x="595" y="300" text-anchor="middle" class="t-mono t-red">−17%</text>
+        <text x="690" y="210" text-anchor="middle" class="t-sm t-green">tutor group: no statistically</text>
+        <text x="690" y="228" text-anchor="middle" class="t-sm t-green">significant difference from</text>
+        <text x="690" y="246" text-anchor="middle" class="t-sm t-green">the no-AI group (no bar drawn)</text>
+        <text x="330" y="330" text-anchor="middle">during practice, with AI</text>
+        <text x="640" y="330" text-anchor="middle">on the exam, without AI</text>
+        <text x="120" y="368" class="t-sm t-2">one school in Turkey, maths, autumn 2023; percentages relative to the no-AI group's average</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 14.11</b> Bastani and colleagues' field experiment, drawn to scale from their published percentages. With AI, practice grades rose. On the exam without AI, students who had used plain chat did worse than students who never had AI. For students whose tutor gave hints instead of answers, the study found no statistically significant difference from the no-AI group, which is not the same as no difference, so no bar is drawn.</figcaption>
+  </figure>
+
+  <ul>
+    <li><strong>Bastani and colleagues (PNAS, 2025)</strong> ran a randomised field experiment with nearly 1,000 high-school students in Turkey practising maths (Fig 14.11). Students also <q>do not perceive any reduction in their learning</q> when they copy solutions. It is one school, one subject and one term, with a 2023 model.</li>
+    <li><strong>Shen and Tamkin (Anthropic, January 2026)</strong> randomly assigned 52 mostly junior developers to learn Trio, a Python library new to them, with or without an AI chat assistant (OpenAI's GPT-4o). On a quiz straight afterwards the AI group averaged about 50% and the others about 67%, and the AI group was not significantly faster. The biggest gap was on debugging questions. Those who used the assistant to ask for explanations did much better than those who handed it the code, though those groups were small. It is a preprint from a company that sells AI tools, with one task of about an hour.</li>
+    <li><strong>Lee and colleagues (CHI 2025)</strong> surveyed 319 knowledge workers: those who reported more confidence in generative AI also reported less critical thinking. That is an association in self-reports, not a cause.</li>
+  </ul>
+  <p>None of these is about you, and none settles the question. Together they suggest that the same tool can do your thinking for you or support it, and that which one happens depends on how you use it. The habits this course built in are the ones that keep it supporting: predict before you run; do the agent-off drills; when you are learning, ask for hints and explanations instead of answers; debug by hand sometimes, because that is where the gap was largest; explain code before you accept it; and measure your own work instead of trusting how fast it feels.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Handover package</dt><dd>The documents and checks that let someone else own the software: a README that runs, <code>AGENTS.md</code>, decision records, a runbook, known risks, licences, and the evidence behind the product checklist.</dd>
+    <dt>Onboarding path</dt><dd>The questions a newcomer asks, in order, from getting the code to changing it safely (Fig 14.1).</dd>
+    <dt>Maintenance challenge</dt><dd>This week's handover test: another team adds drop-in events to your product using only your repository.</dd>
+    <dt>Fallback repository</dt><dd>The kit's handover-ready AfterHours, for a receiving team that cannot run its partner's product.</dd>
+    <dt>Known risk</dt><dd>Something already wrong or unsafe, written down with who it hurts, how you know, what limits it today and what would fix it.</dd>
+    <dt>Truck factor (bus factor)</dt><dd>The smallest number of people whose leaving would put a project in serious trouble.</dd>
+    <dt>Migration</dt><dd>A numbered, recorded change to a database schema that also reaches databases already in use. An <em>expand-only</em> migration only adds (a table, a column with a default), so the previous version can still run on the new schema without losing data. Whether it still <em>behaves</em> correctly depends on what the new rows mean: after drop-in events exist, the old version would book them.</dd>
+    <dt>Practical defence</dt><dd>Explain a sampled code path unaided, predict a change's effect, then diagnose or modify it with tools.</dd>
+    <dt>Personal data</dt><dd>Information about a person who can be identified. A name is enough.</dd>
+    <dt>Privacy by default</dt><dd>Collecting, keeping and showing only the personal data each purpose needs, unless someone deliberately chooses more.</dd>
+    <dt>Provenance</dt><dd>Where a piece of code came from, and what obligations came with it.</dd>
+    <dt>Permissive licence</dt><dd>A licence that allows use, change and redistribution as long as its notices are kept, such as MIT, BSD or Apache-2.0. Its SPDX identifier is the short standard name, such as <code>MIT</code>.</dd>
+    <dt>Evidence portfolio</dt><dd>Four of your decisions, each traced requirement → decision → change → check → result.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>ACM, "ACM Code of Ethics and Professional Conduct", adopted 22 June 2018. <a href="https://www.acm.org/code-of-ethics">acm.org</a> · <a href="https://www.acm.org/binaries/content/assets/about/acm-code-of-ethics-and-professional-conduct.pdf">PDF</a></li>
+    <li>Regulation (EU) 2016/679 (General Data Protection Regulation), Articles 4(1) and 25. <a href="https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0679">EUR-Lex</a> · UK GDPR Article 25: <a href="https://www.legislation.gov.uk/eur/2016/679/article/25">legislation.gov.uk</a></li>
+    <li>Guilherme Avelino, Leonardo Passos, Andre Hora, Marco Tulio Valente, "A Novel Approach for Estimating Truck Factors", ICPC 2016. <a href="https://arxiv.org/abs/1604.06766">arXiv</a></li>
+    <li>Timothy C. Lethbridge, Janice Singer, Andrew Forward, "How Software Engineers Use Documentation: The State of the Practice", <em>IEEE Software</em> 20(6), 2003. <a href="https://doi.org/10.1109/MS.2003.1241364">doi</a></li>
+    <li>David Lorge Parnas, "Software Aging", Proceedings of ICSE 1994. <a href="https://doi.org/10.1109/ICSE.1994.296790">doi</a></li>
+    <li>Python documentation, "doctest: Test interactive Python examples". <a href="https://docs.python.org/3/library/doctest.html">docs.python.org</a></li>
+    <li>Michael Nygard, "Documenting Architecture Decisions", 15 Nov 2011. <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">cognitect.com</a></li>
+    <li>US Copyright Office, "Copyright and Artificial Intelligence, Part 2: Copyrightability", 29 Jan 2025. <a href="https://www.copyright.gov/ai/Copyright-and-Artificial-Intelligence-Part-2-Copyrightability-Report.pdf">PDF</a></li>
+    <li><em>Thaler v. Perlmutter</em>, No. 23-5233 (D.C. Cir., 18 Mar 2025). <a href="https://media.cadc.uscourts.gov/opinions/docs/2025/03/23-5233.pdf">Opinion</a> · Supreme Court docket 25-449 (petition denied 2 Mar 2026): <a href="https://www.supremecourt.gov/docket/docketfiles/html/public/25-449.html">supremecourt.gov</a></li>
+    <li>Copyright, Designs and Patents Act 1988, <a href="https://www.legislation.gov.uk/ukpga/1988/48/section/9">section 9(3)</a> and <a href="https://www.legislation.gov.uk/ukpga/1988/48/section/178">section 178</a> · UK Government, "Report on Copyright and Artificial Intelligence", 18 Mar 2026. <a href="https://www.gov.uk/government/publications/report-and-impact-assessment-on-copyright-and-artificial-intelligence/report-on-copyright-and-artificial-intelligence">gov.uk</a></li>
+    <li>GitHub Docs, "GitHub Copilot code referencing". <a href="https://docs.github.com/en/copilot/concepts/completions/code-referencing">docs.github.com</a></li>
+    <li>PEP 639, "Improving License Clarity with Better Package Metadata". <a href="https://peps.python.org/pep-0639/">peps.python.org</a> · SPDX License List: <a href="https://spdx.org/licenses/">spdx.org</a></li>
+    <li>Hamsa Bastani, Osbert Bastani, Alp Sungu, Haosen Ge, Özge Kabakcı, Rei Mariman, "Generative AI without guardrails can harm learning: Evidence from high school mathematics", <em>PNAS</em> 122(26), 2025. <a href="https://doi.org/10.1073/pnas.2422633122">doi</a></li>
+    <li>Judy Hanwen Shen, Alex Tamkin, "How AI Impacts Skill Formation", arXiv preprint, Jan 2026. <a href="https://arxiv.org/abs/2601.20245">arXiv</a> · Anthropic's summary: <a href="https://www.anthropic.com/research/AI-assistance-coding-skills">anthropic.com</a></li>
+    <li>Hao-Ping Lee et al., "The Impact of Generative AI on Critical Thinking", CHI 2025. <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2025/01/lee_2025_ai_critical_thinking_survey.pdf">PDF</a></li>
+    <li>METR, "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity", July 2025. <a href="https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/">metr.org</a></li>
+    <li>DORA, "State of AI-assisted Software Development", 2025. <a href="https://dora.dev/dora-report-2025/">dora.dev</a></li>
+    <li>W3C, "Web Content Accessibility Guidelines (WCAG) 2.2". <a href="https://www.w3.org/TR/WCAG22/">w3.org</a></li>
+    <li>SQLite, "Write-Ahead Logging" and "Using the SQLite Online Backup API" (used by the kit's scripts). <a href="https://www.sqlite.org/wal.html">wal.html</a> · <a href="https://www.sqlite.org/backup.html">backup.html</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="13-change-without-forgetting.html">← Lecture 13: Change Without Forgetting</a>
+  <span>Build It. Prove It. Own It. · Lecture 14 · <a href="../index.html">Course home</a></span>
+  <a href="e-products-with-models.html">Extension: Products That Contain Models →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

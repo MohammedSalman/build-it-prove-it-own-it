@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quality Is Experienced by People</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* This chapter has to meet the contrast bar it teaches. In the light theme a few shared
+     pairings fall below 4.5:1 (green on green-soft 3.97, red on red-soft 4.19, ink-3 on
+     paper 3.41). Here they use darker pairings of the same tokens. Measured: verification.md. */
+  .toc .t { color: var(--ink-2); }
+  .tag.ok, .tag.bad { color: var(--ink); }
+  .tag.ok { box-shadow: inset 0 0 0 1.5px var(--green); }
+  .tag.bad { box-shadow: inset 0 0 0 1.5px var(--red); }
+  .diff .add, .diff .del { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 9 · Lecture 9 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="w9-title">
+  <p class="eyebrow">Week 9 · Quality from the other side of the screen</p>
+  <h1 id="w9-title">Quality Is Experienced by People</h1>
+  <p class="lede">AfterHours can answer every request correctly and still leave a person believing the wrong thing. This lecture moves the question from "does the code run?" to "what does a person experience?", and gives you checks for it that a test suite cannot run.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Homework: one usability session (~1.5 h)</span>
+    <span class="fact">Kit: AfterHours with planted UI problems</span>
+    <span class="fact">Loop: Understand (from Observe)</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Draw what a person believes next to what the system holds, and point to where they part.</li>
+      <li>Run a short usability session without coaching, and say what five participants can and cannot tell you.</li>
+      <li>Check a page by keyboard and with a screen reader on a named combination, and tie what you find to a WCAG 2.2 criterion.</li>
+      <li>Compute a contrast ratio and decide whether it passes.</li>
+      <li>Design every state of an interaction, including the one where you don't know what happened.</li>
+      <li>Choose the feedback for a wait from the response-time limits.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The spinner that lies</span></a></li>
+    <li><a href="#usability"><span class="t">0:15</span><span>Watch people, don't coach</span></a></li>
+    <li><a href="#access"><span class="t">0:35</span><span>Keyboard, labels, focus, contrast</span></a></li>
+    <li><a href="#states"><span class="t">0:55</span><span>Design every state</span></a></li>
+    <li><a href="#wait"><span class="t">1:10</span><span>How a wait feels</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#curb"><span class="t">R1</span><span>The curb-cut effect</span></a></li>
+    <li><a href="#law"><span class="t">R2</span><span>The law differs by country</span></a></li>
+    <li><a href="#errors"><span class="t">R3</span><span>Writing error messages</span></a></li>
+    <li><a href="#checkers"><span class="t">R4</span><span>What each check can see</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>The spinner that lies</h2>
+  </div>
+  <p>In Lecture 1 you judged Patch A, which disables the Reserve button while a request is on its way. It did nothing for Maya and Sam racing on two phones, so we did not ship it. Patch A was aimed at a different problem. Today we look at that problem from Maya's side of the screen.</p>
+  <p>It is a slow payment day: the payment provider takes 3 seconds to answer instead of 0.3. Maya opens AfterHours, types her name and presses <em>Reserve</em> on the escape room, which has one place left.</p>
+  <p>Nothing near the button changes. A small spinner turns in the page header, next to the title. After a second and a half, Maya presses <em>Reserve</em> again.</p>
+  <div class="callout try">
+    <span class="label">Predict (1 minute, show of hands)</span>
+    <ol>
+      <li>What is the last message Maya sees?</li>
+      <li>How many places does she hold when she walks away?</li>
+    </ol>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 450" role="img" aria-label="Timeline over 8 seconds with four lanes. Database: Maya holds nothing until 3.0 seconds, then holds reservation 228 to the end. Requests: tap 1 runs from 0 to 3.0 seconds and gets 201; tap 2 runs from 1.5 to 4.5 seconds and gets 409 full. Screen: a spinner in the header until 3.0 seconds, then You're in 228 until 4.5 seconds, then Sorry, that event just filled up until 8 seconds; the spinner is off from 3.0 to 4.5 seconds although tap 2 is still running. Maya's belief: did it work, then I'm in, then I didn't get a place. At the end, the database and her belief disagree.">
+        <defs>
+          <filter id="w9f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w9f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w9f1-r)">
+          <!-- lane A: database -->
+          <rect x="170" y="44" width="270" height="40" rx="6" class="s s-thin f-card"/>
+          <rect x="440" y="44" width="450" height="40" rx="6" class="s s-green f-green"/>
+          <!-- lane B: requests -->
+          <rect x="170" y="112" width="270" height="28" rx="5" class="s s-thin s-pen f-pen"/>
+          <rect x="305" y="148" width="270" height="28" rx="5" class="s s-thin s-pen f-pen"/>
+          <!-- lane C: screen -->
+          <rect x="170" y="206" width="270" height="40" rx="6" class="s s-thin f-card"/>
+          <rect x="440" y="206" width="135" height="40" rx="6" class="s s-green f-green"/>
+          <rect x="575" y="206" width="315" height="40" rx="6" class="s s-red f-red"/>
+          <path d="M442,258 V266 H573 V258" class="s s-thin s-red"/>
+          <!-- lane D: belief -->
+          <rect x="170" y="318" width="270" height="40" rx="18" class="s s-thin f-card"/>
+          <rect x="440" y="318" width="135" height="40" rx="18" class="s s-green f-green"/>
+          <rect x="575" y="318" width="315" height="40" rx="18" class="s s-red f-red"/>
+          <!-- the gap -->
+          <path d="M920,90 V312" class="s s-red s-thick" marker-start="url(#w9f1-a)" marker-end="url(#w9f1-a)"/>
+          <!-- axis -->
+          <path d="M170,392 H890" class="s s-thin"/>
+          <path d="M170,386 V398 M260,386 V398 M350,386 V398 M440,386 V398 M530,386 V398 M620,386 V398 M710,386 V398 M800,386 V398 M890,386 V398" class="s s-thin"/>
+        </g>
+        <text x="20" y="60" class="t-sm">Database</text>
+        <text x="20" y="78" class="t-sm t-2">(system state)</text>
+        <text x="20" y="136" class="t-sm">Maya's</text>
+        <text x="20" y="154" class="t-sm t-2">requests</text>
+        <text x="20" y="222" class="t-sm">What the</text>
+        <text x="20" y="240" class="t-sm t-2">screen says</text>
+        <text x="20" y="334" class="t-sm">What Maya</text>
+        <text x="20" y="352" class="t-sm t-2">believes</text>
+        <text x="305" y="69" text-anchor="middle" class="t-sm">Maya holds nothing</text>
+        <text x="665" y="69" text-anchor="middle" class="t-sm">Maya holds #228, the last place</text>
+        <text x="305" y="131" text-anchor="middle" class="t-sm">tap 1 → 201, #228 saved</text>
+        <text x="440" y="167" text-anchor="middle" class="t-sm">tap 2 → 409, event full</text>
+        <text x="305" y="231" text-anchor="middle" class="t-sm">spinner in header · button unchanged</text>
+        <text x="507" y="231" text-anchor="middle" class="t-sm">You're in! #228</text>
+        <text x="732" y="231" text-anchor="middle" class="t-sm">Sorry, that event just filled up.</text>
+        <text x="507" y="286" text-anchor="middle" class="t-sm t-red">spinner off, tap 2 still running</text>
+        <text x="305" y="343" text-anchor="middle" class="t-sm">Did it work? (taps again at 1.5 s)</text>
+        <text x="507" y="343" text-anchor="middle" class="t-sm">I'm in!</text>
+        <text x="732" y="343" text-anchor="middle" class="t-sm">I didn't get a place.</text>
+        <text x="944" y="201" text-anchor="middle" class="t-sm t-red" transform="rotate(-90 944 201)">the gap</text>
+        <text x="170" y="414" text-anchor="middle" class="t-mono t-2">0 s</text>
+        <text x="260" y="414" text-anchor="middle" class="t-mono t-2">1</text>
+        <text x="350" y="414" text-anchor="middle" class="t-mono t-2">2</text>
+        <text x="440" y="414" text-anchor="middle" class="t-mono t-2">3</text>
+        <text x="530" y="414" text-anchor="middle" class="t-mono t-2">4</text>
+        <text x="620" y="414" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="710" y="414" text-anchor="middle" class="t-mono t-2">6</text>
+        <text x="800" y="414" text-anchor="middle" class="t-mono t-2">7</text>
+        <text x="890" y="414" text-anchor="middle" class="t-mono t-2">8 s</text>
+        <text x="530" y="440" text-anchor="middle" class="t-sm t-2">seconds after Maya's first tap (payment check: 3 s)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.1</b> System state and user belief. The database, request and screen lanes are drawn to scale from a real, scripted run of the lab kit in Chrome: two clicks 1.5 s apart, times rounded to 0.1 s. The belief lane is our reading of what those messages tell a person, not an observation. Every message was true about the request it answered; at the end, the database says Maya holds the last place and the screen suggests she has none.</figcaption>
+  </figure>
+
+  <p>Follow it in order. The first request reserved the last place as #228, and the page said <q>You're in!</q> The second request, from the second tap, re-checked a moment later, found the room full and got an HTTP 409. The page replaced the good news with <q>Sorry, that event just filled up.</q> A few seconds later that message disappeared too.</p>
+  <p>Every message was accurate about the request it answered. Maya still walks away believing she has no place, while the database says she holds the last one. On an event with room, the same two taps book her twice: #229 and #230 in our run.</p>
+  <p>Now look at the spinner. It stopped at 3.0 seconds, when the first answer arrived, while the second request was still running. The page's only sign of activity switched off with work still in flight. That is the spinner that lies.</p>
+  <div class="callout case">
+    <span class="label">About this page</span>
+    <p>We planted this page's problems on purpose, for the lab. The slow payment is a setting (<code>AFTERHOURS_PAYMENT_DELAY=3</code>); the reservation code underneath is the Week 1 version with Patch B, and it did its job both times.</p>
+  </div>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Running without errors is not the same as usable.</strong> The <em>system state</em> is what the database holds. The <em>user belief</em> is what the person thinks happened. A system that answers every request correctly can still leave a person believing the wrong thing, and they act on the belief.</p>
+  </div>
+  <p>The kit's test suite says <code>9 passed</code>. No test taps twice, waits three seconds, or reads the last message on the screen. An agent asked to "make reservations work" can finish with every test green without ever seeing the page. This week's evidence has to come from people: watching them use the page, and checking it the way they use it.</p>
+</section>
+
+<!-- ============ 2. USABILITY ============ -->
+<section class="block" id="usability">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:35</span>
+    <h2>Watch people, don't coach</h2>
+  </div>
+  <p>In the engineering loop from Lecture 1, this week is the arrow from <em>Observe</em> back to <em>Understand</em>. What people actually do with the product changes what you believe they need, and that belief feeds the next specification.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 250" role="img" aria-label="The engineering loop drawn as a row: Understand, Specify, Delegate, Inspect, Verify, Release, Observe. A thick blue arrow curves back from Observe to Understand, labelled: this week, watch people use it, then update what you believe. Understand is highlighted.">
+        <defs>
+          <filter id="w9f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w9f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w9f2-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w9f2-r)">
+          <rect x="21" y="50" width="108" height="46" rx="10" class="s s-thick f-mark"/>
+          <rect x="156" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="291" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="426" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="561" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="696" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <rect x="831" y="50" width="108" height="46" rx="10" class="s f-card"/>
+          <path d="M131,73 H152" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M266,73 H287" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M401,73 H422" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M536,73 H557" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M671,73 H692" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M806,73 H827" class="s" marker-end="url(#w9f2-a)"/>
+          <path d="M885,100 C885,205 75,205 75,104" class="s s-pen s-thick" marker-end="url(#w9f2-ap)"/>
+        </g>
+        <text x="75" y="79" text-anchor="middle" class="t-mark">Understand</text>
+        <text x="210" y="79" text-anchor="middle">Specify</text>
+        <text x="345" y="79" text-anchor="middle">Delegate</text>
+        <text x="480" y="79" text-anchor="middle">Inspect</text>
+        <text x="615" y="79" text-anchor="middle">Verify</text>
+        <text x="750" y="79" text-anchor="middle">Release</text>
+        <text x="885" y="79" text-anchor="middle">Observe</text>
+        <text x="75" y="36" text-anchor="middle" class="t-sm t-pen">week 9</text>
+        <text x="480" y="236" text-anchor="middle" class="t-sm t-pen">this week: watch people use it, then update what you believe they need</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.2</b> Where this week sits on the engineering loop. Observing real use feeds back into understanding, before anyone specifies or delegates the next change.</figcaption>
+  </figure>
+
+  <p>A <strong>usability test</strong> gives a real person a realistic task, and you watch them do it. It answers questions a demo cannot: where do people look first, what do they expect a button to do, and where do they hesitate. Three rules make the session worth running.</p>
+  <ul>
+    <li><strong>Give a goal, not steps.</strong> "You and your friend Lee want to go to Board Game Night. Get both of you a place." Steps such as "type your name and press Reserve" tell the participant where to look. A goal lets you see whether they find it.</li>
+    <li><strong>Ask them to think aloud.</strong> They say what they look at, what they expect and what puzzles them, as they go. Say at the start that you are testing the page, not them.</li>
+    <li><strong>Don't coach.</strong> When they get stuck, wait. Use only neutral prompts, such as "What are you thinking?" or "What do you expect to happen?". The moment you point or explain, you are measuring your help instead of the design.</li>
+  </ul>
+  <p>Write down what you <em>see</em>, with times, rather than your interpretation: "pressed Reserve twice, about 1.5 s apart; said 'did it go through?'" is evidence. "Found it confusing" is an opinion about the evidence.</p>
+
+  <div class="callout try">
+    <span class="label">Neutral or coaching? (pairs, 5 minutes)</span>
+    <p>You are facilitating. Mark each line <strong>N</strong> (neutral, fine to say) or <strong>C</strong> (coaching or leading).</p>
+    <ol>
+      <li>"Take your time. What are you looking for?"</li>
+      <li>"Try the orange button."</li>
+      <li>"What do you expect to happen when you press that?"</li>
+      <li>"Is the Reserve button easy to find?"</li>
+      <li>"Great, you did that right."</li>
+      <li>"What are you thinking right now?"</li>
+    </ol>
+    <p>Then write one task for an AfterHours participant: a goal, a reason to care, and how they will know they are done.</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: neutral or coaching</summary>
+    <div class="inner">
+      <p><strong>Neutral:</strong> 1, 3 and 6. They ask about the participant's thinking and expectations without pointing anywhere. Line 3 is fine once the participant has chosen something to press themselves.</p>
+      <p><strong>Coaching:</strong> 2 points at the answer. 4 names the button the participant has not found yet, and invites a polite "yes". 5 tells them they succeeded, so they stop checking, and it teaches them what you hoped they would do. Praise the effort at the end of the session, not the steps during it.</p>
+      <p>A good task: "The festival opens on Friday. You and your friend Lee want to go to Board Game Night together. Get a place for both of you, then tell me how you know you both have one." The last sentence gives you a clean end point and makes the participant say what they believe, which you can compare with <code>who_booked.py</code>.</p>
+    </div>
+  </details>
+
+  <h3>How many people?</h3>
+  <p>The most quoted answer is five. It comes from Jakob Nielsen (2000), building on a model he published with Tom Landauer in 1993. Suppose each test user runs into a given problem with probability <em>L</em>. Then <em>n</em> users find a share 1&nbsp;−&nbsp;(1&nbsp;−&nbsp;<em>L</em>)<sup><em>n</em></sup> of the problems. Averaged across the projects they studied, <em>L</em> was 31%, and at that value five users find about 85% of the problems (the formula gives 84%).</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 430" role="img" aria-label="Line chart of the share of problems found against the number of test users, from 0 to 15. With L equal to 0.31, the curve rises steeply and five users find 84 percent. With an illustrative L of 0.10, five users find 41 percent and fifteen users find 79 percent.">
+        <defs>
+          <filter id="w9f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w9f3-r)">
+          <path d="M110,370 H790 M110,370 V44" class="s s-thin"/>
+          <path d="M110,50 H770" class="s s-thin s-dash s-2"/>
+          <path d="M104,290 H116 M104,210 H116 M104,130 H116 M104,50 H116" class="s s-thin"/>
+          <path d="M330,364 V376 M550,364 V376 M770,364 V376" class="s s-thin"/>
+          <path d="M330,370 V100" class="s s-thin s-dash s-2"/>
+          <path d="M110,370 L154,270.8 L198,202.4 L242,155.1 L286,122.5 L330,100 L374,84.5 L418,73.8 L462,66.4 L506,61.3 L550,57.8 L594,55.4 L638,53.7 L682,52.6 L726,51.8 L770,51.2" class="s s-pen s-thick"/>
+          <path d="M110,370 L154,338 L198,309.2 L242,283.3 L286,260 L330,239 L374,220.1 L418,203.1 L462,187.7 L506,174 L550,161.6 L594,150.4 L638,140.4 L682,131.3 L726,123.2 L770,115.9" class="s s-red s-thick s-dash"/>
+          <circle cx="330" cy="100" r="6" class="s s-pen f-penink"/>
+          <circle cx="330" cy="239" r="6" class="s s-red f-redink"/>
+        </g>
+        <text x="100" y="375" text-anchor="end" class="t-mono t-2">0%</text>
+        <text x="100" y="295" text-anchor="end" class="t-mono t-2">25%</text>
+        <text x="100" y="215" text-anchor="end" class="t-mono t-2">50%</text>
+        <text x="100" y="135" text-anchor="end" class="t-mono t-2">75%</text>
+        <text x="100" y="55" text-anchor="end" class="t-mono t-2">100%</text>
+        <text x="110" y="392" text-anchor="middle" class="t-mono t-2">0</text>
+        <text x="330" y="392" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="550" y="392" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="770" y="392" text-anchor="middle" class="t-mono t-2">15</text>
+        <text x="440" y="418" text-anchor="middle" class="t-sm">test users in one round</text>
+        <text x="40" y="210" text-anchor="middle" class="t-sm" transform="rotate(-90 40 210)">share of problems found</text>
+        <text x="340" y="128" class="t-sm t-pen">5 users: 84%</text>
+        <text x="342" y="262" class="t-sm t-red">5 users: 41%</text>
+        <text x="470" y="96" class="t-sm t-2">later users mostly repeat</text>
+        <text x="784" y="56" class="t-sm t-pen">L = 0.31</text>
+        <text x="784" y="74" class="t-sm t-2">Nielsen's average</text>
+        <text x="784" y="121" class="t-sm t-red">L = 0.10</text>
+        <text x="784" y="139" class="t-sm t-2">illustrative</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.3</b> The five-user model, drawn to scale from the formula 1 − (1 − <em>L</em>)<sup><em>n</em></sup>: a model, not a measurement. The solid line uses Nielsen and Landauer's average <em>L</em> of 0.31. The dashed line uses 0.10, an illustrative value for problems that only some users hit: five users then find well under half.</figcaption>
+  </figure>
+
+  <p>Read the claim with its own caveats. Nielsen's actual advice was to spend a budget of 15 users on three rounds of five, fixing what you find between rounds. When two quite different groups use a product, he suggested three or four users from each. In a 2006 follow-up, he recommended about 20 users when you need numbers, such as task times, rather than problems. And <em>L</em> is an average: a problem that only screen-reader users or only first-time visitors meet has a much lower <em>L</em> for a general group. Laura Faulkner (2003) tested 60 users and drew random groups of five from them. Some groups found 99% of the problems; others found only 55%.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Five users is a budget for one round, with one kind of user, looking for the big problems. It is not evidence that everything else is fine. If you need to know about keyboard or screen-reader users, test with them or use the procedures in the next section.</p>
+  </div>
+  <p>This week's homework is one unaided session with another team (about 1.5 hours; the script and note sheet are in the lab kit).</p>
+</section>
+
+<!-- ============ 3. ACCESSIBILITY ============ -->
+<section class="block" id="access">
+  <div class="sechead">
+    <span class="clock">0:35 – 0:55</span>
+    <h2>Keyboard, labels, focus, contrast</h2>
+  </div>
+  <p>The <strong>Web Content Accessibility Guidelines</strong> (WCAG) are the W3C's standard for accessible web content. Version 2.2 became a W3C Recommendation on 5 October 2023 and was republished with corrections on 12 December 2024. Its testable <em>success criteria</em> sit under four principles:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Principle</th><th>In plain words</th><th>On the AfterHours page</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Perceivable</strong></td><td>People can perceive the content, whatever senses they use.</td><td>Text contrast is high enough; the result of a reservation reaches a screen-reader user.</td></tr>
+        <tr><td><strong>Operable</strong></td><td>Every function works, whatever input people use.</td><td>Reserve works from a keyboard; you can see where the focus is.</td></tr>
+        <tr><td><strong>Understandable</strong></td><td>People can understand the content and how to use it.</td><td>The name field says what to type; an error says what went wrong and what to do.</td></tr>
+        <tr><td><strong>Robust</strong></td><td>Assistive technology can read it reliably.</td><td>Controls expose their name, role and state: a real <code>&lt;button&gt;</code>, a real label.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Each criterion has a level: A, AA or AAA. The laws in reading R2 all point at level AA.</p>
+
+  <div class="callout">
+    <span class="label">Two mechanisms you need first</span>
+    <ol>
+      <li><strong>The accessibility tree.</strong> The browser turns your HTML into pixels for the screen and into an accessibility tree for assistive technology. Each node has a <em>role</em> (button, text field, heading), a <em>name</em> (what it is called) and <em>states</em> (unavailable, invalid). A screen reader reads the tree, not the pixels. The name comes from the element's text, from its <code>&lt;label&gt;</code>, or from attributes such as <code>aria-label</code>.</li>
+      <li><strong>Keyboard focus.</strong> Only some elements can take focus: links, form fields, buttons, and anything given <code>tabindex</code>. Tab moves focus through them in document order. The browser draws a focus indicator around the focused element, unless the page's CSS removes it.</li>
+    </ol>
+  </div>
+
+  <p>With those two in mind, here are the six problems planted in this week's kit. Each has a mechanism you can now name.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Kit</th><th>What a person meets</th><th>The mechanism</th><th>WCAG 2.2</th></tr></thead>
+      <tbody>
+        <tr><td>K1</td><td>A keyboard user cannot reach Reserve; screen readers are given it as plain text, not a control</td><td>Reserve is a <code>&lt;div&gt;</code> with a click listener: no role, no focus, no Enter or Space</td><td>2.1.1 Keyboard (A) · 4.1.2 Name, Role, Value (A)</td></tr>
+        <tr><td>K2</td><td>The only hint, "e.g. Maya Chen", vanishes as you type; the browser gives the field that example as its name, so a screen reader announces an example instead of a label</td><td>No <code>&lt;label&gt;</code>, so the browser takes the name from the placeholder</td><td>3.3.2 Labels or Instructions (A) · 1.3.1 Info and Relationships (A)</td></tr>
+        <tr><td>K3</td><td>A keyboard user cannot see where they are</td><td><code>*:focus { outline: none; }</code> with nothing in its place</td><td>2.4.7 Focus Visible (AA)</td></tr>
+        <tr><td>K4</td><td>Time, venue and the Reserve label are hard to read</td><td>2.66:1 and 2.15:1, where 4.5:1 is needed</td><td>1.4.3 Contrast (Minimum) (AA) · 1.4.11 Non-text Contrast (AA)</td></tr>
+        <tr><td>K5</td><td>Nothing tells a screen-reader user the result of pressing Reserve</td><td>The result goes into an element that is not a live region, and it hides after 3.5 s</td><td>4.1.3 Status Messages (AA)</td></tr>
+        <tr><td>K6</td><td>People tap twice (the hook)</td><td>Feedback is far from the button, and the button keeps accepting presses</td><td>none directly: a usability failure</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill: trace the Tab path (4 minutes, no laptop)</span>
+    <p>This is the kit's markup, shortened. Write down every stop that Tab makes, in order, and what a screen reader would call each one.</p>
+<pre><code>&lt;input id="attendee" placeholder="e.g. Maya Chen"&gt;
+&lt;article class="event"&gt;
+  &lt;h2&gt;Escape Room: The Locked Lab&lt;/h2&gt;
+  &lt;div class="btn"&gt;Reserve&lt;/div&gt;
+&lt;/article&gt;
+&lt;!-- four more cards like it; the Maker Workshop's says "Full" --&gt;
+&lt;div id="toast" hidden&gt;&lt;/div&gt;</code></pre>
+    <p>Then do it again after two changes: every <code>&lt;div class="btn"&gt;</code> becomes a <code>&lt;button&gt;</code>, and the field gets <code>&lt;label for="attendee"&gt;Your name&lt;/label&gt;</code>.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer: the Tab path, before and after</summary>
+    <div class="inner">
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 540" role="img" aria-label="Two sketches of the page. Kit page: the only Tab stop is the name field, named e.g. Maya Chen; the five Reserve and Full controls are divs and are skipped, marked with red crosses, and the next Tab leaves the page. Fixed page: stop 1 is the name field, named Your name; stops 2 to 6 are the five buttons, including the Full button of the Maker Workshop, each named with its event.">
+            <defs>
+              <filter id="w9f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+              <marker id="w9f4-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+              <marker id="w9f4-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+            </defs>
+            <g filter="url(#w9f4-r)">
+              <!-- left panel: kit -->
+              <rect x="20" y="92" width="200" height="34" rx="6" class="s s-thin f-card"/>
+              <rect x="40" y="160" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="40" y="224" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="40" y="288" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="40" y="352" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="40" y="416" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="270" y="170" width="96" height="32" rx="6" class="s s-thin s-dash"/>
+              <rect x="270" y="234" width="96" height="32" rx="6" class="s s-thin s-dash"/>
+              <rect x="270" y="298" width="96" height="32" rx="6" class="s s-thin s-dash"/>
+              <rect x="270" y="362" width="96" height="32" rx="6" class="s s-thin s-dash"/>
+              <rect x="270" y="426" width="96" height="32" rx="6" class="s s-thin s-dash"/>
+              <path d="M405,179 l14,14 M419,179 l-14,14 M405,243 l14,14 M419,243 l-14,14 M405,307 l14,14 M419,307 l-14,14 M405,371 l14,14 M419,371 l-14,14 M405,435 l14,14 M419,435 l-14,14" class="s s-red s-thick"/>
+              <circle cx="244" cy="109" r="14" class="s s-pen f-pen"/>
+              <path d="M258,102 C320,90 370,72 430,62" class="s s-red" marker-end="url(#w9f4-ar)"/>
+              <!-- right panel: fixed -->
+              <rect x="500" y="92" width="200" height="34" rx="6" class="s f-card"/>
+              <rect x="520" y="160" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="520" y="224" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="520" y="288" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="520" y="352" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="520" y="416" width="340" height="52" rx="8" class="s s-thin f-card"/>
+              <rect x="750" y="170" width="96" height="32" rx="6" class="s f-pen"/>
+              <rect x="750" y="234" width="96" height="32" rx="6" class="s f-pen"/>
+              <rect x="750" y="298" width="96" height="32" rx="6" class="s f-card"/>
+              <rect x="750" y="362" width="96" height="32" rx="6" class="s f-pen"/>
+              <rect x="750" y="426" width="96" height="32" rx="6" class="s f-pen"/>
+              <circle cx="724" cy="109" r="14" class="s s-pen f-pen"/>
+              <circle cx="892" cy="186" r="14" class="s s-pen f-pen"/>
+              <circle cx="892" cy="250" r="14" class="s s-pen f-pen"/>
+              <circle cx="892" cy="314" r="14" class="s s-pen f-pen"/>
+              <circle cx="892" cy="378" r="14" class="s s-pen f-pen"/>
+              <circle cx="892" cy="442" r="14" class="s s-pen f-pen"/>
+              <path d="M738,109 C820,109 892,130 892,166" class="s s-pen" marker-end="url(#w9f4-a)"/>
+              <path d="M892,202 V230" class="s s-pen" marker-end="url(#w9f4-a)"/>
+              <path d="M892,266 V294" class="s s-pen" marker-end="url(#w9f4-a)"/>
+              <path d="M892,330 V358" class="s s-pen" marker-end="url(#w9f4-a)"/>
+              <path d="M892,394 V422" class="s s-pen" marker-end="url(#w9f4-a)"/>
+            </g>
+            <text x="20" y="36" class="t-lg">Kit page</text>
+            <text x="500" y="36" class="t-lg">Fixed page</text>
+            <text x="440" y="50" text-anchor="end" class="t-sm t-red">next Tab leaves the page</text>
+            <text x="34" y="114" class="t-sm t-2">e.g. Maya Chen</text>
+            <text x="500" y="84" class="t-sm">Your name</text>
+            <text x="244" y="114" text-anchor="middle" class="t-sm t-pen">1</text>
+            <text x="724" y="114" text-anchor="middle" class="t-sm t-pen">1</text>
+            <text x="892" y="191" text-anchor="middle" class="t-sm t-pen">2</text>
+            <text x="892" y="255" text-anchor="middle" class="t-sm t-pen">3</text>
+            <text x="892" y="319" text-anchor="middle" class="t-sm t-pen">4</text>
+            <text x="892" y="383" text-anchor="middle" class="t-sm t-pen">5</text>
+            <text x="892" y="447" text-anchor="middle" class="t-sm t-pen">6</text>
+            <text x="20" y="148" class="t-sm">1 is named "e.g. Maya Chen"</text>
+            <text x="500" y="148" class="t-sm">1 is named "Your name"</text>
+            <text x="54" y="191" class="t-sm">Escape Room</text>
+            <text x="54" y="255" class="t-sm">Silent Disco</text>
+            <text x="54" y="319" class="t-sm">Maker Workshop</text>
+            <text x="54" y="383" class="t-sm">Board Game Night</text>
+            <text x="54" y="447" class="t-sm">Open Mic</text>
+            <text x="534" y="191" class="t-sm">Escape Room</text>
+            <text x="534" y="255" class="t-sm">Silent Disco</text>
+            <text x="534" y="319" class="t-sm">Maker Workshop</text>
+            <text x="534" y="383" class="t-sm">Board Game Night</text>
+            <text x="534" y="447" class="t-sm">Open Mic</text>
+            <text x="318" y="191" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="318" y="255" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="318" y="319" text-anchor="middle" class="t-sm">Full</text>
+            <text x="318" y="383" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="318" y="447" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="798" y="191" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="798" y="255" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="798" y="319" text-anchor="middle" class="t-sm">Full</text>
+            <text x="798" y="383" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="798" y="447" text-anchor="middle" class="t-sm">Reserve</text>
+            <text x="20" y="500" class="t-sm t-red">Reserve is a &lt;div&gt;: Tab never lands on it</text>
+            <text x="20" y="522" class="t-sm t-2">and no focus ring, so even stop 1 is hard to see</text>
+            <text x="500" y="500" class="t-sm">2 is named "Reserve a place at Escape Room: The Locked Lab"</text>
+            <text x="500" y="522" class="t-sm t-2">4 stays reachable and is marked unavailable</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 9.4</b> The keyboard path through the booking flow, as Chrome's tab order and accessibility tree reported it for the kit and for the fixed page. What a particular screen reader says around these names (role, state) varies; the names are what the page supplies.</figcaption>
+      </figure>
+      <p>On the kit, the only stop is the name field, and its name is the example text. Tab never lands on a Reserve control, so a keyboard user cannot book anything. After the two changes there are six stops: the field, now called "Your name", then one button per event. The fixed page also adds hidden words to each button, so a screen-reader user who lists the buttons hears "Reserve a place at Board Game Night" rather than five identical "Reserve"s.</p>
+      <p>There is a catch. Once Reserve is a real button, a keyboard user who books a place finds focus thrown back to the page itself, because the page rebuilds every card after each reservation and destroys the focused button. That problem has been in AfterHours since Week 1; the <code>&lt;div&gt;</code>s hid it. Fixing one problem often uncovers the next.</p>
+    </div>
+  </details>
+
+  <h3>Contrast, computed</h3>
+  <p>Contrast is a ratio between two colours' <em>relative luminance</em>, a measure of brightness from 0 (black) to 1 (white). WCAG 2.2 defines it exactly: turn each red, green and blue value into a linear light value, weight them 0.2126, 0.7152 and 0.0722 (your eyes are most sensitive to green), then take (<em>L</em><sub>lighter</sub>&nbsp;+&nbsp;0.05)&nbsp;/&nbsp;(<em>L</em><sub>darker</sub>&nbsp;+&nbsp;0.05). The result runs from 1:1 to 21:1. Normal text needs at least 4.5:1. Large text (at least 18 point, or 14 point bold) and the visible parts of controls, such as a field's border or a focus ring, need 3:1.</p>
+  <p>For the kit's time and venue line, <code>#625b8a</code> on <code>#1f1a3d</code>, the luminances are 0.119 and 0.0137, so the ratio is (0.119&nbsp;+&nbsp;0.05)&nbsp;/&nbsp;(0.0137&nbsp;+&nbsp;0.05)&nbsp;=&nbsp;2.66. The kit ships <code>scripts/contrast.py</code> so you can check any pair yourself.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 400" role="img" aria-label="Bar chart of contrast ratios, kit against fixed page. Time and venue text: 2.66 to 1 on the kit, 7.59 to 1 fixed. Reserve label: 2.15 to 1 kit, 7.85 to 1 fixed. Both need 4.5 to 1. Name field border, which needs 3 to 1: 1.48 to 1 kit, 8.46 to 1 fixed.">
+        <defs>
+          <filter id="w9f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w9f5-r)">
+          <rect x="250" y="80" width="93" height="22" class="s s-red f-red"/>
+          <rect x="250" y="108" width="369" height="22" class="s s-green f-green"/>
+          <rect x="250" y="180" width="64.4" height="22" class="s s-red f-red"/>
+          <rect x="250" y="208" width="383.6" height="22" class="s s-green f-green"/>
+          <rect x="250" y="280" width="26.9" height="22" class="s s-red f-red"/>
+          <rect x="250" y="308" width="417.8" height="22" class="s s-green f-green"/>
+          <path d="M446,62 V240" class="s s-thick s-dash"/>
+          <path d="M362,262 V340" class="s s-thick s-dash"/>
+          <path d="M250,350 H866" class="s s-thin"/>
+          <path d="M250,344 V356 M362,344 V356 M446,344 V356 M586,344 V356 M754,344 V356 M866,344 V356" class="s s-thin"/>
+          <rect x="250" y="382" width="26" height="12" class="s s-thin s-red f-red"/>
+          <rect x="430" y="382" width="26" height="12" class="s s-thin s-green f-green"/>
+        </g>
+        <text x="20" y="100" class="t-sm">time · venue text</text>
+        <text x="20" y="118" class="t-sm t-2">needs 4.5:1</text>
+        <text x="20" y="200" class="t-sm">Reserve label</text>
+        <text x="20" y="218" class="t-sm t-2">needs 4.5:1</text>
+        <text x="20" y="300" class="t-sm">name field border</text>
+        <text x="20" y="318" class="t-sm t-2">needs 3:1</text>
+        <text x="240" y="96" text-anchor="end" class="t-sm t-2">kit</text>
+        <text x="240" y="124" text-anchor="end" class="t-sm t-2">fixed</text>
+        <text x="240" y="196" text-anchor="end" class="t-sm t-2">kit</text>
+        <text x="240" y="224" text-anchor="end" class="t-sm t-2">fixed</text>
+        <text x="240" y="296" text-anchor="end" class="t-sm t-2">kit</text>
+        <text x="240" y="324" text-anchor="end" class="t-sm t-2">fixed</text>
+        <text x="352" y="96" class="t-mono t-red">2.66:1</text>
+        <text x="628" y="124" class="t-mono t-green">7.59:1</text>
+        <text x="324" y="196" class="t-mono t-red">2.15:1</text>
+        <text x="642" y="224" class="t-mono t-green">7.85:1</text>
+        <text x="286" y="296" class="t-mono t-red">1.48:1</text>
+        <text x="676" y="324" class="t-mono t-green">8.46:1</text>
+        <text x="446" y="54" text-anchor="middle" class="t-sm">4.5:1 line</text>
+        <text x="372" y="274" class="t-sm">3:1 line</text>
+        <text x="250" y="372" text-anchor="middle" class="t-mono t-2">1</text>
+        <text x="362" y="372" text-anchor="middle" class="t-mono t-2">3</text>
+        <text x="446" y="372" text-anchor="middle" class="t-mono t-2">4.5</text>
+        <text x="586" y="372" text-anchor="middle" class="t-mono t-2">7</text>
+        <text x="754" y="372" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="866" y="372" text-anchor="middle" class="t-mono t-2">12:1</text>
+        <text x="284" y="393" class="t-sm">kit (planted)</text>
+        <text x="464" y="393" class="t-sm">fixed page</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.5</b> Contrast ratios on the kit and the fixed page, drawn to scale on a linear axis that stops at 12:1 (the maximum possible is 21:1). Computed from the colours the browser reported. The fixes change colours only, not layout.</figcaption>
+  </figure>
+
+  <h3>Live regions</h3>
+  <p>A screen reader reads what has focus, or what the user moves to. A message that appears somewhere else on the page is silent unless it is in a <strong>live region</strong>: an element whose changes the screen reader announces without moving focus. <code>role="status"</code> makes a polite one, announced when the screen reader finishes what it is saying. The region has to exist before the message arrives. MDN's advice is to put it, empty, in the page's initial markup, then change its text. That is why Week 1's toast, which had <code>role="status"</code> but was hidden until it appeared together with its text, was a weak design even before this week's kit removed the role.</p>
+
+  <h3>Manual procedures, named combinations</h3>
+  <p>None of this shows up in a test run. The kit's 9 passing tests say nothing about focus, names, contrast or announcements, and 900 backend tests would say nothing either: they send HTTP requests and never press Tab or listen. In the lab you check each problem with a manual procedure on a named combination:</p>
+  <ul>
+    <li><strong>Keyboard only</strong> in Chrome or Firefox (127 or newer), on any system.</li>
+    <li><strong>VoiceOver with Safari</strong> on macOS (built in; Command-F5 turns it on).</li>
+    <li><strong>NVDA with Firefox</strong> on Windows (NVDA is free and open source).</li>
+  </ul>
+  <p>Name the combination in your evidence. Screen readers and browsers differ, so "it works" means "it works on this combination". In WebAIM's survey of 1,539 screen-reader users (December 2023 to January 2024), the most common pairings were JAWS with Chrome (24.7%) and NVDA with Chrome (21.3%); NVDA with Firefox was 10.0% and VoiceOver with Safari 7.0%. We support the two free combinations. That is a teaching choice, and it covers a minority of real users.</p>
+
+  <h3>What an agent saw</h3>
+  <p>We gave Codex (gpt-6-astra) a bounded task, as in Lecture 1: audit the kit page for problems that would stop or mislead a keyboard user, a screen-reader user, someone with low vision, or anyone on a slow connection; do not edit anything; mark each claim as verified or inferred. Its full answer is in <code>lectures/09-quality-for-people/demo/agent-audit.md</code>.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>The agent reported</th><th>Our check</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>All six planted problems, K1 to K6, with file:line references and the right criteria</td><td>Each confirmed in Chrome</td><td><span class="tag ok">verified by us</span></td></tr>
+        <tr><td>Five real problems we had not planted, such as the programme failing to load with no message</td><td>Four reproduced on the kit; one confirmed by reading the server code</td><td><span class="tag ok">verified by us</span></td></tr>
+        <tr><td>"Verified" results for the double tap and the error paths</td><td>It ran the page's code against a stub in Node.js, not in a browser. It said so</td><td><span class="tag maybe">weaker than it sounds</span></td></tr>
+        <tr><td>It could not check real keyboard behaviour, focus rings or screen-reader speech: no browser was available</td><td>True; the sandbox had none</td><td><span class="tag ok">verified</span></td></tr>
+        <tr><td>Nothing about focus being thrown away after a reservation (K7)</td><td>Hidden behind K1 until Reserve is a real button</td><td><span class="tag bad">missed</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>An agent is a fast, useful first reader of a page. It still cannot see the ring, hear the announcement or feel the wait. It said as much itself, and the evidence has to come from a person on a named combination.</p>
+</section>
+
+<!-- ============ 4. STATES ============ -->
+<section class="block" id="states">
+  <div class="sechead">
+    <span class="clock">0:55 – 1:10</span>
+    <h2>Design every state</h2>
+  </div>
+  <p>A request can end in more ways than "success" and "error". List the situations a person can be in after pressing Reserve:</p>
+  <ul>
+    <li><strong>Ready</strong>: nothing is happening yet.</li>
+    <li><strong>Reserving</strong>: the request is on its way.</li>
+    <li><strong>Still reserving</strong>: the wait is longer than usual.</li>
+    <li><strong>Reserved</strong>: HTTP 201, with a reservation number.</li>
+    <li><strong>Refused</strong>: HTTP 409, the event filled up.</li>
+    <li><strong>Name missing</strong>: the page caught it before sending.</li>
+    <li><strong>Not sent</strong>: the device is offline, so nothing left it.</li>
+    <li><strong>Unknown</strong>: the connection failed after the request left, or the server answered with a 5xx error. The page cannot know whether the server saved a reservation.</li>
+  </ul>
+  <p><strong>Designing a state</strong> means deciding four things for it: what the button shows, what the message says, what a screen reader hears, and where keyboard focus is. The same list works for the programme itself: loading, loaded, empty, and failed to load.</p>
+  <p>Here is Lecture 1's Patch A again. You judged it against the race. Now judge it from Maya's side.</p>
+
+  <div class="patches">
+    <article class="patch">
+      <header><strong>Patch A · Disable the button</strong><span>app/static/index.html · from Lecture 1</span></header>
+<pre class="diff"><span class="ctx">  const attendee = document.getElementById("attendee").value.trim();</span><span class="ctx">  …</span><span class="add">+ // Stop a second click while the first request is still on its way.</span><span class="add">+ button.disabled = true;</span><span class="add">+ button.textContent = "Reserving…";</span><span class="ctx">  const res = await fetch(`/api/events/${ev.id}/reservations`, { … });</span><span class="ctx">  if (res.status === 201) { … toast("You're in! …") }</span><span class="ctx">  …</span><span class="ctx">  await load();   // rebuilds every event card from the server's list</span></pre>
+      <footer>pytest: 7 passed</footer>
+    </article>
+  </div>
+
+  <div class="callout try">
+    <span class="label">Patch A from Maya's side (pairs, 8 minutes)</span>
+    <ol>
+      <li>Which of the eight states above did Patch A design? Which did it leave to chance?</li>
+      <li>The network drops just after Maya presses Reserve, so <code>fetch</code> fails. What does she see a minute later?</li>
+      <li>A keyboard user presses Enter on Reserve and the reservation succeeds. Where is keyboard focus afterwards?</li>
+      <li>For the <strong>Unknown</strong> state, write the message you would show, and say what Maya should do.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: what Patch A does, and every state designed</summary>
+    <div class="inner">
+      <p>Patch A designed two states, <em>Ready</em> and <em>Reserving</em>, and it does stop the double tap it was written for. We ran the Week 1 page with Patch A in Chrome for the rest:</p>
+      <ul>
+        <li><strong>Network drop:</strong> <code>fetch</code> throws, the error escapes the function, and nothing resets the button. It says "Reserving…" and stays disabled until the page is reloaded, with no message. A spinner that lies, forever.</li>
+        <li><strong>Keyboard focus:</strong> after a successful reservation, <code>load()</code> replaces every card, including the focused button. Focus falls back to the page body. A screen-reader user loses their place.</li>
+      </ul>
+
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 1000 560" role="img" aria-label="State machine for pressing Reserve. From Ready: tap with no name goes to Name missing; tap while offline goes to Not sent; tap goes to Reserving. Reserving moves to Still reserving after 2 seconds; a second tap while waiting is ignored. From waiting: 201 goes to Reserved, You're in, 228; 409 goes to Refused, the event is full so this request booked nothing, and anyone who tried earlier without a clear answer should check at the festival desk; no answer or a 5xx goes to Unknown, we can't tell if it worked, pressing again could book twice. Afterwards the button is ready again, or shows Full, and the message stays on the card. Patch A drew only Ready and Reserving.">
+            <defs>
+              <filter id="w9f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+              <marker id="w9f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+            </defs>
+            <g filter="url(#w9f6-r)">
+              <rect x="285" y="45" width="225" height="265" rx="14" class="s s-thin s-dash s-2"/>
+              <rect x="30" y="220" width="170" height="74" rx="12" class="s f-card"/>
+              <rect x="300" y="220" width="195" height="74" rx="12" class="s s-pen f-pen"/>
+              <rect x="292" y="60" width="211" height="100" rx="12" class="s s-pen f-pen"/>
+              <rect x="640" y="30" width="330" height="74" rx="12" class="s s-green f-green"/>
+              <rect x="640" y="134" width="330" height="90" rx="12" class="s s-red f-red"/>
+              <rect x="640" y="250" width="330" height="94" rx="12" class="s s-thick f-mark"/>
+              <rect x="30" y="400" width="230" height="90" rx="12" class="s f-card"/>
+              <rect x="300" y="400" width="260" height="90" rx="12" class="s f-card"/>
+              <path d="M202,257 H296" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M397,218 V164" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M430,296 C432,345 490,345 478,300" class="s s-thin" marker-end="url(#w9f6-a)"/>
+              <path d="M512,120 C570,120 590,67 636,67" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M512,185 C570,185 590,177 636,177" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M512,265 C570,265 590,297 636,297" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M115,296 V396" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M185,296 C220,340 300,360 340,396" class="s" marker-end="url(#w9f6-a)"/>
+              <path d="M805,346 V530 H14 V257 H26" class="s s-thin s-dash" marker-end="url(#w9f6-a)"/>
+            </g>
+            <text x="30" y="206" class="t-sm t-red">Patch A drew only Ready and Reserving</text>
+            <text x="115" y="252" text-anchor="middle"><tspan font-weight="700">Ready</tspan></text>
+            <text x="115" y="276" text-anchor="middle" class="t-sm">button: Reserve</text>
+            <text x="397" y="252" text-anchor="middle"><tspan font-weight="700">Reserving</tspan></text>
+            <text x="397" y="276" text-anchor="middle" class="t-sm">"Reserving…" on the button</text>
+            <text x="397" y="92" text-anchor="middle"><tspan font-weight="700">Still reserving</tspan></text>
+            <text x="397" y="116" text-anchor="middle" class="t-sm">"Still waiting for confirmation.</text>
+            <text x="397" y="136" text-anchor="middle" class="t-sm">You don't need to press again."</text>
+            <text x="805" y="62" text-anchor="middle"><tspan font-weight="700">Reserved</tspan></text>
+            <text x="805" y="86" text-anchor="middle" class="t-sm">"You're in! Reservation #228."</text>
+            <text x="805" y="160" text-anchor="middle"><tspan font-weight="700">Refused</tspan></text>
+            <text x="805" y="184" text-anchor="middle" class="t-sm">"Full, so this request booked nothing.</text>
+            <text x="805" y="206" text-anchor="middle" class="t-sm">Tried earlier? Check at the desk."</text>
+            <text x="805" y="280" text-anchor="middle" class="t-mark"><tspan font-weight="700">Unknown</tspan></text>
+            <text x="805" y="304" text-anchor="middle" class="t-sm t-mark">"We can't tell if it worked.</text>
+            <text x="805" y="326" text-anchor="middle" class="t-sm t-mark">Pressing again could book twice."</text>
+            <text x="145" y="432" text-anchor="middle"><tspan font-weight="700">Name missing</tspan></text>
+            <text x="145" y="456" text-anchor="middle" class="t-sm">"Type your name first."</text>
+            <text x="145" y="476" text-anchor="middle" class="t-sm">focus moves to the field</text>
+            <text x="430" y="432" text-anchor="middle"><tspan font-weight="700">Not sent</tspan></text>
+            <text x="430" y="456" text-anchor="middle" class="t-sm">"You're offline, so nothing</text>
+            <text x="430" y="476" text-anchor="middle" class="t-sm">was sent."</text>
+            <text x="249" y="248" text-anchor="middle" class="t-sm">tap</text>
+            <text x="407" y="196" class="t-sm">after 2 s</text>
+            <text x="488" y="344" class="t-sm t-2">tap again: ignored</text>
+            <text x="548" y="98" class="t-mono">201</text>
+            <text x="552" y="176" class="t-mono">409</text>
+            <text x="522" y="254" class="t-sm">no answer · 5xx</text>
+            <text x="123" y="352" class="t-sm">tap, no name</text>
+            <text x="240" y="330" class="t-sm">tap, offline</text>
+            <text x="420" y="36" text-anchor="middle" class="t-sm t-2">waiting</text>
+            <text x="500" y="520" text-anchor="middle" class="t-sm t-2">then the button is ready again (or shows Full); the message stays on the card</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 9.6</b> Every state of pressing Reserve on the fixed page, with the message for each. The dashed box groups the two waiting states: a second press there does nothing. Patch A designed the two states on the left; the rest were left to chance.</figcaption>
+      </figure>
+
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>State</th><th>Button</th><th>Status region text (what a screen reader should announce)</th><th>Keyboard focus</th></tr></thead>
+          <tbody>
+            <tr><td>Reserving</td><td>spinner and "Reserving…", marked unavailable</td><td>"Reserving a place at Escape Room: The Locked Lab…"</td><td>stays on the button</td></tr>
+            <tr><td>Still reserving</td><td>unchanged; a note appears on the card after 2 s</td><td>"Still waiting for confirmation. You don't need to press again."</td><td>stays</td></tr>
+            <tr><td>Reserved · Refused · Unknown</td><td>"Reserve" again, or "Full"</td><td>the same words as the message on the card</td><td>stays on the same button</td></tr>
+            <tr><td>Not sent</td><td>"Reserve"</td><td>"You're offline, so nothing was sent. Reconnect, then press Reserve."</td><td>stays</td></tr>
+            <tr><td>Name missing</td><td>"Reserve"</td><td>the field's label, "invalid", and the error text</td><td>moves to the name field</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The <strong>Unknown</strong> message on the fixed page is: <q>We didn't get a clear answer, so we can't tell whether your place was reserved. Pressing Reserve again could book a second place. Please check at the festival desk.</q> It is honest and not very helpful, and that is the best a page can do when the server cannot make a retry safe.</p>
+      <div class="callout key">
+        <span class="label">Key idea</span>
+        <p>You can only write "please try again" when trying again is safe. In Week 6 you made retries safe on the server with an idempotency key. This kit starts from the Week 1 code, which has none, so its honest message is a warning. With Week 6's key underneath, the same state could say "Try again".</p>
+      </div>
+      <p>One more limit: disabling the button, or ignoring a second press as the fixed page does, stops <em>this page</em> from sending twice. It does nothing about a second tab or a network retry. The page's guard is a courtesy to the user; the server's key is the guarantee.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 5. WAIT ============ -->
+<section class="block" id="wait">
+  <div class="sechead">
+    <span class="clock">1:10 – 1:25</span>
+    <h2>How a wait feels</h2>
+  </div>
+  <p>How long can a wait be before it hurts? The most cited answer is Jakob Nielsen's three limits (1993), which he drew from earlier research by Robert Miller (1968) and by Stuart Card, George Robertson and Jock Mackinlay (1991):</p>
+  <ul>
+    <li><strong>0.1 second</strong> is about the limit for the system to feel as if it reacts instantaneously. No special feedback is needed beyond showing the result.</li>
+    <li><strong>1 second</strong> is about the limit for the user's flow of thought to stay uninterrupted, although they notice the delay.</li>
+    <li><strong>10 seconds</strong> is about the limit for keeping their attention on the task. Longer operations need a percent-done indicator, and his 2014 update adds a clearly signposted way to interrupt.</li>
+  </ul>
+  <p>He adds that feedback during a delay matters most when the response time is likely to vary a lot. A payment check that usually takes 0.3 s and sometimes 3 s is exactly that case.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Log-scale time axis from 1 millisecond to 30 seconds, split into four bands at 0.1, 1 and 10 seconds: feels instant; delay noticed, thought not broken; attention held, needs feedback; attention wanders. AfterHours on one laptop: the API lists events in 1 millisecond; the fixed button's text changes within 0.05 seconds; the API reserves in 0.31 seconds; the still-waiting note appears at 2 seconds; the slow-payment setting takes 3.0 seconds; Patch C in a rush took 5.3 seconds.">
+        <defs>
+          <filter id="w9f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w9f7-r)">
+          <rect x="70" y="40" width="370" height="262" class="f-green"/>
+          <rect x="440" y="40" width="185" height="262" class="f-card"/>
+          <rect x="625" y="40" width="185" height="262" class="f-pen"/>
+          <rect x="810" y="40" width="88" height="262" class="f-red"/>
+          <path d="M70,40 H898 V302 H70 Z" class="s s-thin"/>
+          <path d="M440,40 V302 M625,40 V302 M810,40 V302" class="s s-dash"/>
+          <path d="M70,210 H898" class="s s-thin s-2"/>
+          <path d="M680.7,216 V228 M384.3,216 V228 M759.6,216 V274" class="s s-thin s-2"/>
+          <circle cx="77.7" cy="210" r="6" class="s f-penink"/>
+          <circle cx="384.3" cy="210" r="6" class="s f-penink"/>
+          <circle cx="530.1" cy="210" r="6" class="s f-penink"/>
+          <circle cx="680.7" cy="210" r="6" class="s f-penink"/>
+          <circle cx="713.3" cy="210" r="6" class="s f-penink"/>
+          <circle cx="759.6" cy="210" r="6" class="s f-redink"/>
+          <path d="M530.1,204 V196 M713.3,204 V160" class="s s-thin s-2"/>
+          <path d="M70,330 H898" class="s s-thin"/>
+          <path d="M70,324 V336 M255,324 V336 M440,324 V336 M625,324 V336 M810,324 V336" class="s s-thin"/>
+        </g>
+        <text x="255" y="66" text-anchor="middle" class="t-sm"><tspan font-weight="700">under 0.1 s</tspan></text>
+        <text x="255" y="86" text-anchor="middle" class="t-sm">feels instant</text>
+        <text x="532" y="66" text-anchor="middle" class="t-sm"><tspan font-weight="700">0.1 to 1 s</tspan></text>
+        <text x="532" y="86" text-anchor="middle" class="t-sm">delay noticed,</text>
+        <text x="532" y="104" text-anchor="middle" class="t-sm">thought not broken</text>
+        <text x="717" y="66" text-anchor="middle" class="t-sm"><tspan font-weight="700">1 to 10 s</tspan></text>
+        <text x="717" y="86" text-anchor="middle" class="t-sm">attention held,</text>
+        <text x="717" y="104" text-anchor="middle" class="t-sm">needs feedback</text>
+        <text x="854" y="66" text-anchor="middle" class="t-sm"><tspan font-weight="700">over 10 s</tspan></text>
+        <text x="854" y="86" text-anchor="middle" class="t-sm">attention</text>
+        <text x="854" y="104" text-anchor="middle" class="t-sm">wanders</text>
+        <text x="80" y="146" class="t-sm t-pen">AfterHours on one laptop</text>
+        <text x="86" y="196" class="t-sm">API: list events, 1 ms</text>
+        <text x="432" y="250" text-anchor="end" class="t-sm">fixed button's text</text>
+        <text x="432" y="268" text-anchor="end" class="t-sm">changes: ≤ 0.05 s</text>
+        <text x="530" y="176" text-anchor="middle" class="t-sm">API: reserve</text>
+        <text x="530" y="192" text-anchor="middle" class="t-sm">0.31 s</text>
+        <text x="680" y="250" text-anchor="middle" class="t-sm">"still waiting"</text>
+        <text x="680" y="268" text-anchor="middle" class="t-sm">note at 2 s</text>
+        <text x="713" y="140" text-anchor="middle" class="t-sm">slow-payment</text>
+        <text x="713" y="156" text-anchor="middle" class="t-sm">setting: 3.0 s</text>
+        <text x="798" y="292" text-anchor="end" class="t-sm">Patch C, rush: 5.3 s</text>
+        <text x="70" y="354" text-anchor="middle" class="t-mono t-2">1 ms</text>
+        <text x="255" y="354" text-anchor="middle" class="t-mono t-2">10 ms</text>
+        <text x="440" y="354" text-anchor="middle" class="t-mono t-2">0.1 s</text>
+        <text x="625" y="354" text-anchor="middle" class="t-mono t-2">1 s</text>
+        <text x="810" y="354" text-anchor="middle" class="t-mono t-2">10 s</text>
+        <text x="484" y="388" text-anchor="middle" class="t-sm t-2">time (log scale: each tick is ten times longer)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.7</b> Nielsen's three limits on a log scale, with AfterHours times placed to scale. The two API points are HTTP round trips from a Python client on the same laptop (median of 20, three runs): they leave out the browser's own work and drawing the screen, so a person waits a little longer. The button point is the first 50 ms sample in which the fixed button's text had changed. 3.0 s is the slow-payment setting from the hook; 5.3 s is the slowest API answer under Patch C in Lecture 1's <code>rush.py</code>.</figcaption>
+  </figure>
+
+  <p>Four habits turn the limits into design:</p>
+  <ul>
+    <li><strong>Acknowledge within 0.1 s, where the person is looking.</strong> The fixed page changes the button's own text within 0.05 s of the tap. The kit's spinner was fast too, but in the header, far from the finger.</li>
+    <li><strong>For waits over a second, say what is happening.</strong> Nielsen Norman Group's guidance (Sherwin, 2014) is a looped animation for waits of about 2 to 10 seconds and a percent-done indicator for 10 seconds or more.</li>
+    <li><strong>Don't pretend.</strong> A fake progress bar, or showing "You're in!" before the server confirms (so-called optimistic UI), makes a wait feel shorter. For a "like" that is fine. For a reservation it is a promise the server might not keep: the spinner that lies, the other way round.</li>
+    <li><strong>Make it actually faster when the wait is yours to fix.</strong> Measure first (Week 11).</li>
+  </ul>
+  <div class="callout try">
+    <span class="label">Pick the feedback (pairs, 4 minutes)</span>
+    <p>For each wait, choose what the page shows and when: nothing special, a change on the control, a looped animation with words, or a percent-done indicator with a way to cancel.</p>
+    <ol>
+      <li>Loading the programme on crowded festival Wi-Fi: suppose about 2 seconds.</li>
+      <li>Reserving: usually 0.3 s, sometimes 3 s.</li>
+      <li>An organiser exporting all 2,000 reservations as a spreadsheet: suppose about 20 seconds.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: feedback for three waits</summary>
+    <div class="inner">
+      <ul>
+        <li><strong>Programme, about 2 s:</strong> show where the list will be ("Loading the programme…") with a looped animation, and keep the last good list if a refresh fails. Tell a screen reader the area is busy (<code>aria-busy</code>) rather than announcing every card.</li>
+        <li><strong>Reserving, 0.3 to 3 s:</strong> change the button within 0.1 s every time, because you cannot know in advance which wait this will be. After about 2 s, add words that say only what the page knows: still waiting for confirmation, no need to press again.</li>
+        <li><strong>Export, about 20 s:</strong> beyond the attention limit. A percent-done indicator (the server knows how many rows it has written), a way to cancel, and ideally "we'll email it when it's ready" so the organiser can leave.</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Describe one moment in your team's AfterHours where a person's belief and the system's state can differ. What should the screen say at that moment?</li>
+        <li>A teammate says: "All the tests pass, so the booking page is accessible." Describe one check that could prove them wrong: the combination, what you do, and what you would expect to observe.</li>
+        <li>Name one thing you are still unsure about after today.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 10</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Beyond the booking page</h2>
+  <p>Four short readings. The first two widen the view: who gains from accessible design, and what the law asks. The last two go deeper into the craft: writing error messages, and knowing what each kind of check can see. Read them before the lab.</p>
+</div>
+
+<section class="block" id="curb">
+  <div class="sechead"><span class="clock">R1</span><h2>The curb-cut effect</h2></div>
+  <p>A curb cut is the small ramp where a pavement meets the road. Disabled people fought for them. One evening in the early 1970s, activists in Berkeley, California, poured cement into a crude ramp at a curb; in 1972, pressed by disabled activists, the city installed its first official curb cut on Telegraph Avenue. The idea was older. In Kalamazoo, Michigan, test ramps were built in 1945, and a March 1946 letter to the mayor, quoted in Steven Brown's 1999 history of those ramps, says they gave <q>disabled veterans, disabled non-veterans, aged and infirm persons and mothers with baby carriages more freedom of movement</q>.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 330" role="img" aria-label="A pavement with a curb cut in the middle. A wheelchair user, for whom it was built, uses it, and so do a parent with a stroller, a traveller with a suitcase, a worker with a cart and a skateboarder.">
+        <defs>
+          <filter id="w9f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w9f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w9f8-r)">
+          <path d="M20,212 H380 L440,252 H500 L560,212 H880 V262 H20 Z" class="s f-card"/>
+          <path d="M380,212 L440,252 H500 L560,212" class="s s-thick f-mark"/>
+          <path d="M20,284 H880" class="s s-thin s-2"/>
+          <!-- wheelchair -->
+          <circle cx="120" cy="186" r="22" class="s"/>
+          <circle cx="156" cy="202" r="6" class="s"/>
+          <path d="M104,140 V176 H150 L156,196 M104,176 L100,196" class="s"/>
+          <circle cx="116" cy="112" r="10" class="s"/>
+          <path d="M116,122 L114,158 L140,160 L144,184" class="s"/>
+          <!-- stroller -->
+          <path d="M236,160 H296 L290,184 H242 Z M240,160 A28,28 0 0 1 268,132 V160 M296,160 L312,136" class="s"/>
+          <circle cx="248" cy="198" r="8" class="s"/>
+          <circle cx="284" cy="198" r="8" class="s"/>
+          <!-- suitcase -->
+          <rect x="452" y="200" width="30" height="42" rx="4" class="s"/>
+          <path d="M458,200 V178 H476 V200" class="s"/>
+          <circle cx="458" cy="246" r="4" class="s"/>
+          <circle cx="476" cy="246" r="4" class="s"/>
+          <!-- cart -->
+          <rect x="620" y="152" width="56" height="40" class="s"/>
+          <path d="M676,152 L696,130" class="s"/>
+          <circle cx="630" cy="202" r="8" class="s"/>
+          <circle cx="666" cy="202" r="8" class="s"/>
+          <!-- skateboard -->
+          <path d="M770,196 Q772,204 780,204 H830 Q838,204 840,196" class="s"/>
+          <circle cx="786" cy="210" r="4" class="s"/>
+          <circle cx="824" cy="210" r="4" class="s"/>
+          <path d="M470,110 C470,150 470,160 470,172" class="s s-pen" marker-end="url(#w9f8-a)"/>
+        </g>
+        <text x="470" y="96" text-anchor="middle" class="t-sm t-pen">the curb cut</text>
+        <text x="120" y="310" text-anchor="middle" class="t-sm"><tspan font-weight="700">wheelchair users</tspan></text>
+        <text x="120" y="80" text-anchor="middle" class="t-sm t-pen">built for them</text>
+        <text x="270" y="310" text-anchor="middle" class="t-sm">parents with strollers</text>
+        <text x="470" y="310" text-anchor="middle" class="t-sm">travellers with luggage</text>
+        <text x="650" y="310" text-anchor="middle" class="t-sm">workers with carts</text>
+        <text x="805" y="310" text-anchor="middle" class="t-sm">skateboarders</text>
+        <text x="650" y="96" text-anchor="middle" class="t-sm t-2">and then nearly everyone used it</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.8</b> The curb-cut effect. A change made for one group turns out to help many others, including people nobody had in mind.</figcaption>
+  </figure>
+
+  <p>In a 2017 essay, Angela Glover Blackwell gave the pattern a name. Laws and programmes designed for vulnerable groups, she argued, often end up benefiting everyone: <q>I like to think of it as the 'curb-cut effect'.</q> When the curbs came down, parents with strollers, workers pushing heavy carts, travellers with luggage, runners and skateboarders all headed for the ramps.</p>
+  <p>Software has its own curb cuts. Keyboard access helps power users and anyone whose trackpad has just died. Captions help people on a noisy train. A clear message next to the button, saying what is happening, helps everyone on crowded festival Wi-Fi: the fix for K6 is for Maya, whoever she is.</p>
+  <div class="callout key">
+    <span class="label">A caveat worth keeping</span>
+    <p>The curb-cut effect is a reason to expect wider benefits. It is not a condition for doing the work. Access is owed to disabled people whether or not anyone else gains from it.</p>
+  </div>
+</section>
+
+<section class="block" id="law">
+  <div class="sechead"><span class="clock">R2</span><h2>The law differs by country</h2></div>
+  <p>Many countries have accessibility laws, and many of them point to WCAG, often an older version, as the technical yardstick. The details differ by country, by sector and over time. Three examples, checked in September 2026 (this is not legal advice):</p>
+  <ul>
+    <li><strong>United States, federal agencies.</strong> The Section 508 standards incorporate WCAG 2.0 Level A and AA, and have applied since 18 January 2018.</li>
+    <li><strong>United States, state and local government.</strong> A 2024 Department of Justice rule under the Americans with Disabilities Act (Title II) adopted WCAG 2.1 Level AA. In April 2026 the department pushed the compliance dates back by a year, to 26 April 2027 for larger public entities and 26 April 2028 for smaller ones.</li>
+    <li><strong>European Union.</strong> The European Accessibility Act (Directive 2019/882) applies from 28 June 2025 to many products and services sold to consumers, including e-commerce; microenterprises providing services are exempt. The European standard EN 301 549 v3.2.1, based on WCAG 2.1 AA, remains the reference. Version 4.1.1, aligned with WCAG 2.2, was published in September 2026 and is not yet cited in the EU's Official Journal.</li>
+  </ul>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 360" role="img" aria-label="Three WCAG versions in the middle column: 2.0, 2.1 and 2.2. US federal agencies under Section 508 point to WCAG 2.0 AA. US state and local government under the ADA Title II rule point to WCAG 2.1 AA. The EU European Accessibility Act points to EN 301 549 version 3.2.1, which is based on WCAG 2.1; version 4.1.1, based on WCAG 2.2, is published but not yet cited.">
+        <defs>
+          <filter id="w9f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w9f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w9f9-r)">
+          <rect x="370" y="60" width="160" height="56" rx="10" class="s f-pen"/>
+          <rect x="370" y="160" width="160" height="56" rx="10" class="s f-pen"/>
+          <rect x="370" y="260" width="160" height="56" rx="10" class="s f-pen"/>
+          <rect x="20" y="60" width="290" height="66" rx="6" class="s f-card"/>
+          <rect x="20" y="160" width="290" height="86" rx="6" class="s f-card"/>
+          <rect x="600" y="40" width="280" height="66" rx="6" class="s f-card"/>
+          <rect x="600" y="160" width="280" height="56" rx="6" class="s f-card"/>
+          <rect x="600" y="260" width="280" height="66" rx="6" class="s s-dash f-card"/>
+          <path d="M312,90 H366" class="s" marker-end="url(#w9f9-a)"/>
+          <path d="M312,194 H366" class="s" marker-end="url(#w9f9-a)"/>
+          <path d="M740,108 V156" class="s" marker-end="url(#w9f9-a)"/>
+          <path d="M598,188 H534" class="s" marker-end="url(#w9f9-a)"/>
+          <path d="M598,290 H534" class="s s-dash" marker-end="url(#w9f9-a)"/>
+        </g>
+        <text x="450" y="30" text-anchor="middle" class="t-sm t-2">the technical standard (W3C)</text>
+        <text x="450" y="94" text-anchor="middle" class="t-lg">WCAG 2.0</text>
+        <text x="450" y="194" text-anchor="middle" class="t-lg">WCAG 2.1</text>
+        <text x="450" y="294" text-anchor="middle" class="t-lg">WCAG 2.2</text>
+        <text x="34" y="86" class="t-sm"><tspan font-weight="700">US federal agencies</tspan></text>
+        <text x="34" y="108" class="t-sm">Section 508 · A and AA · since 2018</text>
+        <text x="34" y="186" class="t-sm"><tspan font-weight="700">US state and local government</tspan></text>
+        <text x="34" y="208" class="t-sm">ADA Title II rule (2024) · AA</text>
+        <text x="34" y="230" class="t-sm">due April 2027 or April 2028</text>
+        <text x="614" y="66" class="t-sm"><tspan font-weight="700">EU: European Accessibility Act</tspan></text>
+        <text x="614" y="88" class="t-sm">applies from 28 June 2025</text>
+        <text x="614" y="194" class="t-sm">EN 301 549 v3.2.1 · the reference</text>
+        <text x="614" y="286" class="t-sm">EN 301 549 v4.1.1 · Sept 2026</text>
+        <text x="614" y="308" class="t-sm t-2">published, not yet cited</text>
+        <text x="20" y="345" class="t-sm t-2">September 2026 · dates and versions move · not legal advice</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.9</b> One technical standard, many legal wrappers. Each law or standard picks a WCAG version and level, often not the newest. The dashed box is published but not yet the legal reference.</figcaption>
+  </figure>
+
+  <p>Two practical lessons. First, the rules move: the US dates above changed this year, and the EU's reference standard is changing. Check the current rules for where your product is used before you rely on them. Second, WCAG 2.2 keeps the 2.0 and 2.1 criteria essentially unchanged, with one exception (4.1.1 Parsing, removed as obsolete), so building to 2.2 AA is a sound engineering target even where the law names an older version.</p>
+</section>
+
+<section class="block" id="errors">
+  <div class="sechead"><span class="clock">R3</span><h2>Writing error messages</h2></div>
+  <p>An error message is a state you designed, or one you left to chance. WCAG 2.2 sets a minimum: if an input error is detected automatically, the item in error is identified and the error is described in text (3.3.1, level A), and where a fix is known, it is suggested (3.3.3, level AA). A good message does more than that. It answers three questions in the person's words: what happened, what it means for them, and what to do next.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 420" role="img" aria-label="Two message cards. Before, from the kit, shown when the request fails or the answer is not 201 or 409: Something went wrong. Please try again. Red notes ask: what went wrong, with what? Is trying again safe? Do I have a place? After, from the fixed page: We didn't get a clear answer, so we can't tell whether your place was reserved, marked what happened. Pressing Reserve again could book a second place, marked what it means for you. Please check at the festival desk, marked what to do next.">
+        <defs>
+          <filter id="w9f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w9f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w9f10-r)">
+          <rect x="20" y="40" width="520" height="80" rx="10" class="s s-red f-red"/>
+          <path d="M604,66 H548" class="s s-thin s-red" marker-end="url(#w9f10-a)"/>
+          <path d="M604,90 H548" class="s s-thin s-red" marker-end="url(#w9f10-a)"/>
+          <path d="M604,114 H548" class="s s-thin s-red" marker-end="url(#w9f10-a)"/>
+          <rect x="20" y="176" width="620" height="170" rx="10" class="s s-green f-green"/>
+          <path d="M656,192 H666 V242 H656 M656,258 H666 V286 H656 M656,300 H666 V328 H656" class="s s-pen"/>
+        </g>
+        <text x="20" y="28" class="t-sm t-2">before: the kit, when the request fails or the answer is not 201 or 409</text>
+        <text x="40" y="88" class="t-lg">Something went wrong. Please try again.</text>
+        <text x="610" y="70" class="t-sm t-red">What went wrong? With what?</text>
+        <text x="610" y="94" class="t-sm t-red">Is trying again safe?</text>
+        <text x="610" y="118" class="t-sm t-red">Do I have a place?</text>
+        <text x="20" y="164" class="t-sm t-2">after: the fixed page, when the outcome is unknown</text>
+        <text x="40" y="212">We didn't get a clear answer, so we can't tell whether</text>
+        <text x="40" y="236">your place was reserved.</text>
+        <text x="40" y="278">Pressing Reserve again could book a second place.</text>
+        <text x="40" y="320">Please check at the festival desk.</text>
+        <text x="676" y="222" class="t-sm t-pen">what happened</text>
+        <text x="676" y="277" class="t-sm t-pen">what it means for you</text>
+        <text x="676" y="319" class="t-sm t-pen">what to do next</text>
+        <text x="20" y="390" class="t-sm t-2">With a safe retry on the server (Week 6), the last line could honestly be "Try again".</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.10</b> The anatomy of an error message. The kit's catch-all message is short and gives advice that can book Maya twice. The fixed page's message answers the three questions, and is honest about what the page cannot know.</figcaption>
+  </figure>
+
+  <ul>
+    <li><strong>Use the person's words.</strong> "HTTP 500" and "invalid input" describe the system. "Type your name first, then press Reserve" describes the task.</li>
+    <li><strong>Make the next step safe.</strong> Only suggest trying again if trying again cannot do harm.</li>
+    <li><strong>Put it where they are looking, and leave it there.</strong> Next to the field or the button, not in a corner; not gone after 3.5 seconds; and in a live region, so a screen-reader user hears it (4.1.3).</li>
+    <li><strong>Don't blame, and don't lose their work.</strong> Keep what they typed. Move focus to the field that needs fixing, and link the message to the field so a screen reader reads both.</li>
+  </ul>
+</section>
+
+<section class="block" id="checkers">
+  <div class="sechead"><span class="clock">R4</span><h2>What each check can see</h2></div>
+  <p>Automated accessibility checkers read a page's structure and computed styles and apply rules to them. They are cheap and fast, and they find a lot. Each year WebAIM runs its checker over the home pages of the top million websites. In the February 2026 run, 95.9% of home pages had detected WCAG 2 failures; low-contrast text was the most common, on 83.9% of pages, and 51% of pages had form inputs with no label. WebAIM also warns: <q>Absence of detected errors does not indicate that a page is accessible or conformant.</q></p>
+  <p>We ran one such checker, axe-core 4.13, on the kit page in Chrome. It flagged the low-contrast text (K4) and nothing else. It accepted the placeholder as the field's name (K2). It cannot tell that a <code>&lt;div&gt;</code> with a click listener is meant to be a button (K1). It does not press Tab (K3, K7), wait for an announcement (K5) or tap twice (K6).</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 440" role="img" aria-label="A grid of the seven kit problems against six kinds of check. Measured: pytest found none; axe-core found only K4, low contrast; the agent reading the code found K1 to K6 but not K7. By design of the procedure: the keyboard pass finds K1, K3 and K7; the screen-reader pass finds K1, K2, K5, K6 and K7; a usability session can expose K6, K2 and K4, but only if a participant happens to meet them.">
+        <defs>
+          <filter id="w9f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w9f11-r)">
+          <path d="M20,98 H880 M20,140 H880 M20,182 H880 M20,224 H880 M20,266 H880 M20,308 H880 M20,350 H880 M20,392 H880" class="s s-thin s-2"/>
+          <path d="M545,20 V392" class="s s-dash"/>
+          <!-- axe: K4 -->
+          <circle cx="390" cy="245" r="9" class="s f-ink"/>
+          <!-- agent: K1-K6 -->
+          <circle cx="490" cy="119" r="9" class="s f-ink"/>
+          <circle cx="490" cy="161" r="9" class="s f-ink"/>
+          <circle cx="490" cy="203" r="9" class="s f-ink"/>
+          <circle cx="490" cy="245" r="9" class="s f-ink"/>
+          <circle cx="490" cy="287" r="9" class="s f-ink"/>
+          <circle cx="490" cy="329" r="9" class="s f-ink"/>
+          <!-- keyboard: K1 K3 K7 -->
+          <circle cx="600" cy="119" r="9" class="s s-pen f-penink"/>
+          <circle cx="600" cy="203" r="9" class="s s-pen f-penink"/>
+          <circle cx="600" cy="371" r="9" class="s s-pen f-penink"/>
+          <!-- screen reader: K1 K2 K5 K6 K7 -->
+          <circle cx="710" cy="119" r="9" class="s s-pen f-penink"/>
+          <circle cx="710" cy="161" r="9" class="s s-pen f-penink"/>
+          <circle cx="710" cy="287" r="9" class="s s-pen f-penink"/>
+          <circle cx="710" cy="329" r="9" class="s s-pen f-penink"/>
+          <circle cx="710" cy="371" r="9" class="s s-pen f-penink"/>
+          <!-- usability: K6 sure, K2 K4 maybe -->
+          <circle cx="820" cy="329" r="9" class="s s-pen"/>
+          <circle cx="820" cy="161" r="9" class="s s-pen"/>
+          <circle cx="820" cy="245" r="9" class="s s-pen"/>
+        </g>
+        <text x="390" y="18" text-anchor="middle" class="t-sm t-2">measured on the kit</text>
+        <text x="712" y="18" text-anchor="middle" class="t-sm t-2">by design of the procedure</text>
+        <text x="290" y="56" text-anchor="middle" class="t-sm">pytest</text>
+        <text x="290" y="76" text-anchor="middle" class="t-sm t-2">9 passed</text>
+        <text x="390" y="56" text-anchor="middle" class="t-sm">axe-core</text>
+        <text x="390" y="76" text-anchor="middle" class="t-sm t-2">4.13 scan</text>
+        <text x="490" y="56" text-anchor="middle" class="t-sm">agent</text>
+        <text x="490" y="76" text-anchor="middle" class="t-sm t-2">reading code</text>
+        <text x="600" y="56" text-anchor="middle" class="t-sm">keyboard</text>
+        <text x="600" y="76" text-anchor="middle" class="t-sm t-2">pass</text>
+        <text x="710" y="56" text-anchor="middle" class="t-sm">screen</text>
+        <text x="710" y="76" text-anchor="middle" class="t-sm t-2">reader pass</text>
+        <text x="820" y="56" text-anchor="middle" class="t-sm">usability</text>
+        <text x="820" y="76" text-anchor="middle" class="t-sm t-2">session</text>
+        <text x="20" y="124" class="t-sm">K1 div "buttons"</text>
+        <text x="20" y="166" class="t-sm">K2 no label</text>
+        <text x="20" y="208" class="t-sm">K3 no visible focus</text>
+        <text x="20" y="250" class="t-sm">K4 low contrast</text>
+        <text x="20" y="292" class="t-sm">K5 silent results</text>
+        <text x="20" y="334" class="t-sm">K6 ambiguous wait</text>
+        <text x="20" y="376" class="t-sm">K7 focus thrown away</text>
+        <text x="290" y="124" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="166" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="208" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="250" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="292" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="334" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="290" y="376" text-anchor="middle" class="t-sm t-2">none</text>
+        <text x="20" y="424" class="t-sm t-2">filled dot: finds it · hollow dot: only if a participant happens to meet it</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 9.11</b> What each check can see on the kit. The left three columns were measured this week: <code>pytest</code> found nothing, axe-core found the low-contrast text only, and the agent found the six planted problems by reading but not K7. The right three show what each manual procedure in the lab is designed to catch, which is why the lab asks for more than one. A usability session exposes a problem only when a participant happens to meet it.</figcaption>
+  </figure>
+
+  <p>Use each check for what it can see. Tests guard the promises the server keeps. Checkers give cheap, early warnings on every change. An agent is a fast first reader with good suggestions. People on named combinations, and people who have never seen your page, tell you what it is like to use it.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>System state vs user belief</dt><dd>What the system holds, and what a person thinks happened. Quality problems live in the gap.</dd>
+    <dt>Usability test</dt><dd>Watching a real person try a realistic task, without help, to find where the design fails them.</dd>
+    <dt>Think-aloud</dt><dd>The participant says what they look at, expect and wonder while they work.</dd>
+    <dt>WCAG 2.2</dt><dd>The W3C's Web Content Accessibility Guidelines, version 2.2 (Recommendation, 5 October 2023): success criteria at levels A, AA and AAA under four principles.</dd>
+    <dt>Accessibility tree</dt><dd>The browser's model of the page for assistive technology: each node has a role, a name and states.</dd>
+    <dt>Accessible name</dt><dd>What assistive technology calls an element, taken from its text, its label, or ARIA attributes.</dd>
+    <dt>Focus indicator</dt><dd>The visible mark, usually a ring, around the element that keyboard input will go to.</dd>
+    <dt>Contrast ratio</dt><dd>(L<sub>lighter</sub> + 0.05) / (L<sub>darker</sub> + 0.05), from 1:1 to 21:1. Normal text needs 4.5:1; large text and control edges need 3:1.</dd>
+    <dt>Live region</dt><dd>An element whose changes a screen reader announces without moving focus, such as <code>role="status"</code>.</dd>
+    <dt>Screen reader</dt><dd>Software that reads the accessibility tree aloud or in braille. Here: VoiceOver (macOS) and NVDA (Windows).</dd>
+    <dt>Unknown outcome</dt><dd>The state where the page cannot tell whether the server acted, because the answer never arrived.</dd>
+    <dt>Response-time limits</dt><dd>About 0.1 s (feels instant), 1 s (flow kept) and 10 s (attention kept), after Nielsen (1993).</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>W3C, "Web Content Accessibility Guidelines (WCAG) 2.2", W3C Recommendation, 5 October 2023; updated 12 December 2024. <a href="https://www.w3.org/TR/WCAG22/">w3.org/TR/WCAG22</a> · "What's New in WCAG 2.2". <a href="https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/">w3.org/WAI</a></li>
+    <li>Jakob Nielsen, "Why You Only Need to Test with 5 Users", Nielsen Norman Group, 18 March 2000. <a href="https://www.nngroup.com/articles/why-you-only-need-to-test-with-5-users/">nngroup.com</a></li>
+    <li>Jakob Nielsen and Thomas K. Landauer, "A mathematical model of the finding of usability problems", <em>Proceedings of INTERCHI '93</em>, pp. 206–213. <a href="https://doi.org/10.1145/169059.169166">doi:10.1145/169059.169166</a></li>
+    <li>Jakob Nielsen, "Quantitative Studies: How Many Users to Test?", Nielsen Norman Group, 26 June 2006. <a href="https://www.nngroup.com/articles/quantitative-studies-how-many-users/">nngroup.com</a></li>
+    <li>Laura Faulkner, "Beyond the five-user assumption: Benefits of increased sample sizes in usability testing", <em>Behavior Research Methods, Instruments, &amp; Computers</em> 35(3), 2003, pp. 379–383. <a href="https://pubmed.ncbi.nlm.nih.gov/14587545/">PubMed</a></li>
+    <li>Jakob Nielsen, "Response Times: The 3 Important Limits", Nielsen Norman Group, 1993 (excerpt from <em>Usability Engineering</em>; updated 2014). <a href="https://www.nngroup.com/articles/response-times-3-important-limits/">nngroup.com</a> · It cites Robert B. Miller, "Response time in man-computer conversational transactions", AFIPS Fall Joint Computer Conference, 1968 (<a href="https://doi.org/10.1145/1476589.1476628">doi</a>), and Card, Robertson and Mackinlay, "The information visualizer, an information workspace", CHI '91 (<a href="https://doi.org/10.1145/108844.108874">doi</a>).</li>
+    <li>Katie Sherwin, "Progress Indicators Make a Slow System Less Insufferable", Nielsen Norman Group, 26 October 2014. <a href="https://www.nngroup.com/articles/progress-indicators/">nngroup.com</a></li>
+    <li>MDN Web Docs, "ARIA live regions". <a href="https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Guides/Live_regions">developer.mozilla.org</a></li>
+    <li>WebAIM, "Screen Reader User Survey #10 Results" (survey December 2023 to January 2024). <a href="https://webaim.org/projects/screenreadersurvey10/">webaim.org</a></li>
+    <li>WebAIM, "The WebAIM Million", 2026 report. <a href="https://webaim.org/projects/million/">webaim.org</a></li>
+    <li>Angela Glover Blackwell, "The Curb-Cut Effect", <em>Stanford Social Innovation Review</em> 15(1), Winter 2017. <a href="https://ssir.org/articles/entry/the_curb_cut_effect">ssir.org</a></li>
+    <li>Steven E. Brown, "The Curb Ramps of Kalamazoo: Discovering Our Unrecorded History", <em>Disability Studies Quarterly</em>, 1999; reprinted by the Independent Living Institute. <a href="https://www.independentliving.org/docs3/brown99a.html">independentliving.org</a></li>
+    <li>US Access Board, "Information and Communication Technology" (Section 508 standards). <a href="https://www.access-board.gov/ict/">access-board.gov</a></li>
+    <li>US Department of Justice, ADA Title II web and mobile accessibility rule (2024) <a href="https://www.ada.gov/resources/2024-03-08-web-rule/">ada.gov</a> · Interim final rule extending the compliance dates, <em>Federal Register</em>, 20 April 2026. <a href="https://www.federalregister.gov/documents/2026/04/20/2026-07663/">federalregister.gov</a></li>
+    <li>Directive (EU) 2019/882 (European Accessibility Act). <a href="https://eur-lex.europa.eu/eli/dir/2019/882/oj">eur-lex.europa.eu</a> · AccessibleEU, on EN 301 549 v4.1.1, 7 September 2026. <a href="https://accessible-eu-centre.ec.europa.eu/content-corner/news/european-accessibility-standard-en-301-549-has-been-updated-2026-09-07_en">accessible-eu-centre.ec.europa.eu</a></li>
+    <li>Tools: Apple, VoiceOver User Guide <a href="https://support.apple.com/guide/voiceover/welcome/mac">support.apple.com</a> · NV Access, NVDA User Guide <a href="https://download.nvaccess.org/documentation/userGuide.html">nvaccess.org</a> · Mozilla, Accessibility Inspector <a href="https://firefox-source-docs.mozilla.org/devtools-user/accessibility_inspector/index.html">firefox-source-docs.mozilla.org</a> and Firefox 127 release notes <a href="https://www.mozilla.org/en-US/firefox/127.0/releasenotes/">mozilla.org</a> · Deque, axe-core <a href="https://github.com/dequelabs/axe-core">github.com</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="08-security.html">← Lecture 8: Security Follows Authority</a>
+  <span><a href="../index.html">Course home</a> · Build It. Prove It. Own It. · Lecture 9</span>
+  <a href="10-many-hands.html">Lecture 10: Many Hands, One System →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+<script>
+/* Figures scroll sideways on narrow screens. A scrolling figure becomes a keyboard stop
+   (Tab to it, then use the arrow keys), and only while it actually scrolls. */
+(function () {
+  var frames = document.querySelectorAll("figure.sketch .canvas");
+  function update() {
+    for (var i = 0; i < frames.length; i++) {
+      var frame = frames[i];
+      if (frame.scrollWidth > frame.clientWidth + 1) {
+        var b = frame.parentNode.querySelector("figcaption b");
+        frame.setAttribute("tabindex", "0");
+        frame.setAttribute("role", "group");
+        frame.setAttribute("aria-label", (b ? b.textContent : "Figure") + ", scrolls sideways");
+      } else {
+        frame.removeAttribute("tabindex");
+        frame.removeAttribute("role");
+        frame.removeAttribute("aria-label");
+      }
+    }
+  }
+  update();
+  window.addEventListener("resize", update);
+  var reveals = document.querySelectorAll("details");
+  for (var j = 0; j < reveals.length; j++) reveals[j].addEventListener("toggle", update);
+})();
+</script>
+</body>
+</html>

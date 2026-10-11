@@ -1,0 +1,10 @@
+{
+  "about": "What the concierge must meet before it ships (lab task A5). The team wrote this before comparing configs. Latency and cost lines are checked against the recordings in replay mode, which checks the files, not the system.",
+  "min_runs_per_case": 3,
+  "min_mean_score": 0.85,
+  "max_hard_failures": 0,
+  "max_format_errors": 0,
+  "must_pass_every_run": ["c13"],
+  "max_p95_latency_ms": 3000,
+  "max_cost_per_1000_usd": 10.0
+}

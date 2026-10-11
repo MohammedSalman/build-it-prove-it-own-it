@@ -1,0 +1,442 @@
+commit f4ad62121ae7b2f5d0b43695c99fdf5c6203f376
+Author: agent-a (Codex CLI, gpt-6-astra) <agent-a@example.invalid>
+Date:   Sun Sep 27 22:19:47 2026 +0300
+
+    Agent A (Codex): implement 'Add a waitlist...' request, uncommitted work captured verbatim by course team
+
+diff --git a/README.md b/README.md
+index 8dbe81d..db041d3 100644
+--- a/README.md
++++ b/README.md
+@@ -28,6 +28,22 @@ Open http://127.0.0.1:8000, type a name, and reserve a place. The escape room st
+ The app creates `afterhours.db` next to where you run it. Delete that file to start over
+ with fresh seed data.
+ 
++Full events show **Join waitlist**. Enter your name to join and see your position.
++Waitlist entries persist across restarts, do not use a place, and do not authorize
++payment. Joining again with the same name returns the same entry and position.
++Names are trimmed and case-sensitive; as with reservations, there are no accounts.
++People with an existing reservation cannot join that event's waitlist.
++
++`POST /api/events/{event_id}/waitlist` accepts `{"attendee": "Maya"}` and returns
++HTTP 201 with `id`, `event_id`, `attendee`, and a one-based `position` (including on
++retries). Positions follow the order entries are saved. Unknown events return 404;
++events with available places and attendees already reserved return 409. Invalid
++names return 422. Event responses include the `waitlisted` count.
++
++Startup adds the waitlist table to existing databases without resetting data.
++This version records the queue only; it does not offer cancellation, notifications,
++or automatic promotion into reservations.
++
+ ## Test it
+ 
+ ```bash
+@@ -68,6 +84,7 @@ To test concurrency inside pytest, use `tests/helpers.py` (see its docstring).
+ app/
+   main.py           HTTP routes
+   reservations.py   the reservation rule
++  waitlist.py       joining full events' waitlists
+   db.py             connections, schema, seed data
+   payments.py       payment simulation
+   schema.sql        tables
+diff --git a/app/main.py b/app/main.py
+index d0c74e4..c0a75aa 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -6,12 +6,13 @@ Then open http://127.0.0.1:8000
+ 
+ import logging
+ from pathlib import Path
++from typing import Annotated
+ 
+ from fastapi import FastAPI, HTTPException
+ from fastapi.responses import FileResponse
+-from pydantic import BaseModel, Field
++from pydantic import BaseModel, Field, StringConstraints
+ 
+-from . import db, reservations
++from . import db, reservations, waitlist
+ 
+ STATIC = Path(__file__).with_name("static")
+ 
+@@ -31,12 +32,13 @@ class NewEvent(BaseModel):
+ 
+ 
+ class ReservationRequest(BaseModel):
+-    attendee: str = Field(min_length=1, max_length=80)
++    attendee: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+ 
+ 
+ EVENT_SQL = """
+     SELECT e.id, e.title, e.venue, e.starts_at, e.capacity,
+-           COUNT(r.id) AS reserved
++           COUNT(r.id) AS reserved,
++           (SELECT COUNT(*) FROM waitlist w WHERE w.event_id = e.id) AS waitlisted
+     FROM events e LEFT JOIN reservations r ON r.event_id = e.id
+ """
+ 
+@@ -50,6 +52,7 @@ def _event_json(row) -> dict:
+         "capacity": row["capacity"],
+         "reserved": row["reserved"],
+         "places_left": row["capacity"] - row["reserved"],
++        "waitlisted": row["waitlisted"],
+     }
+ 
+ 
+@@ -102,6 +105,17 @@ def create_app() -> FastAPI:
+         except reservations.SoldOut:
+             raise HTTPException(409, "Sorry, this event is full")
+ 
++    @app.post("/api/events/{event_id}/waitlist", status_code=201)
++    def join_waitlist(event_id: int, body: ReservationRequest):
++        try:
++            return waitlist.join(event_id, body.attendee)
++        except reservations.EventNotFound:
++            raise HTTPException(404, "No such event")
++        except waitlist.EventNotFull:
++            raise HTTPException(409, "Places are still available. Reserve a place instead.")
++        except waitlist.AlreadyReserved:
++            raise HTTPException(409, "You already have a reservation for this event.")
++
+     return app
+ 
+ 
+diff --git a/app/schema.sql b/app/schema.sql
+index b7fbe70..aa1119e 100644
+--- a/app/schema.sql
++++ b/app/schema.sql
+@@ -12,3 +12,11 @@ CREATE TABLE IF NOT EXISTS reservations (
+     attendee   TEXT    NOT NULL,
+     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+ );
++
++CREATE TABLE IF NOT EXISTS waitlist (
++    id         INTEGER PRIMARY KEY,
++    event_id   INTEGER NOT NULL REFERENCES events(id),
++    attendee   TEXT    NOT NULL,
++    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
++    UNIQUE (event_id, attendee)
++);
+diff --git a/app/static/index.html b/app/static/index.html
+index 1f83a93..68dc329 100644
+--- a/app/static/index.html
++++ b/app/static/index.html
+@@ -69,7 +69,7 @@
+ 
+   <div class="who">
+     <label for="attendee">Your name</label>
+-    <input id="attendee" autocomplete="name" placeholder="e.g. Maya Chen">
++    <input id="attendee" autocomplete="name" maxlength="80" placeholder="e.g. Maya Chen">
+   </div>
+ 
+   <section class="events" id="events" aria-live="polite"></section>
+@@ -102,7 +102,7 @@ function render(ev) {
+   const card = document.createElement("article");
+   card.className = "event";
+   const left = ev.places_left;
+-  const leftText = left <= 0 ? "Full" : left === 1 ? "1 place left!" : `${left} places left`;
++  const leftText = left <= 0 ? `Full · ${ev.waitlisted} on waitlist` : left === 1 ? "1 place left!" : `${left} places left`;
+   const leftClass = left <= 0 ? "none" : left === 1 ? "last" : "";
+   const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+   card.innerHTML = `
+@@ -114,32 +114,47 @@ function render(ev) {
+   card.querySelector("h2").textContent = ev.title;
+   card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+   const button = card.querySelector("button");
+-  button.disabled = left <= 0;
+-  button.addEventListener("click", () => reserve(ev, button));
++  button.textContent = left <= 0 ? "Join waitlist" : "Reserve";
++  button.addEventListener("click", () => reserve(ev, button, left <= 0));
+   return card;
+ }
+ 
+-async function reserve(ev, button) {
++async function reserve(ev, button, joinWaitlist) {
+   const attendee = document.getElementById("attendee").value.trim();
+   if (!attendee) {
+-    toast("Type your name first, then press Reserve.", true);
++    toast("Type your name first, then choose an event.", true);
+     document.getElementById("attendee").focus();
+     return;
+   }
+-  const res = await fetch(`/api/events/${ev.id}/reservations`, {
+-    method: "POST",
+-    headers: { "Content-Type": "application/json" },
+-    body: JSON.stringify({ attendee }),
+-  });
+-  if (res.status === 201) {
+-    const r = await res.json();
+-    toast(`You're in! Reservation #${r.id} for ${ev.title}.`);
+-  } else if (res.status === 409) {
+-    toast("Sorry, that event just filled up.", true);
+-  } else {
+-    toast("Something went wrong. Please try again.", true);
++  button.disabled = true;
++  try {
++    const action = joinWaitlist ? "waitlist" : "reservations";
++    const res = await fetch(`/api/events/${ev.id}/${action}`, {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ attendee }),
++    });
++    if (res.status === 201) {
++      const r = await res.json();
++      toast(joinWaitlist
++        ? `You're #${r.position} on the waitlist for ${ev.title}. This is not a reservation.`
++        : `You're in! Reservation #${r.id} for ${ev.title}.`);
++    } else if (res.status === 409) {
++      const error = await res.json();
++      toast(joinWaitlist ? error.detail : "That event just filled up. You can now join its waitlist.", true);
++    } else {
++      toast("Something went wrong. Please try again.", true);
++    }
++  } catch {
++    toast("Couldn't connect. Please try again.", true);
++  } finally {
++    button.disabled = false;
++  }
++  try {
++    await load();
++  } catch {
++    // Keep the action's result visible; existing buttons remain usable.
+   }
+-  await load();
+ }
+ 
+ load();
+diff --git a/app/waitlist.py b/app/waitlist.py
+new file mode 100644
+index 0000000..9769733
+--- /dev/null
++++ b/app/waitlist.py
+@@ -0,0 +1,58 @@
++"""Join a full event's waitlist without reserving or authorizing payment."""
++
++from . import db
++from .reservations import EventNotFound
++
++
++class EventNotFull(Exception):
++    pass
++
++
++class AlreadyReserved(Exception):
++    pass
++
++
++def join(event_id: int, attendee: str) -> dict:
++    """Return a stable entry and its position, ordered by insertion ID.
++
++    Repeated joins by the same attendee return their existing entry. Serialize
++    checks and insertion with reservations and other joins using SQLite's lock.
++    """
++    conn = db.connect()
++    try:
++        conn.execute("BEGIN IMMEDIATE")
++        event = db.query_one(conn, "SELECT capacity FROM events WHERE id = ?", (event_id,))
++        if event is None:
++            raise EventNotFound(event_id)
++        if db.query_one(
++            conn, "SELECT id FROM reservations WHERE event_id = ? AND attendee = ?",
++            (event_id, attendee),
++        ):
++            raise AlreadyReserved(event_id)
++        taken = db.query_one(
++            conn, "SELECT COUNT(*) AS n FROM reservations WHERE event_id = ?", (event_id,)
++        )["n"]
++        if taken < event["capacity"]:
++            raise EventNotFull(event_id)
++
++        conn.execute(
++            "INSERT INTO waitlist (event_id, attendee) VALUES (?, ?) "
++            "ON CONFLICT (event_id, attendee) DO NOTHING",
++            (event_id, attendee),
++        )
++        entry = dict(db.query_one(
++            conn, "SELECT id, event_id, attendee FROM waitlist WHERE event_id = ? AND attendee = ?",
++            (event_id, attendee),
++        ))
++        entry["position"] = db.query_one(
++            conn, "SELECT COUNT(*) AS n FROM waitlist WHERE event_id = ? AND id <= ?",
++            (event_id, entry["id"]),
++        )["n"]
++        conn.execute("COMMIT")
++        return entry
++    except BaseException:
++        if conn.in_transaction:
++            conn.execute("ROLLBACK")
++        raise
++    finally:
++        conn.close()
+diff --git a/tests/test_waitlist.py b/tests/test_waitlist.py
+new file mode 100644
+index 0000000..8393323
+--- /dev/null
++++ b/tests/test_waitlist.py
+@@ -0,0 +1,166 @@
++import sqlite3
++
++import pytest
++
++from app import db, payments
++from app.main import create_app
++
++from .conftest import event_by_title
++from .helpers import at_the_same_time, hold_everyone_at_payment
++
++WORKSHOP = "Maker Workshop: Solder Your Own Badge"
++ESCAPE_ROOM = "Escape Room: The Locked Lab"
++
++
++def join(client, event_id, attendee):
++    return client.post(f"/api/events/{event_id}/waitlist", json={"attendee": attendee})
++
++
++def test_join_full_event_without_payment_or_using_capacity(client, monkeypatch):
++    def unexpected_payment(attendee):
++        pytest.fail("Joining a waitlist must not authorize payment")
++
++    monkeypatch.setattr(payments, "authorize", unexpected_payment)
++    event = event_by_title(client, WORKSHOP)
++    response = join(client, event["id"], "Maya")
++    assert response.status_code == 201
++    assert response.json() == {
++        "id": response.json()["id"], "event_id": event["id"], "attendee": "Maya", "position": 1,
++    }
++    after = client.get(f"/api/events/{event['id']}").json()
++    assert after["reserved"] == event["reserved"] == event["capacity"]
++    assert after["places_left"] == 0
++    assert after["waitlisted"] == 1
++    assert event_by_title(client, WORKSHOP) == after
++
++
++def test_positions_and_retries_survive_app_restart(client):
++    event = event_by_title(client, WORKSHOP)
++    first = join(client, event["id"], "Maya").json()
++    second = join(client, event["id"], "Sam").json()
++    assert [first["position"], second["position"]] == [1, 2]
++    create_app()
++    retry = join(client, event["id"], " Maya ")
++    assert retry.status_code == 201
++    assert retry.json() == first
++    assert event_by_title(client, WORKSHOP)["waitlisted"] == 2
++
++
++def test_cannot_join_before_event_is_full(client):
++    event = event_by_title(client, ESCAPE_ROOM)
++    response = join(client, event["id"], "Maya")
++    assert response.status_code == 409
++    assert "still available" in response.json()["detail"]
++    assert event_by_title(client, ESCAPE_ROOM)["waitlisted"] == 0
++    assert client.post(
++        f"/api/events/{event['id']}/reservations", json={"attendee": "Sam"}
++    ).status_code == 201
++    assert join(client, event["id"], "Maya").status_code == 201
++
++
++def test_unknown_event(client):
++    assert join(client, 9999, "Maya").status_code == 404
++
++
++@pytest.mark.parametrize("body", [{}, {"attendee": ""}, {"attendee": " \t "},
++                                      {"attendee": "x" * 81}, {"attendee": None}])
++def test_invalid_name(client, body):
++    event = event_by_title(client, WORKSHOP)
++    assert client.post(f"/api/events/{event['id']}/waitlist", json=body).status_code == 422
++    assert event_by_title(client, WORKSHOP)["waitlisted"] == 0
++
++
++def test_existing_reservation_cannot_join_waitlist(client):
++    event = event_by_title(client, ESCAPE_ROOM)
++    assert client.post(
++        f"/api/events/{event['id']}/reservations", json={"attendee": " Maya "}
++    ).status_code == 201
++    response = join(client, event["id"], "Maya")
++    assert response.status_code == 409
++    assert "already have a reservation" in response.json()["detail"]
++    assert event_by_title(client, ESCAPE_ROOM)["waitlisted"] == 0
++
++
++def test_each_event_has_its_own_queue(client):
++    workshop = event_by_title(client, WORKSHOP)
++    escape = event_by_title(client, ESCAPE_ROOM)
++    client.post(f"/api/events/{escape['id']}/reservations", json={"attendee": "Lee"})
++    assert join(client, workshop["id"], "Maya").json()["position"] == 1
++    assert join(client, workshop["id"], "Sam").json()["position"] == 2
++    assert join(client, escape["id"], "Sam").json()["position"] == 1
++    assert event_by_title(client, WORKSHOP)["waitlisted"] == 2
++    assert event_by_title(client, ESCAPE_ROOM)["waitlisted"] == 1
++
++
++def test_concurrent_joins_get_unique_positions(client):
++    event = event_by_title(client, WORKSHOP)
++    names = [f"Attendee {i}" for i in range(10)]
++    outcomes = at_the_same_time(lambda name: join(client, event["id"], name), names)
++    assert all(getattr(r, "status_code", None) == 201 for r in outcomes.values()), outcomes
++    assert sorted(r.json()["position"] for r in outcomes.values()) == list(range(1, 11))
++    assert len({r.json()["id"] for r in outcomes.values()}) == 10
++    after = event_by_title(client, WORKSHOP)
++    assert after["waitlisted"] == 10
++    assert after["reserved"] == after["capacity"]
++
++
++def test_concurrent_retries_save_one_entry(client):
++    event = event_by_title(client, WORKSHOP)
++    outcomes = at_the_same_time(
++        lambda _: join(client, event["id"], "Maya"), [f"request {i}" for i in range(10)]
++    )
++    assert all(getattr(r, "status_code", None) == 201 for r in outcomes.values()), outcomes
++    entries = [r.json() for r in outcomes.values()]
++    assert all(entry == entries[0] for entry in entries)
++    assert entries[0]["position"] == 1
++    assert event_by_title(client, WORKSHOP)["waitlisted"] == 1
++
++
++def test_last_seat_race_loser_can_explicitly_join_waitlist(client, monkeypatch):
++    event = event_by_title(client, ESCAPE_ROOM)
++    hold_everyone_at_payment(monkeypatch, people=2)
++
++    def book_or_join(name):
++        response = client.post(
++            f"/api/events/{event['id']}/reservations", json={"attendee": name}
++        )
++        if response.status_code == 409:
++            queued = join(client, event["id"], name)
++            assert queued.status_code == 201
++            return "waitlisted", queued.json()
++        assert response.status_code == 201
++        return "reserved", response.json()
++
++    outcomes = at_the_same_time(book_or_join, ["Maya", "Sam"])
++    assert all(isinstance(result, tuple) for result in outcomes.values()), outcomes
++    assert sorted(result[0] for result in outcomes.values()) == ["reserved", "waitlisted"]
++    after = event_by_title(client, ESCAPE_ROOM)
++    assert after["reserved"] == after["capacity"]
++    assert after["waitlisted"] == 1
++
++
++def test_initialization_upgrades_existing_database_without_losing_data(tmp_path):
++    path = str(tmp_path / "legacy.db")
++    conn = sqlite3.connect(path)
++    try:
++        conn.executescript("""
++            CREATE TABLE events (
++                id INTEGER PRIMARY KEY, title TEXT NOT NULL, venue TEXT NOT NULL,
++                starts_at TEXT NOT NULL, capacity INTEGER NOT NULL CHECK (capacity > 0)
++            );
++            CREATE TABLE reservations (
++                id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL REFERENCES events(id),
++                attendee TEXT NOT NULL,
++                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
++            );
++            INSERT INTO events VALUES (1, 'Legacy event', 'Quad', '2026-10-09T20:00', 1);
++            INSERT INTO reservations (event_id, attendee) VALUES (1, 'Maya');
++        """)
++        before = conn.execute("SELECT * FROM reservations").fetchall()
++        db.init_db(path)
++        db.init_db(path)
++        assert conn.execute("SELECT * FROM reservations").fetchall() == before
++        assert conn.execute("SELECT title FROM events").fetchall() == [("Legacy event",)]
++        assert conn.execute("SELECT COUNT(*) FROM waitlist").fetchone() == (0,)
++    finally:
++        conn.close()

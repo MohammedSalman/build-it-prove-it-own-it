@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build It. Prove It. Own It.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="assets/course.css">
+<style>
+  .home { display: grid; gap: 72px; }
+  .home > section { display: grid; gap: 20px; }
+  .home > section > p { max-width: var(--measure); }
+  .triad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .triad article {
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 10px; padding: 16px 18px;
+    display: grid; gap: 6px; align-content: start;
+  }
+  .triad .op { font: 700 1.6rem/1 var(--hand); color: var(--pen); }
+  .triad p { color: var(--ink-2); font-size: 0.95rem; }
+  .triad em { color: var(--ink); font-style: normal; font-weight: 600; }
+  .weeks td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .weeks td:nth-child(2) { font-weight: 600; min-width: 13em; }
+  .weeks tr.ready td { background: var(--green-soft); }
+  .weeks a { font-weight: 600; }
+  .policy { max-width: var(--measure); padding-left: 1.2em; display: grid; gap: 6px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px; justify-self: start;
+    background: var(--ink); color: var(--paper); text-decoration: none; font-weight: 600;
+    padding: 12px 18px; border-radius: 10px;
+  }
+  .cta:hover { background: var(--pen); color: var(--paper); }
+  @media (max-width: 720px) { .triad { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Course">
+    <a href="lectures/01-code-is-cheap.html">Lecture 1</a>
+    <span>Lectures ready: 15 of 15</span>
+  </nav>
+</header>
+
+<div class="frame">
+<div class="home">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">A 14-week course in software engineering with coding agents</p>
+  <h1 id="page-title">Build It. Prove It. Own It.</h1>
+  <p class="lede">Coding agents make code cheap. They do not make software cheap: the right thing, built correctly, safe to run, and changeable by the next person. This course teaches the engineering that turns cheap code into software people can rely on.</p>
+  <div class="facts">
+    <span class="fact">Year 2–3 undergraduates</span>
+    <span class="fact">14 weeks · lecture + lab</span>
+    <span class="fact">Python · FastAPI · SQLite</span>
+  </div>
+  <a class="cta" href="lectures/01-code-is-cheap.html">Start with Lecture 1: Code Is Cheap. Software Isn't. →</a>
+</section>
+
+<section>
+  <h2>The course rule</h2>
+  <div class="callout key">
+    <p><strong>Every important claim about the software needs evidence. Every consequential decision needs an accountable human.</strong></p>
+  </div>
+  <p>Agents remove much of what Fred Brooks called the <em>accidental</em> difficulty of programming: syntax, boilerplate, API lookup, glue code. The <em>essential</em> work stays the engineer's responsibility, even when an agent helps with it: deciding what to build, the concepts and rules, the trade-offs, the argument that it is correct, and running it for real people. So the course teaches classic software engineering as the control system for agents. Specifications steer them, architecture contains them, tests and review judge them, permissions limit what they can break, and a person owns the result.</p>
+</section>
+
+<section>
+  <h2>The course map</h2>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 610" role="img" aria-label="The engineering loop: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand, with a named human owner in the centre. Dashed feedback arrows run from Verify and from Observe back to Specify. Each step lists the course weeks that strengthen it.">
+        <defs>
+          <filter id="h-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="h-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="h-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g transform="translate(20,0)">
+          <g filter="url(#h-r)">
+            <path class="s" marker-end="url(#h-a)" d="M527.1,99.2 A232,232 0 0 1 594.2,136.3"/>
+            <path class="s" marker-end="url(#h-a)" d="M655.7,210.6 A232,232 0 0 1 681.6,332.0"/>
+            <path class="s" marker-end="url(#h-a)" d="M664.1,407.4 A232,232 0 0 1 606.2,489.6"/>
+            <path class="s" marker-end="url(#h-a)" d="M473.1,548.8 A232,232 0 0 1 426.9,548.8"/>
+            <path class="s" marker-end="url(#h-a)" d="M293.8,489.6 A232,232 0 0 1 235.9,407.4"/>
+            <path class="s" marker-end="url(#h-a)" d="M218.4,332.0 A232,232 0 0 1 244.3,210.6"/>
+            <path class="s" marker-end="url(#h-a)" d="M305.8,136.3 A232,232 0 0 1 372.9,99.2"/>
+            <path d="M390,497 Q560,420 600,204" class="s s-pen s-dash" marker-end="url(#h-ap)"/>
+            <path d="M339,166 Q450,222 559,168" class="s s-pen s-dash" marker-end="url(#h-ap)"/>
+            <rect x="382" y="58" width="136" height="56" rx="10" class="s s-thick f-mark"/>
+            <rect x="563" y="145" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="608" y="342" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="483" y="499" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="281" y="499" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="156" y="342" width="136" height="56" rx="10" class="s f-card"/>
+            <rect x="201" y="145" width="136" height="56" rx="10" class="s f-card"/>
+            <circle cx="450" cy="292" r="18" class="s f-card"/>
+            <path d="M414,352 Q414,318 450,316 Q486,318 486,352 Z" class="s f-card"/>
+          </g>
+          <text x="450" y="84" text-anchor="middle" class="t-lg t-mark">Understand</text>
+          <text x="450" y="104" text-anchor="middle" class="t-mono t-mark">wk 1 · 9</text>
+          <text x="631" y="171" text-anchor="middle" class="t-lg">Specify</text>
+          <text x="631" y="191" text-anchor="middle" class="t-mono t-pen">wk 2 · 4</text>
+          <text x="676" y="368" text-anchor="middle" class="t-lg">Delegate</text>
+          <text x="676" y="388" text-anchor="middle" class="t-mono t-pen">wk 3 · 10</text>
+          <text x="551" y="525" text-anchor="middle" class="t-lg">Inspect</text>
+          <text x="551" y="545" text-anchor="middle" class="t-mono t-pen">wk 7</text>
+          <text x="349" y="525" text-anchor="middle" class="t-lg">Verify</text>
+          <text x="349" y="545" text-anchor="middle" class="t-mono t-pen">wk 5 · 6 · 8</text>
+          <text x="224" y="368" text-anchor="middle" class="t-lg">Release</text>
+          <text x="224" y="388" text-anchor="middle" class="t-mono t-pen">wk 12 · 14</text>
+          <text x="269" y="171" text-anchor="middle" class="t-lg">Observe</text>
+          <text x="269" y="191" text-anchor="middle" class="t-mono t-pen">wk 11 · 13</text>
+          <text x="450" y="378" text-anchor="middle" class="t-sm">a named human</text>
+          <text x="450" y="396" text-anchor="middle" class="t-sm">owns each decision</text>
+          <text x="450" y="218" text-anchor="middle" class="t-sm t-pen">what users actually did</text>
+          <text x="522" y="446" text-anchor="middle" class="t-sm t-pen">failed check?</text>
+          <text x="522" y="464" text-anchor="middle" class="t-sm t-pen">fix the spec too</text>
+          <text x="40" y="40" class="t-sm t-2">you are here: Week 1 starts at Understand</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>The loop</b> Every week strengthens one step of the engineering loop. Code generation lives inside a single step, <em>Delegate</em>. The small numbers are the weeks that train each step.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>How every week works</h2>
+  <div class="triad">
+    <article><span class="op">Durable idea</span><p>What from classic software engineering still holds. <em>Week 6: transactions and invariants.</em></p></article>
+    <article><span class="op">× Agentic twist</span><p>What changes when agents write the code. <em>Agents write check-then-act code that passes one-at-a-time tests.</em></p></article>
+    <article><span class="op">→ Practice</span><p>What you build and prove in the lab. <em>Close the race and prove it with a concurrent test.</em></p></article>
+  </div>
+  <p>Some things recur every week: a real case (a failure or a success, fact-checked against its primary source), short agent-off drills done on paper, and a few honest experiments that measure how work actually goes rather than how it feels.</p>
+</section>
+
+<section>
+  <h2>The running project: AfterHours</h2>
+  <p>Teams of four build a platform for a student-run campus festival: browse events, reserve limited places, join waitlists, check people in at the door. Each team picks a festival identity (games, music, film, or maker workshops) and interviews real users. The domain is simple to explain and hides almost every hard problem in the field.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>The festival asks</th><th>The engineering problem</th><th>Week</th></tr></thead>
+      <tbody>
+        <tr><td>Who gets the last place?</td><td>Race conditions, invariants, transactions</td><td>1, 6</td></tr>
+        <tr><td>What does "fair" mean?</td><td>Ambiguous requirements</td><td>2</td></tr>
+        <tr><td>Someone taps twice, or the request is retried</td><td>Idempotency</td><td>6, 9</td></tr>
+        <tr><td>Can I cancel someone else's booking?</td><td>Authorization, threat modelling</td><td>8</td></tr>
+        <tr><td>The Wi-Fi drops at the door</td><td>Failure handling, recovery</td><td>9, 12</td></tr>
+        <tr><td>Two teams, two timestamp formats</td><td>Integration contracts</td><td>10</td></tr>
+        <tr><td>2,000 students at 8 pm</td><td>Load and tail latency</td><td>11</td></tr>
+        <tr><td>Multi-day festival passes</td><td>Schema migration</td><td>13</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Fourteen weeks</h2>
+  <div class="tablewrap">
+    <table class="grid weeks">
+      <thead><tr><th>Week</th><th>Lecture</th><th>Big idea</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr class="ready"><td>1</td><td><a href="lectures/01-code-is-cheap.html">Code Is Cheap. Software Isn't.</a></td><td>A working demo is a hypothesis</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>2</td><td><a href="lectures/02-specify-the-promise.html">Discover the Problem, Specify the Promise</a></td><td>Ambiguity is a product decision waiting to happen</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>3</td><td><a href="lectures/03-inside-the-agent.html">Inside the Agent: Delegate Like an Engineer</a></td><td>A model in a loop, with tools, context and permissions</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>4</td><td><a href="lectures/04-boundaries.html">Boundaries That Make Change Cheap</a></td><td>Hide the decisions most likely to change</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>5</td><td><a href="lectures/05-independent-tests.html">Tests Need an Independent Source of Truth</a></td><td>Code and tests can agree on the same mistake</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>6</td><td><a href="lectures/06-state-and-concurrency.html">State, Concurrency and the Last Seat</a></td><td>Correctness is about every possible order of events</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>7</td><td><a href="lectures/07-review-and-debugging.html">Review and Debugging at Agent Speed</a></td><td>A fix should follow an experiment</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>8</td><td><a href="lectures/08-security.html">Security Follows Authority</a></td><td>Every capability must be limited, for users and agents</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>9</td><td><a href="lectures/09-quality-for-people.html">Quality Is Experienced by People</a></td><td>Running without errors is not the same as usable</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>10</td><td><a href="lectures/10-many-hands.html">Many Hands, One System</a></td><td>Parallel work needs explicit contracts</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>11</td><td><a href="lectures/11-performance-and-economics.html">Performance and the Economics of Agentic Work</a></td><td>Optimise the user's bottleneck and the team's total effort</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>12</td><td><a href="lectures/12-release-and-recover.html">Release and Recover</a></td><td>Deployment and recovery are behaviours you test</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>13</td><td><a href="lectures/13-change-without-forgetting.html">Change Without Forgetting</a></td><td>Maintenance keeps promises while replacing code</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>14</td><td><a href="lectures/14-hand-it-over.html">Hand It Over</a></td><td>Quality includes whether someone else can own it</td><td><span class="tag ok">ready</span></td></tr>
+        <tr class="ready"><td>Extra</td><td><a href="lectures/e-products-with-models.html">Products That Contain Models</a></td><td>Evals complement tests when output varies</td><td><span class="tag ok">ready</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Labs and course files</h2>
+  <p>Get all the course files once, at the start of term: <a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/archive/refs/heads/main.zip">download the ZIP</a>, or clone the repository with <code>git clone https://github.com/MohammedSalman/build-it-prove-it-own-it.git</code>. That folder is the <code>COURSE</code> folder the labs refer to, and it contains the starter app for Week 1 and every week's lab kit.</p>
+  <div class="tablewrap">
+    <table class="grid weeks">
+      <thead><tr><th>Week</th><th>Chapter</th><th>Lab worksheet</th><th>Lab files</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><a href="lectures/01-code-is-cheap.html">Code Is Cheap. Software Isn't.</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/01-code-is-cheap/lab-01.md">lab-01.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/01-code-is-cheap/lab-kit">lab kit</a></td></tr>
+        <tr><td>2</td><td><a href="lectures/02-specify-the-promise.html">Discover the Problem, Specify the Promise</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/02-specify-the-promise/lab-02.md">lab-02.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/02-specify-the-promise/lab-kit">lab kit</a></td></tr>
+        <tr><td>3</td><td><a href="lectures/03-inside-the-agent.html">Inside the Agent: Delegate Like an Engineer</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/03-inside-the-agent/lab-03.md">lab-03.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/03-inside-the-agent/lab-kit">lab kit</a></td></tr>
+        <tr><td>4</td><td><a href="lectures/04-boundaries.html">Boundaries That Make Change Cheap</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/04-boundaries/lab-04.md">lab-04.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/04-boundaries/lab-kit">lab kit</a></td></tr>
+        <tr><td>5</td><td><a href="lectures/05-independent-tests.html">Tests Need an Independent Source of Truth</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/05-independent-tests/lab-05.md">lab-05.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/05-independent-tests/lab-kit">lab kit</a></td></tr>
+        <tr><td>6</td><td><a href="lectures/06-state-and-concurrency.html">State, Concurrency and the Last Seat</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/06-state-and-concurrency/lab-06.md">lab-06.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/06-state-and-concurrency/lab-kit">lab kit</a></td></tr>
+        <tr><td>7</td><td><a href="lectures/07-review-and-debugging.html">Review and Debugging at Agent Speed</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/07-review-and-debugging/lab-07.md">lab-07.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/07-review-and-debugging/lab-kit">lab kit</a></td></tr>
+        <tr><td>8</td><td><a href="lectures/08-security.html">Security Follows Authority</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/08-security/lab-08.md">lab-08.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/08-security/lab-kit">lab kit</a></td></tr>
+        <tr><td>9</td><td><a href="lectures/09-quality-for-people.html">Quality Is Experienced by People</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/09-quality-for-people/lab-09.md">lab-09.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/09-quality-for-people/lab-kit">lab kit</a></td></tr>
+        <tr><td>10</td><td><a href="lectures/10-many-hands.html">Many Hands, One System</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/10-many-hands/lab-10.md">lab-10.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/10-many-hands/lab-kit">lab kit</a></td></tr>
+        <tr><td>11</td><td><a href="lectures/11-performance-and-economics.html">Performance and the Economics of Agentic Work</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/11-performance-and-economics/lab-11.md">lab-11.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/11-performance-and-economics/lab-kit">lab kit</a></td></tr>
+        <tr><td>12</td><td><a href="lectures/12-release-and-recover.html">Release and Recover</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/12-release-and-recover/lab-12.md">lab-12.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/12-release-and-recover/lab-kit">lab kit</a></td></tr>
+        <tr><td>13</td><td><a href="lectures/13-change-without-forgetting.html">Change Without Forgetting</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/13-change-without-forgetting/lab-13.md">lab-13.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/13-change-without-forgetting/lab-kit">lab kit</a></td></tr>
+        <tr><td>14</td><td><a href="lectures/14-hand-it-over.html">Hand It Over</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/14-hand-it-over/lab-14.md">lab-14.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/14-hand-it-over/lab-kit">lab kit</a></td></tr>
+        <tr><td>E</td><td><a href="lectures/e-products-with-models.html">Products That Contain Models</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/blob/main/lectures/e-products-with-models/lab-e.md">lab-e.md</a></td><td><a href="https://github.com/MohammedSalman/build-it-prove-it-own-it/tree/main/lectures/e-products-with-models/lab-kit">lab kit</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>How you are graded</h2>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 170" role="img" aria-label="Grade weights drawn to scale: team product and releases 40 percent, practical defences 25 percent, individual evidence portfolio 20 percent, studio practice 15 percent.">
+        <defs>
+          <filter id="g-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="15"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#g-r)">
+          <rect x="20" y="40" width="344" height="60" class="s f-pen"/>
+          <rect x="364" y="40" width="215" height="60" class="s f-mark"/>
+          <rect x="579" y="40" width="172" height="60" class="s f-green"/>
+          <rect x="751" y="40" width="129" height="60" class="s f-card"/>
+        </g>
+        <text x="192" y="77" text-anchor="middle" class="t-lg">40%</text>
+        <text x="471" y="77" text-anchor="middle" class="t-lg t-mark">25%</text>
+        <text x="665" y="77" text-anchor="middle" class="t-lg">20%</text>
+        <text x="815" y="77" text-anchor="middle" class="t-lg">15%</text>
+        <text x="192" y="128" text-anchor="middle" class="t-sm">team product and releases</text>
+        <text x="471" y="128" text-anchor="middle" class="t-sm">practical defences</text>
+        <text x="665" y="128" text-anchor="middle" class="t-sm">evidence portfolio</text>
+        <text x="815" y="128" text-anchor="middle" class="t-sm">studio practice</text>
+        <text x="20" y="26" class="t-sm t-2">drawn to scale</text>
+      </svg>
+    </div>
+    <figcaption><b>Weights</b> Practical defences: explain a sampled piece of your code without help, predict what a change will do, then modify it. The evidence portfolio traces four decisions from requirement to result.</figcaption>
+  </figure>
+  <ul class="policy">
+    <li>Agents are allowed and expected. Disclose meaningful help. You own every line and every claim you submit.</li>
+    <li>We never grade lines of code, prompt length, how much you used an agent, commit counts, or chat logs.</li>
+    <li>Everyone gets the same baseline agent access with spending limits, and saved outputs for when tools are down.</li>
+    <li>Hidden checks only test requirements that were published. Practice defences come before graded ones, with a reassessment path.</li>
+  </ul>
+</section>
+
+</div>
+</div>
+
+<footer class="pagefoot">
+  <span>Build It. Prove It. Own It.</span>
+  <span>Course home · Lectures ready: 15 of 15</span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Your own numbers: copy your "One measurement" row from each lab. Format: plan/class-dataset.md.
+# Minutes you spent PRODUCING (code, tests, text, prompts; waiting for an agent), CHECKING
+# (running, reading, reviewing, comparing, measuring) and INTEGRATING (merging, resolving
+# conflicts, wiring parts together; 0 if none). Put your term pseudonym in the student column.
+# Delete the row of any lab you did not record: a row with a blank number is excluded.
+source,student,lab,producing_min,checking_min,integrating_min
+class,your-pseudonym,1,,,
+class,your-pseudonym,2,,,
+class,your-pseudonym,3,,,
+class,your-pseudonym,4,,,
+class,your-pseudonym,5,,,
+class,your-pseudonym,6,,,
+class,your-pseudonym,7,,,
+class,your-pseudonym,8,,,
+class,your-pseudonym,9,,,
+class,your-pseudonym,10,,,

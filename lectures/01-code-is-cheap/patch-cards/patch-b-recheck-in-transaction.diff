@@ -1,0 +1,31 @@
+--- a/app/reservations.py
++++ b/app/reservations.py
+@@ -36,9 +36,25 @@
+         payments.authorize(attendee)
+         log.info("[%s] payment authorised (simulated, nothing charged)", attendee)
+ 
+-        cur = conn.execute(
+-            "INSERT INTO reservations (event_id, attendee) VALUES (?, ?)", (event_id, attendee)
+-        )
++        # The first check was only a hint. Decide again, and write, inside one
++        # transaction: BEGIN IMMEDIATE takes SQLite's write lock, so a second request
++        # waits here until the first has committed, then sees the updated count.
++        conn.execute("BEGIN IMMEDIATE")
++        try:
++            taken = db.query_one(
++                conn, "SELECT COUNT(*) AS n FROM reservations WHERE event_id = ?", (event_id,)
++            )["n"]
++            if taken >= event["capacity"]:
++                log.info("[%s] re-checked: %d of %d taken, too late", attendee, taken, event["capacity"])
++                raise SoldOut(event_id)
++            cur = conn.execute(
++                "INSERT INTO reservations (event_id, attendee) VALUES (?, ?)", (event_id, attendee)
++            )
++            conn.execute("COMMIT")
++        except BaseException:
++            if conn.in_transaction:
++                conn.execute("ROLLBACK")
++            raise
+         log.info("[%s] reservation #%d saved", attendee, cur.lastrowid)
+         return {"id": cur.lastrowid, "event_id": event_id, "attendee": attendee}
+     finally:

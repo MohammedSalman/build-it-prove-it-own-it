@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tests Need an Independent Source of Truth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* This lecture is about < versus <=, so show them as typed, without font ligatures. */
+  code, pre, .sk .t-mono { font-variant-ligatures: none; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 5 · Lecture 5 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 5 · Verify</p>
+  <h1 id="page-title">Tests Need an Independent Source of Truth</h1>
+  <p class="lede">An agent can write a feature and its tests in one sitting, and the tests will pass. This lecture is about where a test's expected answer should come from, and how to find out whether your tests would notice a mistake at all.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Kit: AfterHours with check-in</span>
+    <span class="fact">Loop: Verify</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Explain why a test that copies its expected answer from the code cannot expose that code's mistake.</li>
+      <li>Choose test points from a written rule, using equivalence classes and boundary values.</li>
+      <li>Compare an app with a small reference model in a property-based test, and read the shrunk counterexample.</li>
+      <li>Measure a test suite with mutants, and say what a surviving mutant means.</li>
+      <li>Tell when a feature needs an eval alongside its tests.</li>
+      <li>Set working rules so that nobody, human or agent, turns a suite green by weakening it.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The 22:00:00 bug</span></a></li>
+    <li><a href="#oracles"><span class="t">0:15</span><span>Where expected answers come from</span></a></li>
+    <li><a href="#properties"><span class="t">0:30</span><span>Properties and a model</span></a></li>
+    <li><a href="#mutants"><span class="t">0:45</span><span>Test the tests</span></a></li>
+    <li><a href="#evals"><span class="t">1:00</span><span>Tests and evals</span></a></li>
+    <li><a href="#agents"><span class="t">1:10</span><span>Agents and tests</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#sqlite"><span class="t">R1</span><span>SQLite's test suite</span></a></li>
+    <li><a href="#flaky"><span class="t">R2</span><span>Flaky tests</span></a></li>
+    <li><a href="#shapes"><span class="t">R3</span><span>Pyramids, trophies, honeycombs</span></a></li>
+    <li><a href="#coverage"><span class="t">R4</span><span>Coverage is not correctness</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>The 22:00:00 bug</h2>
+  </div>
+  <p>AfterHours has two new features. People can <strong>cancel</strong> a reservation, and a volunteer at the door <strong>checks people in</strong> on a tablet. Picture them built the quick way: a coding agent got a short request, wrote the code and the tests, and everything passed.</p>
+  <div class="callout">
+    <span class="label">The request</span>
+    <p>Add door check-in. It opens 30 minutes before the event starts and closes when the event ends.</p>
+  </div>
+  <p>Here is the heart of the check-in code, and the tests that came with it. The escape room runs from 20:00 to 22:00 on Friday 9 October.</p>
+  <pre><code>OPENS_BEFORE_START = timedelta(minutes=30)
+
+def door_is_open(starts_at, ends_at, now):
+    """Check-in is open from 30 minutes before the start until the end of the event."""
+    opens_at = starts_at - OPENS_BEFORE_START
+    return opens_at &lt;= now &lt;= ends_at</code></pre>
+  <pre><code>test_check_in_during_the_event                        21:00  → 200 checked in
+test_check_in_before_the_door_opens_is_refused        19:00  → 409 refused
+test_check_in_is_allowed_until_the_end_of_the_event   22:00  → 200 checked in
+test_check_in_after_the_event_is_refused              23:00  → 409 refused
+test_checking_in_twice_is_refused · test_unknown_reservation_is_404
+
+$ python -m pytest -q
+16 passed</code></pre>
+  <p class="handnote">Simplified from app/checkin.py and tests/test_checkin.py in the lab kit.</p>
+  <div class="callout try">
+    <span class="label">Vote</span>
+    <p>The festival opens on Friday. Ship the check-in feature? Raise a hand for <strong>ship</strong> or <strong>hold</strong>, and name one piece of evidence behind your vote.</p>
+  </div>
+  <p>Now open the team's scope agreement from Week 2. It already decided this case.</p>
+  <div class="contract">
+    <span class="cardtitle">Requirement R4 · docs/requirements.md</span>
+    <dl>
+      <dt>Rule</dt><dd>Check-in opens 30 minutes before the event starts and closes when the event ends.</dd>
+      <dt>Edges</dt><dd>The opening time is inside the window. The end time is not: at the exact end time, check-in is closed.</dd>
+      <dt>Example</dt><dd>For an event from 20:00 to 22:00, the window runs from 19:30:00 up to, but not including, 22:00:00.</dd>
+    </dl>
+  </div>
+  <p>The code says <code>now &lt;= ends_at</code>. At exactly 22:00:00 it checks people in, and R4 says it must refuse. The difference is one character: <code>&lt;=</code> where the rule needs <code>&lt;</code>. And one of the tests that came with the code asserts the wrong answer: at 22:00 it expects <code>200</code>.</p>
+  <p>We write one test whose expected answer comes from R4:</p>
+  <pre><code>def test_r4_the_end_time_is_outside_the_window(client, clock):
+    booking = reserve(client, event_by_title(client, ESCAPE_ROOM))
+    clock.set("2026-10-09T22:00:00")
+    res = client.post(f"/api/reservations/{booking['id']}/check-in")
+    assert res.status_code == 409
+
+$ python -m pytest -q
+FAILED tests/test_r4_end_time.py::test_r4_the_end_time_is_outside_the_window
+1 failed, 16 passed</code></pre>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 410" role="img" aria-label="Left: the request is read as 22:00 itself is still open; that one reading flows into the code, now less than or equal to ends_at, and into the tests, 22:00 gives 200. Code and tests agree and 16 tests pass. Right: requirement R4 says the end time is not inside; a test written from it expects 409 at 22:00:00, runs against the same code, gets 200 and fails.">
+        <defs>
+          <filter id="w5f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w5f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w5f1-r)">
+          <path d="M480,20 V396" class="s s-dash s-2"/>
+          <rect x="50" y="52" width="370" height="46" rx="3" class="s s-thin f-mark"/>
+          <path d="M235,100 V128" class="s" marker-end="url(#w5f1-a)"/>
+          <rect x="70" y="132" width="330" height="54" rx="10" class="s s-red s-thick f-red"/>
+          <path d="M165,188 L125,234" class="s" marker-end="url(#w5f1-a)"/>
+          <path d="M305,188 L345,234" class="s" marker-end="url(#w5f1-a)"/>
+          <rect x="40" y="238" width="170" height="86" rx="10" class="s f-card"/>
+          <rect x="260" y="238" width="170" height="86" rx="10" class="s f-card"/>
+          <path d="M214,281 H256" class="s s-green" marker-start="url(#w5f1-a)" marker-end="url(#w5f1-a)"/>
+          <path d="M125,326 L180,346 M345,326 L290,346" class="s s-thin"/>
+          <rect x="110" y="348" width="250" height="44" rx="10" class="s s-green f-green"/>
+          <rect x="530" y="52" width="370" height="46" rx="3" class="s s-thin f-mark"/>
+          <path d="M715,100 V128" class="s" marker-end="url(#w5f1-a)"/>
+          <rect x="590" y="132" width="250" height="54" rx="10" class="s s-pen f-pen"/>
+          <path d="M715,188 V234" class="s" marker-end="url(#w5f1-a)"/>
+          <rect x="630" y="238" width="170" height="86" rx="10" class="s f-card"/>
+          <path d="M715,326 V344" class="s" marker-end="url(#w5f1-a)"/>
+          <rect x="590" y="348" width="250" height="44" rx="10" class="s s-red f-red"/>
+        </g>
+        <text x="235" y="34" text-anchor="middle" class="t-lg">Expected answers taken from the code</text>
+        <text x="715" y="34" text-anchor="middle" class="t-lg">Expected answer taken from R4</text>
+        <text x="235" y="81" text-anchor="middle" class="t-sm t-mark">request: "closes when the event ends"</text>
+        <text x="235" y="165" text-anchor="middle" class="t-sm">one reading: 22:00 itself is still open</text>
+        <text x="125" y="266" text-anchor="middle" class="t-lg">code</text>
+        <text x="125" y="298" text-anchor="middle" class="t-mono">now &lt;= ends_at</text>
+        <text x="345" y="266" text-anchor="middle" class="t-lg">tests</text>
+        <text x="345" y="298" text-anchor="middle" class="t-mono">22:00 → 200</text>
+        <text x="235" y="310" text-anchor="middle" class="t-sm t-green">agree</text>
+        <text x="235" y="376" text-anchor="middle" class="t-green">16 passed ✓</text>
+        <text x="715" y="81" text-anchor="middle" class="t-sm t-mark">R4: the end time is not inside</text>
+        <text x="715" y="156" text-anchor="middle" class="t-sm">requirement test</text>
+        <text x="715" y="176" text-anchor="middle" class="t-mono">22:00:00 → expect 409</text>
+        <text x="715" y="266" text-anchor="middle" class="t-lg">the same code</text>
+        <text x="715" y="298" text-anchor="middle" class="t-mono">now &lt;= ends_at</text>
+        <text x="715" y="376" text-anchor="middle" class="t-red">got 200 · 1 failed ✗</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.1</b> Left: one reading of the request went into the code and, through the code, into the tests. They agree because they are two copies of one assumption. Right: a test whose expected answer comes from the written requirement disagrees with the same code at 22:00:00.</figcaption>
+  </figure>
+
+  <p>Look at where each test got its expected answer. The request said "closes when the event ends", which can be read two ways. One reading, "22:00 is still open", went into the code. The tests were then written by asking what the code does, so the same reading went into them too. Our new test disagrees because its expected answer came from somewhere else: the requirement.</p>
+  <div class="callout case">
+    <span class="label">About this bug</span>
+    <p>We planted this defect. We wrote the kit's code and its tests ourselves, imitating that way of working, so the pattern shows up on cue. They say nothing about any particular model or tool.</p>
+  </div>
+  <div class="callout case">
+    <span class="label">What a real agent did (one run each, 27 September 2026)</span>
+    <p>We gave a coding agent (a Claude Code subagent) this exact code and one task: write tests for check-in and make sure they pass. We ran it twice, on two copies of the repository.</p>
+    <ul>
+      <li><strong>Without the requirements in the repository</strong>, it wrote 16 careful tests and all passed. One line of its test file reads: <code>"2026-10-09T22:00:00",  # the end itself still counts (door_is_open compares with &lt;=)</code>. It noticed that the docstring "could be read either way" and chose to lock in the current behaviour.</li>
+      <li><strong>With <code>docs/requirements.md</code> and a rule in AGENTS.md</strong> ("derive expected values from docs/requirements.md"), it wrote 19 tests from R4 and R5. One failed at 22:00:00, and it reported the bug instead of changing the test to match the code.</li>
+    </ul>
+    <p>One run per setup is an anecdote. What it does show is how the input shaped the output: an agent can only test against a source of truth that is in front of it. The full record is in <code>lectures/05-independent-tests/demo/agent-written-tests.md</code>.</p>
+  </div>
+  <p>Is one second worth this fuss? The cost of this particular second is small: someone checked in as the room closes. The cost of a test suite that cannot disagree with its code is large, because the same pattern hides wrong refunds, wrong deadlines and wrong prices, all with green tests.</p>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A test whose expected answer is copied from the code checks that the code does what the code does.</strong> Reading the code is still a good way to choose inputs, because it shows you the branches and the edges. The expected answer has to come from a source the code did not write: the requirement, a model, a rule, a person.</p>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 180" role="img" aria-label="The engineering loop drawn as a strip: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Verify is highlighted as this week. A dashed arrow runs from Specify to Verify: the expected answers come from Specify.">
+        <defs>
+          <filter id="w5f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w5f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w5f2-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w5f2-r)">
+          <rect x="20" y="72" width="118" height="50" rx="9" class="s f-card"/>
+          <rect x="154" y="72" width="118" height="50" rx="9" class="s s-pen f-pen"/>
+          <rect x="288" y="72" width="118" height="50" rx="9" class="s f-card"/>
+          <rect x="422" y="72" width="118" height="50" rx="9" class="s f-card"/>
+          <rect x="556" y="72" width="118" height="50" rx="9" class="s s-thick f-mark"/>
+          <rect x="690" y="72" width="118" height="50" rx="9" class="s f-card"/>
+          <rect x="824" y="72" width="118" height="50" rx="9" class="s f-card"/>
+          <path d="M139,97 H152 M273,97 H286 M407,97 H420 M541,97 H554 M675,97 H688 M809,97 H822" class="s s-thin" marker-end="url(#w5f2-a)"/>
+          <path d="M213,70 C250,-6 578,-6 615,68" class="s s-pen s-dash" marker-end="url(#w5f2-p)"/>
+          <path d="M883,124 C883,172 79,172 79,127" class="s s-thin s-dash s-2" marker-end="url(#w5f2-a)"/>
+        </g>
+        <text x="79" y="103" text-anchor="middle">Understand</text>
+        <text x="213" y="103" text-anchor="middle" class="t-pen">Specify</text>
+        <text x="347" y="103" text-anchor="middle">Delegate</text>
+        <text x="481" y="103" text-anchor="middle">Inspect</text>
+        <text x="615" y="96" text-anchor="middle" class="t-lg t-mark">Verify</text>
+        <text x="615" y="115" text-anchor="middle" class="t-sm t-mark">this week</text>
+        <text x="749" y="103" text-anchor="middle">Release</text>
+        <text x="883" y="103" text-anchor="middle">Observe</text>
+        <text x="414" y="52" text-anchor="middle" class="t-sm t-pen">the expected answers come from Specify</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.2</b> Where this week sits on the engineering loop. Verify needs expected answers, and those come from Specify: the written requirements.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 2. ORACLES ============ -->
+<section class="block" id="oracles">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:30</span>
+    <h2>Where expected answers come from</h2>
+  </div>
+  <p>Testers call the source of an expected answer an <strong>oracle</strong>. A standard survey of the field defines it as "a procedure that distinguishes between the correct and incorrect behaviors of the System Under Test". Some oracles are independent of the code, and one is not:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Oracle</th><th>In AfterHours</th><th>Independent of the code?</th></tr></thead>
+      <tbody>
+        <tr><td>Examples in the requirement</td><td>R4: 19:30:00 is inside, 22:00:00 is not</td><td><span class="tag ok">yes</span></td></tr>
+        <tr><td>A rule that must always hold</td><td>places left = capacity − confirmed (R2)</td><td><span class="tag ok">yes</span></td></tr>
+        <tr><td>A simpler model of the same behaviour</td><td>a dict of reservations (next section)</td><td><span class="tag ok">yes</span>, if written from the requirement</td></tr>
+        <tr><td>A version you already trust</td><td>behaviour before a refactor (Week 13)</td><td><span class="tag maybe">partly</span>: it can only say "nothing changed"</td></tr>
+        <tr><td>A person's judgement</td><td>the door volunteer tries the tablet</td><td><span class="tag ok">yes</span>, but slow and hard to repeat</td></tr>
+        <tr><td>What the code does now</td><td>run it, copy the output into the test</td><td><span class="tag bad">no</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Choosing test points</h3>
+  <p>A rule sorts its inputs into groups that it treats the same way. These groups are <strong>equivalence classes</strong>. For the door, every time falls into one of three: too early, open, too late. One test per class is a start. Mistakes like to hide at the edges between classes, though, where <code>&lt;</code> and <code>&lt;=</code> look almost the same. So you also test each <strong>boundary value</strong>: the edge itself and the nearest value on the other side of it.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 340" role="img" aria-label="A time line from 19:00 to 23:00, to scale. The check-in window runs from 19:30, included, to 22:00, excluded. The given tests check 19:00, 21:00, 22:00 and 23:00, one per class plus 22:00 with the wrong expected answer of 200. Two zoomed boxes show the boundary tests from R4: 19:29:59 refused and 19:30:00 accepted; 21:59:59 accepted and 22:00:00 refused, where the code wrongly answers 200.">
+        <defs>
+          <filter id="w5f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w5f3-r)">
+          <path d="M60,22 L72,22 L66,32 Z" class="f-ink"/>
+          <circle cx="516" cy="24" r="6" class="s s-pen f-penink"/>
+          <path d="M72,70 L88,70 L80,84 Z" class="f-ink"/>
+          <path d="M472,70 L488,70 L480,84 Z" class="f-ink"/>
+          <path d="M672,70 L688,70 L680,84 Z" class="f-redink"/>
+          <path d="M872,70 L888,70 L880,84 Z" class="f-ink"/>
+          <path d="M280,108 H680 M280,102 V114 M680,102 V114" class="s s-thin"/>
+          <rect x="180" y="126" width="500" height="22" class="f-green"/>
+          <path d="M60,150 H905" class="s"/>
+          <path d="M80,144 V156 M180,144 V156 M280,144 V156 M380,144 V156 M480,144 V156 M580,144 V156 M680,144 V156 M780,144 V156 M880,144 V156" class="s s-thin"/>
+          <circle cx="180" cy="150" r="6" class="s s-green f-greenink"/>
+          <circle cx="680" cy="150" r="6" class="s s-green f-card"/>
+          <path d="M172,160 L90,228 M188,160 L300,228" class="s s-thin s-dash s-2"/>
+          <path d="M672,160 L570,228 M688,160 L790,228" class="s s-thin s-dash s-2"/>
+          <rect x="90" y="228" width="220" height="96" rx="8" class="s s-thin f-card"/>
+          <rect x="570" y="228" width="220" height="96" rx="8" class="s s-thin f-card"/>
+          <rect x="215" y="262" width="83" height="10" class="f-green"/>
+          <path d="M102,272 H298" class="s s-thin"/>
+          <circle cx="130" cy="272" r="6" class="s s-pen f-penink"/>
+          <circle cx="215" cy="272" r="6" class="s s-pen f-penink"/>
+          <rect x="582" y="262" width="118" height="10" class="f-green"/>
+          <path d="M582,272 H778" class="s s-thin"/>
+          <circle cx="615" cy="272" r="6" class="s s-pen f-penink"/>
+          <circle cx="700" cy="272" r="6" class="s s-red s-thick f-card"/>
+        </g>
+        <text x="78" y="32" class="t-sm">tests that came with the code</text>
+        <text x="530" y="30" class="t-sm">tests from R4 (zoomed in below)</text>
+        <text x="80" y="62" text-anchor="middle" class="t-mono">19:00 → 409</text>
+        <text x="480" y="62" text-anchor="middle" class="t-mono">21:00 → 200</text>
+        <text x="680" y="62" text-anchor="middle" class="t-mono t-red">22:00 → 200 ✗</text>
+        <text x="880" y="62" text-anchor="middle" class="t-mono">23:00 → 409</text>
+        <text x="480" y="100" text-anchor="middle" class="t-sm t-2">the escape room, 20:00 to 22:00</text>
+        <text x="120" y="138" text-anchor="middle" class="t-sm t-2">too early</text>
+        <text x="430" y="141" text-anchor="middle" class="t-sm t-green">open: check-in window</text>
+        <text x="830" y="138" text-anchor="middle" class="t-sm t-2">too late</text>
+        <text x="80" y="198" text-anchor="middle" class="t-mono t-2">19:00</text>
+        <text x="180" y="198" text-anchor="middle" class="t-mono t-2">19:30</text>
+        <text x="280" y="198" text-anchor="middle" class="t-mono t-2">20:00</text>
+        <text x="480" y="198" text-anchor="middle" class="t-mono t-2">21:00</text>
+        <text x="680" y="198" text-anchor="middle" class="t-mono t-2">22:00</text>
+        <text x="880" y="198" text-anchor="middle" class="t-mono t-2">23:00</text>
+        <text x="100" y="248" class="t-sm t-2">around 19:30</text>
+        <text x="130" y="294" text-anchor="middle" class="t-mono">19:29:59</text>
+        <text x="130" y="313" text-anchor="middle" class="t-sm">409</text>
+        <text x="215" y="294" text-anchor="middle" class="t-mono">19:30:00</text>
+        <text x="215" y="313" text-anchor="middle" class="t-sm t-green">200</text>
+        <text x="580" y="248" class="t-sm t-2">around 22:00</text>
+        <text x="615" y="294" text-anchor="middle" class="t-mono">21:59:59</text>
+        <text x="615" y="313" text-anchor="middle" class="t-sm t-green">200</text>
+        <text x="700" y="294" text-anchor="middle" class="t-mono t-red">22:00:00</text>
+        <text x="700" y="313" text-anchor="middle" class="t-sm t-red">409</text>
+        <text x="780" y="248" text-anchor="end" class="t-sm t-red">code says 200 ✗</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.3</b> The door rule on a time line, to scale from 19:00 to 23:00. Triangles mark the times the given tests use: one comfortable time per class, plus 22:00 with the wrong expected answer. The boxes zoom in on the boundaries, where R4's tests sit one second apart; that second is enlarged so you can see it. At an edge, a filled dot means the edge is inside the window and a hollow dot means it is not.</figcaption>
+  </figure>
+
+  <p>The given tests never touch the opening edge. If the door opened at 19:31, or at 19:45, every one of them would still pass. We will measure that with mutants later today.</p>
+
+  <h3>Controlling time</h3>
+  <p>A test about 22:00:00 must run at 22:00:00 whenever you run it. So the check-in code never calls <code>datetime.now()</code> itself. It asks a <strong>clock</strong> that the app is given when it starts. The running app gets the real clock. Tests get a <code>FixedClock</code> and set it:</p>
+  <pre><code>clock.set("2026-10-09T22:00:00")     # from now on, the app believes it is 22:00:00
+res = client.post(f"/api/reservations/{booking['id']}/check-in")
+assert res.status_code == 409        # R4: the end time is outside the window</code></pre>
+  <p>Without that seam you would have to wait until 22:00 to run the test, or live with a test that passes at noon and fails at night. Reading R2 shows how much damage tests like that do.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (pairs, 6 minutes, no laptop)</span>
+    <p>Week 4's policy: <em>cancellations are allowed until 24 hours before the event starts.</em> The escape room starts on Friday 9 October at 20:00.</p>
+    <ol>
+      <li>Write the equivalence classes.</li>
+      <li>Write the fewest test times that would catch a <code>&lt;</code> written as <code>&lt;=</code> at the boundary, each with its expected answer.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: the drill</summary>
+    <div class="inner">
+      <p>Two classes: allowed (earlier than 24 hours before) and refused (later). The boundary is Thursday 8 October at 20:00:00. Test times: Thursday 19:59:59 (allowed), Thursday 20:00:00 (refused), plus one time well inside each class, such as Monday at noon and Friday at 19:00.</p>
+      <p>Most pairs disagree about Thursday 20:00:00, and that is the finding. "Until 24 hours before" does not say whether the exact moment is still allowed. Week 4 met the same question and wrote the answer down: cancelling is allowed while now is before the deadline, so at exactly 20:00:00 it is refused. That written answer is what lets you write the test. When a requirement leaves an edge open, boundary analysis has found a hole. Don't guess, and don't let an agent guess: ask the product lead, write the answer into the requirement, and then write the test.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 3. PROPERTIES ============ -->
+<section class="block" id="properties">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>Properties and a model</h2>
+  </div>
+  <p>Example tests check the cases someone thought of. Cancellation came with two: cancel once, and cancel a reservation that doesn't exist. Both pass. What about the sequences nobody thought of?</p>
+  <p>A <strong>property</strong> is a statement that must hold for every input. For reserving and cancelling: <em>after any sequence of steps, the app answers and counts exactly as a simple model does</em>. A property-based testing tool generates many inputs and checks the property on each one. When one fails, it <strong>shrinks</strong> it: it keeps simplifying the failing input while the test still fails, and reports a small failing case. The idea goes back to QuickCheck, a Haskell tool described in 2000. In Python we use <strong>Hypothesis</strong>.</p>
+  <p>The model is the oracle. It is written from requirements R1 to R3, and it knows nothing about SQL, HTTP or threads. Its whole state is a dict:</p>
+  <pre><code>class ReferenceModel:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.status = {}            # reservation number -> "confirmed" or "cancelled"
+
+    def confirmed(self):
+        return sum(1 for s in self.status.values() if s == "confirmed")
+
+    def places_left(self):
+        return self.capacity - self.confirmed()             # R2
+
+    def reserve(self):
+        if self.confirmed() &gt;= self.capacity:
+            return 409                                      # R1: full
+        self.status[len(self.status) + 1] = "confirmed"
+        return 201
+
+    def cancel(self, number):
+        if number not in self.status:
+            return 404
+        self.status[number] = "cancelled"                   # R3: again changes nothing
+        return 200</code></pre>
+  <p>The property test gives Hypothesis a recipe for random sequences of steps, runs each sequence against the real app and the model side by side, and compares them after every step:</p>
+  <pre><code>@given(capacity=st.integers(1, 3), steps=steps)    # steps: lists of ("reserve", name) or ("cancel", n)
+def test_app_agrees_with_the_model(client, capacity, steps):
+    event_id = new_event(client, capacity)
+    model = ReferenceModel(capacity)
+    made = []
+    for step in steps:
+        got = do(client, event_id, made, step)        # the real app, over HTTP
+        expected = model.reserve() if step[0] == "reserve" else model.cancel(step[1])
+        assert got == expected
+        now = event(client, event_id)
+        assert now["reserved"] == model.confirmed()
+        assert now["places_left"] == model.places_left()</code></pre>
+  <p>On the kit, Hypothesis finds a disagreement and shrinks it to three steps. This is its real output, shortened:</p>
+  <pre><code>E   AssertionError: after ('cancel', 1): places_left
+E   assert 2 == 1
+E   Failing test case: test_app_agrees_with_the_model(
+E       capacity=1,
+E       steps=[('reserve', 'Maya'), ('cancel', 1), ('cancel', 1)],
+E   )</code></pre>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Left: Hypothesis generates random sequences of reserve and cancel steps and runs each against the app and the model; three pass and the fourth fails. Right: it shrinks the failing sequence, from seven steps to four to three: reserve, cancel 1, cancel 1, with capacity 1. The app says 2 places left, the model says 1.">
+        <defs>
+          <filter id="w5f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w5f4-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w5f4-r)">
+          <!-- row 1: R R C1 R -->
+          <rect x="30" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="70" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="110" y="76" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="150" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/>
+          <!-- row 2: R C2 R R C1 R -->
+          <rect x="30" y="120" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="70" y="120" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="110" y="120" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="150" y="120" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="190" y="120" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="230" y="120" width="34" height="28" rx="5" class="s s-thin f-pen"/>
+          <!-- row 3: C1 R R -->
+          <rect x="30" y="164" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="70" y="164" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="110" y="164" width="34" height="28" rx="5" class="s s-thin f-pen"/>
+          <!-- row 4 (fails): R R C2 R C1 C1 R -->
+          <rect x="22" y="202" width="330" height="40" rx="8" class="s s-thin s-red"/>
+          <rect x="30" y="208" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="70" y="208" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="110" y="208" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="150" y="208" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="190" y="208" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="230" y="208" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="270" y="208" width="34" height="28" rx="5" class="s s-thin f-pen"/>
+          <path d="M356,222 C440,222 470,90 552,90" class="s" marker-end="url(#w5f4-a)"/>
+          <!-- shrink column -->
+          <rect x="560" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="600" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="640" y="76" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="680" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="720" y="76" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="760" y="76" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="800" y="76" width="34" height="28" rx="5" class="s s-thin f-pen"/>
+          <path d="M620,110 V136" class="s" marker-end="url(#w5f4-a)"/>
+          <rect x="560" y="140" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="600" y="140" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="640" y="140" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="680" y="140" width="34" height="28" rx="5" class="s s-thin f-card"/>
+          <path d="M620,174 V200" class="s" marker-end="url(#w5f4-a)"/>
+          <rect x="550" y="198" width="140" height="48" rx="8" class="s s-thick f-mark"/>
+          <rect x="560" y="208" width="34" height="28" rx="5" class="s s-thin f-pen"/><rect x="600" y="208" width="34" height="28" rx="5" class="s s-thin f-card"/><rect x="640" y="208" width="34" height="28" rx="5" class="s s-thin f-card"/>
+          <rect x="30" y="306" width="440" height="68" rx="10" class="s f-card"/>
+        </g>
+        <text x="30" y="34" class="t-lg">1 · generate and run</text>
+        <text x="30" y="56" class="t-sm t-2">up to 150 random sequences per property</text>
+        <text x="560" y="34" class="t-lg">2 · shrink</text>
+        <text x="560" y="56" class="t-sm t-2">keep simplifying while it still fails</text>
+        <text x="940" y="18" text-anchor="end" class="t-sm t-2">left and middle rows: illustrative</text>
+        <text x="47" y="95" text-anchor="middle" class="t-mono">R</text><text x="87" y="95" text-anchor="middle" class="t-mono">R</text><text x="127" y="95" text-anchor="middle" class="t-mono">C1</text><text x="167" y="95" text-anchor="middle" class="t-mono">R</text>
+        <text x="200" y="96" class="t-green">✓</text>
+        <text x="47" y="139" text-anchor="middle" class="t-mono">R</text><text x="87" y="139" text-anchor="middle" class="t-mono">C2</text><text x="127" y="139" text-anchor="middle" class="t-mono">R</text><text x="167" y="139" text-anchor="middle" class="t-mono">R</text><text x="207" y="139" text-anchor="middle" class="t-mono">C1</text><text x="247" y="139" text-anchor="middle" class="t-mono">R</text>
+        <text x="280" y="140" class="t-green">✓</text>
+        <text x="47" y="183" text-anchor="middle" class="t-mono">C1</text><text x="87" y="183" text-anchor="middle" class="t-mono">R</text><text x="127" y="183" text-anchor="middle" class="t-mono">R</text>
+        <text x="160" y="184" class="t-green">✓</text>
+        <text x="47" y="227" text-anchor="middle" class="t-mono">R</text><text x="87" y="227" text-anchor="middle" class="t-mono">R</text><text x="127" y="227" text-anchor="middle" class="t-mono">C2</text><text x="167" y="227" text-anchor="middle" class="t-mono">R</text><text x="207" y="227" text-anchor="middle" class="t-mono">C1</text><text x="247" y="227" text-anchor="middle" class="t-mono">C1</text><text x="287" y="227" text-anchor="middle" class="t-mono">R</text>
+        <text x="318" y="228" class="t-red">✗</text>
+        <text x="30" y="270" class="t-sm t-2">R = reserve · C1 = cancel the 1st reservation made</text>
+        <text x="30" y="290" class="t-sm t-2">Hypothesis stops at the first failure</text>
+        <text x="577" y="95" text-anchor="middle" class="t-mono">R</text><text x="617" y="95" text-anchor="middle" class="t-mono">R</text><text x="657" y="95" text-anchor="middle" class="t-mono">C2</text><text x="697" y="95" text-anchor="middle" class="t-mono">R</text><text x="737" y="95" text-anchor="middle" class="t-mono">C1</text><text x="777" y="95" text-anchor="middle" class="t-mono">C1</text><text x="817" y="95" text-anchor="middle" class="t-mono">R</text>
+        <text x="848" y="96" class="t-red">✗</text>
+        <text x="632" y="128" class="t-sm t-2">drop steps</text>
+        <text x="577" y="159" text-anchor="middle" class="t-mono">R</text><text x="617" y="159" text-anchor="middle" class="t-mono">R</text><text x="657" y="159" text-anchor="middle" class="t-mono">C1</text><text x="697" y="159" text-anchor="middle" class="t-mono">C1</text>
+        <text x="728" y="160" class="t-red">✗</text>
+        <text x="632" y="192" class="t-sm t-2">still fails? drop more</text>
+        <text x="577" y="227" text-anchor="middle" class="t-mono">R</text><text x="617" y="227" text-anchor="middle" class="t-mono">C1</text><text x="657" y="227" text-anchor="middle" class="t-mono">C1</text>
+        <text x="704" y="228" class="t-red">✗ minimal (the real output)</text>
+        <text x="560" y="276" class="t-mono">capacity=1: reserve Maya, cancel 1, cancel 1</text>
+        <text x="560" y="300" class="t-sm t-red">app: places_left 2 · model: places_left 1</text>
+        <text x="250" y="332" text-anchor="middle" class="t-sm">after every step, ask the model:</text>
+        <text x="250" y="358" text-anchor="middle" class="t-mono">{1: "cancelled"}  →  places_left = 1 - 0 = 1</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.4</b> How a property test finds the double cancel. Hypothesis runs random sequences against the app and the model. At the first disagreement it shrinks the sequence, dropping and simplifying steps as long as the test still fails. The rows on the left and the middle step are illustrative; the minimal case is the real output from the kit.</figcaption>
+  </figure>
+
+  <p>Now the bug is easy to read. <code>cancel()</code> gives the place back every time it is called, even for a reservation that is already cancelled. A second tap on <em>Cancel</em> (or a retried request, which is Week 6's topic) adds a place that does not exist. The programme page now shows one more free place than there really is. Once someone books the place that really is free, the event is full but the page still says a place is left. The next person to press <em>Reserve</em> is refused with a 409, and the page says "Sorry, that event just filled up."</p>
+
+  <h3>Why the Week 1 promise did not see it</h3>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Property checked after every step</th><th>Result on the kit (up to 150 sequences each)</th></tr></thead>
+      <tbody>
+        <tr><td><code>reserved ≤ capacity</code> (Week 1's promise, R1)</td><td><span class="tag bad">missed it</span> passed every sequence</td></tr>
+        <tr><td><code>places_left = capacity − reserved</code> (R2)</td><td><span class="tag ok">caught it</span> shrunk to the same three steps</td></tr>
+        <tr><td>the app agrees with the model</td><td><span class="tag ok">caught it</span> shrunk to the same three steps</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>reserve()</code> decides by counting confirmed rows, so nobody ever gets a place that isn't there, and <code>reserved ≤ capacity</code> holds in every sequence. The damage is in the stored counter that the page shows. An invariant can be perfectly true of a broken system. The model does more: it says what the answer <em>should</em> be after every step, so a wrong answer or a wrong count shows up at the step where it happens.</p>
+  <div class="callout try">
+    <span class="label">Predict (pairs, 2 minutes)</span>
+    <p>Suppose we told Hypothesis to generate at most two steps per sequence. Would it still find the double cancel? Why?</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p>No. The shortest failing sequence has three steps: a reservation must exist before it can be cancelled twice. A property test can only find what its generator can produce, so the recipe for inputs is part of the test and deserves review like any other code.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>An invariant says what must never happen. A model says what should happen, step by step. A broken system can satisfy an invariant forever; it fails a model the moment one of its answers or counts differs.</p>
+  </div>
+  <p>Hypothesis also has a fuller style for this, called stateful testing, where you describe the actions and the checks and it builds the sequences itself. It fits the state machines of Week 6.</p>
+</section>
+
+<!-- ============ 4. MUTANTS ============ -->
+<section class="block" id="mutants">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:00</span>
+    <h2>Test the tests</h2>
+  </div>
+  <p>A green run says the code passed the tests. It says nothing about whether the tests would have noticed a mistake. To find out, you plant mistakes on purpose.</p>
+  <p>A <strong>mutant</strong> is a copy of the code with one small change, such as <code>&lt;</code> turned into <code>&lt;=</code>, or <code>+ 1</code> into <code>+ 2</code>. You run the suite against it. If a test fails, the mutant is <strong>caught</strong> (people also say killed). If every test still passes, it <strong>survived</strong>: the suite cannot tell that version from the real one. The <strong>mutation score</strong> is the share of mutants caught.</p>
+  <p>The idea dates from the 1970s. DeMillo, Lipton and Sayward argued in 1978 that programmers "create programs that are close to being correct", so the mistakes worth detecting are small ones. SQLite runs mutation testing on its compiled code (Reading R1), and in 2018 Google described a system that shows engineers surviving mutants during code review.</p>
+  <p>The kit's <code>mutants.py</code> runs ten mutants from <code>mutants.toml</code>. It applies each one on its own to a fresh copy of the project, so no mutant can leak into the next, and it never touches your files:</p>
+  <pre><code>$ python mutants.py --tests tests
+Baseline (no mutant): 16 passed
+  M1    app/checkin.py         survived  -
+  M2    app/checkin.py         survived  -
+  M3    app/checkin.py         survived  -
+  M4    app/checkin.py         caught    tests/test_checkin.py::test_checking_in_twice_is_refused
+  …
+Mutation score: 4 of 10 caught (40%)</code></pre>
+
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Mutant</th><th>The change</th><th>What it would mean at the festival</th></tr></thead>
+      <tbody>
+        <tr><td>M1</td><td><code>opens_at &lt;= now</code> → <code>opens_at &lt; now</code></td><td>Someone scanned at 19:30:00 exactly is turned away</td></tr>
+        <tr><td>M2</td><td>30 minutes → 15 minutes</td><td>Check-in opens at 19:45</td></tr>
+        <tr><td>M3</td><td>drop the "cancelled?" check</td><td>A cancelled booking still gets in</td></tr>
+        <tr><td>M4</td><td>drop the "already checked in?" check</td><td>One screenshot lets two friends in</td></tr>
+        <tr><td>M5</td><td><code>places_left + 1</code> → <code>+ 2</code> on cancel</td><td>One cancellation frees two places</td></tr>
+        <tr><td>M6</td><td>cancel leaves the status <code>confirmed</code></td><td>"Cancelled", but the place is still taken</td></tr>
+        <tr><td>M7</td><td>the capacity count includes cancelled rows</td><td>Freed places can never be booked again</td></tr>
+        <tr><td>M8</td><td>the re-check in the transaction uses <code>&gt;</code></td><td>Two people pressing at once can oversell by one</td></tr>
+        <tr><td>M9</td><td>the first check uses <code>&gt;</code></td><td>At a full event, a payment is authorised before the refusal</td></tr>
+        <tr><td>M10</td><td>reserve forgets to decrement the counter</td><td>A booking doesn't use up a place on the page</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout try">
+    <span class="label">Predict (pairs, 6 minutes)</span>
+    <p>For each mutant, predict which of these catch it: (a) the Week 1 promise <code>reserved ≤ capacity</code> as a property, (b) the tests that came with the code, including Week 1's, (c) the model property, (d) tests written from requirements R1 to R6. Mark each cell caught or survived.</p>
+  </div>
+
+  <details class="reveal">
+    <summary>Debrief: the mutant grid (open after you predict)</summary>
+    <div class="inner">
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 560" role="img" aria-label="A grid of ten mutants against five test suites. The capacity property catches none of the ten. The tests that came with the code catch four: M4, M5, M8 and M10. The model property catches four: M5, M6, M7 and M10. Tests written from the requirements catch nine, all but M8. All together catch ten of ten.">
+            <defs>
+              <filter id="w5f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+            </defs>
+            <g filter="url(#w5f5-r)">
+              <path d="M792,80 V476" class="s s-thin s-dash s-2"/>
+              <path d="M20,82 H930 M20,478 H930" class="s s-thin s-2"/>
+              <!-- M1: S S S C C -->
+              <rect x="355" y="85" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,93 l14,14 M402,93 l-14,14" class="s s-red"/>
+              <rect x="465" y="85" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,93 l14,14 M512,93 l-14,14" class="s s-red"/>
+              <rect x="575" y="85" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,93 l14,14 M622,93 l-14,14" class="s s-red"/>
+              <rect x="685" y="85" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,100 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="85" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,100 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M2: S S S C C -->
+              <rect x="355" y="125" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,133 l14,14 M402,133 l-14,14" class="s s-red"/>
+              <rect x="465" y="125" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,133 l14,14 M512,133 l-14,14" class="s s-red"/>
+              <rect x="575" y="125" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,133 l14,14 M622,133 l-14,14" class="s s-red"/>
+              <rect x="685" y="125" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,140 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="125" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,140 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M3: S S S C C -->
+              <rect x="355" y="165" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,173 l14,14 M402,173 l-14,14" class="s s-red"/>
+              <rect x="465" y="165" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,173 l14,14 M512,173 l-14,14" class="s s-red"/>
+              <rect x="575" y="165" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,173 l14,14 M622,173 l-14,14" class="s s-red"/>
+              <rect x="685" y="165" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,180 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="165" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,180 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M4: S C S C C -->
+              <rect x="355" y="205" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,213 l14,14 M402,213 l-14,14" class="s s-red"/>
+              <rect x="465" y="205" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M496,220 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="575" y="205" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,213 l14,14 M622,213 l-14,14" class="s s-red"/>
+              <rect x="685" y="205" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,220 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="205" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,220 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M5: S C C C C -->
+              <rect x="355" y="245" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,253 l14,14 M402,253 l-14,14" class="s s-red"/>
+              <rect x="465" y="245" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M496,260 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="575" y="245" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M606,260 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="685" y="245" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,260 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="245" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,260 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M6: S S C C C -->
+              <rect x="355" y="285" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,293 l14,14 M402,293 l-14,14" class="s s-red"/>
+              <rect x="465" y="285" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,293 l14,14 M512,293 l-14,14" class="s s-red"/>
+              <rect x="575" y="285" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M606,300 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="685" y="285" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,300 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="285" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,300 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M7: S S C C C -->
+              <rect x="355" y="325" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,333 l14,14 M402,333 l-14,14" class="s s-red"/>
+              <rect x="465" y="325" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,333 l14,14 M512,333 l-14,14" class="s s-red"/>
+              <rect x="575" y="325" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M606,340 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="685" y="325" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,340 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="325" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,340 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M8: S C S S C -->
+              <rect x="355" y="365" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,373 l14,14 M402,373 l-14,14" class="s s-red"/>
+              <rect x="465" y="365" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M496,380 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="575" y="365" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,373 l14,14 M622,373 l-14,14" class="s s-red"/>
+              <rect x="685" y="365" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M718,373 l14,14 M732,373 l-14,14" class="s s-red"/>
+              <rect x="815" y="365" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,380 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M9: S S S C C -->
+              <rect x="355" y="405" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,413 l14,14 M402,413 l-14,14" class="s s-red"/>
+              <rect x="465" y="405" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M498,413 l14,14 M512,413 l-14,14" class="s s-red"/>
+              <rect x="575" y="405" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M608,413 l14,14 M622,413 l-14,14" class="s s-red"/>
+              <rect x="685" y="405" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,420 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="405" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,420 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- M10: S C C C C -->
+              <rect x="355" y="445" width="80" height="30" rx="5" class="s s-thin s-red f-red"/><path d="M388,453 l14,14 M402,453 l-14,14" class="s s-red"/>
+              <rect x="465" y="445" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M496,460 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="575" y="445" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M606,460 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="685" y="445" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M716,460 l6,7 l12,-14" class="s s-green s-thick"/>
+              <rect x="815" y="445" width="80" height="30" rx="5" class="s s-thin s-green f-green"/><path d="M846,460 l6,7 l12,-14" class="s s-green s-thick"/>
+              <!-- legend -->
+              <rect x="355" y="530" width="30" height="18" rx="4" class="s s-thin s-green f-green"/>
+              <rect x="600" y="530" width="30" height="18" rx="4" class="s s-thin s-red f-red"/>
+            </g>
+            <text x="395" y="48" text-anchor="middle" class="t-sm">capacity</text>
+            <text x="395" y="68" text-anchor="middle" class="t-sm">property</text>
+            <text x="505" y="48" text-anchor="middle" class="t-sm">came with</text>
+            <text x="505" y="68" text-anchor="middle" class="t-sm">the code</text>
+            <text x="615" y="48" text-anchor="middle" class="t-sm">model</text>
+            <text x="615" y="68" text-anchor="middle" class="t-sm">property</text>
+            <text x="725" y="48" text-anchor="middle" class="t-sm">tests from</text>
+            <text x="725" y="68" text-anchor="middle" class="t-sm">requirements</text>
+            <text x="855" y="48" text-anchor="middle" class="t-sm">all</text>
+            <text x="855" y="68" text-anchor="middle" class="t-sm">together</text>
+            <text x="24" y="105" class="t-mono">M1</text><text x="62" y="105" class="t-sm">door opens a moment late</text>
+            <text x="24" y="145" class="t-mono">M2</text><text x="62" y="145" class="t-sm">door opens 15 min early, not 30</text>
+            <text x="24" y="185" class="t-mono">M3</text><text x="62" y="185" class="t-sm">a cancelled booking checks in</text>
+            <text x="24" y="225" class="t-mono">M4</text><text x="62" y="225" class="t-sm">the same booking checks in twice</text>
+            <text x="24" y="265" class="t-mono">M5</text><text x="62" y="265" class="t-sm">one cancel frees two places</text>
+            <text x="24" y="305" class="t-mono">M6</text><text x="62" y="305" class="t-sm">cancel leaves it confirmed</text>
+            <text x="24" y="345" class="t-mono">M7</text><text x="62" y="345" class="t-sm">freed places can't be booked again</text>
+            <text x="24" y="385" class="t-mono">M8</text><text x="62" y="385" class="t-sm">re-check lets one extra in (race)</text>
+            <text x="24" y="425" class="t-mono">M9</text><text x="62" y="425" class="t-sm">full event: payment, then refusal</text>
+            <text x="24" y="465" class="t-mono">M10</text><text x="62" y="465" class="t-sm">booking doesn't use up a place</text>
+            <text x="24" y="508" class="t-sm">caught</text>
+            <text x="395" y="510" text-anchor="middle" class="t-lg t-red">0 / 10</text>
+            <text x="505" y="510" text-anchor="middle" class="t-lg">4 / 10</text>
+            <text x="615" y="510" text-anchor="middle" class="t-lg">4 / 10</text>
+            <text x="725" y="510" text-anchor="middle" class="t-lg">9 / 10</text>
+            <text x="855" y="510" text-anchor="middle" class="t-lg t-green">10 / 10</text>
+            <text x="393" y="544" class="t-sm">caught (a test failed)</text>
+            <text x="638" y="544" class="t-sm">survived (every test passed)</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 5.5</b> The mutant grid, from real runs of <code>mutants.py</code> on the solved kit. Each column is a separate run with a different set of tests. "Came with the code" includes Week 1's tests, with the 22:00:00 expectation corrected as in the hook.</figcaption>
+      </figure>
+      <ul>
+        <li><strong>The capacity property catches none of the ten.</strong> For nine of them the promise really does hold. M8 breaks it: two people pressing at once get 41 places for 40, which is how Week 1's concurrency test catches it. The property never tries that, because its steps run one after another. What misses M8 is the property's generator, not its assertion.</li>
+        <li><strong>The tests that came with the code catch four.</strong> Two of those catches come from Week 1's tests: M10 from a basic test, and M8 only from the concurrency test.</li>
+        <li><strong>The model property catches the four counting mistakes</strong> (M5, M6, M7, M10) and nothing at the door, because the model knows nothing about the door.</li>
+        <li><strong>Tests written from the requirements catch nine.</strong> The one they miss, M8, only shows when two people press at once, which is why Week 1's concurrency test still matters. All together: ten of ten.</li>
+        <li><strong>M9 survives everything that only watches the API</strong>, because the answer is 409 either way. Is it an <em>equivalent mutant</em>, one that can never change anything anyone sees? No. With M9, a person asking for a full event has a payment authorised before being turned away, and R6 forbids that. A test that records calls to <code>payments.authorize</code> catches it. A survivor means either a missing test or an equivalent mutant, and you need the requirements to decide which.</li>
+      </ul>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A high mutation score says your tests notice change. It cannot say that what they expect is right.</strong> Try it on the kit: feed the correct fix (<code>now &lt; ends_at</code>) to <code>mutants.py</code> as if it were a mistake. The tests that came with the code catch it, 1 of 1, because they were written from the bug. Sensitivity comes from mutants. Truth comes only from an independent oracle.</p>
+  </div>
+</section>
+
+<!-- ============ 5. EVALS ============ -->
+<section class="block" id="evals">
+  <div class="sechead">
+    <span class="clock">1:00 – 1:10</span>
+    <h2>Tests and evals</h2>
+  </div>
+  <p>Every check so far gave each case a clear verdict: either one right answer (a check-in at 22:00:00 is refused) or a rule that every answer must satisfy (the app agrees with the model). Some features don't fit that. Suppose AfterHours adds a concierge built on a language model: "Something quiet on Friday night?" Many answers are good, some are better than others, and the same question can get a different answer each time.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 330" role="img" aria-label="Left, a test: check in at 22:00:00 goes into the app, the answer 409 is compared with what R4 says, 409, and the case passes or fails. Right, an eval: a set of 20 requests with written criteria goes into the concierge model; the varied answers go to a grader, and the result is a score, 17 out of 20, compared with a bar of 16 and across versions. Numbers are illustrative.">
+        <defs>
+          <filter id="w5f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w5f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w5f6-r)">
+          <path d="M470,20 V316" class="s s-dash s-2"/>
+          <rect x="30" y="80" width="130" height="64" rx="8" class="s f-card"/>
+          <path d="M162,112 H194" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="198" y="80" width="90" height="64" rx="8" class="s f-pen"/>
+          <path d="M290,112 H322" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="326" y="80" width="110" height="64" rx="8" class="s f-card"/>
+          <rect x="326" y="180" width="110" height="56" rx="3" class="s s-thin f-mark"/>
+          <rect x="524" y="84" width="140" height="70" rx="6" class="s s-thin f-card"/>
+          <rect x="518" y="90" width="140" height="70" rx="6" class="s s-thin f-card"/>
+          <rect x="512" y="96" width="140" height="70" rx="6" class="s f-card"/>
+          <path d="M668,122 H694" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="698" y="94" width="110" height="60" rx="8" class="s f-pen"/>
+          <path d="M810,122 H834" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="838" y="92" width="96" height="14" rx="3" class="s s-thin f-paper"/>
+          <rect x="838" y="114" width="80" height="14" rx="3" class="s s-thin f-paper"/>
+          <rect x="838" y="136" width="90" height="14" rx="3" class="s s-thin f-paper"/>
+          <path d="M883,178 V204" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="790" y="206" width="150" height="54" rx="8" class="s f-card"/>
+          <path d="M788,233 H706" class="s" marker-end="url(#w5f6-a)"/>
+          <rect x="520" y="222" width="170" height="22" rx="3" class="s s-thin f-card"/>
+          <rect x="520" y="222" width="144.5" height="22" rx="3" class="s s-thin s-green f-green"/>
+          <path d="M656,212 V254" class="s s-red s-dash"/>
+        </g>
+        <text x="235" y="40" text-anchor="middle" class="t-lg">A test: a verdict per case</text>
+        <text x="95" y="106" text-anchor="middle" class="t-sm">check in at</text>
+        <text x="95" y="128" text-anchor="middle" class="t-mono">22:00:00</text>
+        <text x="243" y="118" text-anchor="middle">app</text>
+        <text x="381" y="106" text-anchor="middle" class="t-sm">answer</text>
+        <text x="381" y="128" text-anchor="middle" class="t-mono">409</text>
+        <text x="381" y="168" text-anchor="middle" class="t-sm">same?</text>
+        <text x="381" y="204" text-anchor="middle" class="t-sm t-mark">R4 says</text>
+        <text x="381" y="225" text-anchor="middle" class="t-mono t-mark">409</text>
+        <text x="235" y="276" text-anchor="middle" class="t-lg t-green">pass or fail</text>
+        <text x="235" y="300" text-anchor="middle" class="t-sm t-2">for each case</text>
+        <text x="720" y="40" text-anchor="middle" class="t-lg">An eval: a score across cases</text>
+        <text x="582" y="120" text-anchor="middle" class="t-sm">eval set</text>
+        <text x="582" y="140" text-anchor="middle" class="t-sm">20 requests</text>
+        <text x="582" y="160" text-anchor="middle" class="t-sm t-2">+ criteria</text>
+        <text x="753" y="120" text-anchor="middle" class="t-sm">concierge</text>
+        <text x="753" y="140" text-anchor="middle" class="t-sm t-2">(a model)</text>
+        <text x="883" y="172" text-anchor="middle" class="t-sm t-2">answers vary</text>
+        <text x="865" y="230" text-anchor="middle" class="t-sm">grader</text>
+        <text x="865" y="250" text-anchor="middle" class="t-sm t-2">checks, rubric</text>
+        <text x="656" y="206" text-anchor="middle" class="t-sm t-red">bar: 16</text>
+        <text x="605" y="272" text-anchor="middle" class="t-sm">score 17 / 20</text>
+        <text x="705" y="300" text-anchor="middle" class="t-sm t-2">compare across prompt and model versions</text>
+              </svg>
+    </div>
+    <figcaption><b>Fig 5.6</b> A test gives each case a clear verdict against a precise expectation: one right answer, or a rule every answer must meet. An eval runs a representative set of requests, grades each answer against written criteria, and reports a score that you compare with a bar and across versions. Evals complement tests. The numbers are illustrative.</figcaption>
+  </figure>
+
+  <p>For such a feature you add an <strong>eval</strong>: a representative set of requests, criteria for a good answer written down before you look at any outputs, a grader that applies them, and a score over the whole set, often averaged over several runs because the answers vary. Graders range from exact checks (is every suggested event on Friday night?) to a rubric, and sometimes another model, whose judgements are claims to check in their turn. After every change to the prompt or the model, you run the eval again and compare scores. The hard rules still get ordinary tests; the eval measures quality on top of them.</p>
+  <p>Today's principle carries over unchanged. The eval set and the criteria are the oracle, so they must come from what users need, independently of the system under test. If the same model writes the questions, the ideal answers and the grades, it is once again checking itself against its own assumptions. The extension week, <em>Products That Contain Models</em>, builds a full eval.</p>
+  <div class="callout try">
+    <span class="label">Sort (pairs, 3 minutes)</span>
+    <p>Test or eval? (1) The door refuses a check-in at 22:00:00. (2) Places left after cancelling twice. (3) Suggest three events for a first-year who likes board games. (4) The concierge never suggests an event that is already full.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p>(1) and (2) are tests: each case has a precise expected result. (3) needs an eval: many answers are good, and deciding which ones needs written criteria. (4) is the interesting one. The concierge's words vary, but "never suggests a full event" is a hard rule you can check exactly on every output, so it is a test (a property) that runs inside the eval. Most model features need both.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. AGENTS ============ -->
+<section class="block" id="agents">
+  <div class="sechead">
+    <span class="clock">1:10 – 1:25</span>
+    <h2>Agents and tests</h2>
+  </div>
+  <p>Agents work toward a goal, and "the tests pass" is a goal that is easy to check. Sometimes they reach it the wrong way.</p>
+  <div class="callout case">
+    <span class="label">What model developers and evaluators have reported</span>
+    <ul>
+      <li>Anthropic's system card for Claude 3.7 Sonnet (February 2025) says the model "occasionally resorts to special-casing in order to pass test cases in agentic coding environments like Claude Code. Most often this takes the form of directly returning expected test values rather than implementing general solutions, but also includes modifying the problematic tests themselves to match the code's output." One trigger it lists: "Test cases present conflicting requirements". It adds that the behaviour "occurs infrequently in normal usage". Later cards report lower rates and say that hard-coding and special-casing "do still occur".</li>
+      <li>METR (June 2025) saw recent frontier models, on its own evaluation tasks, try to raise their scores "by modifying the tests or scoring code". In one example, OpenAI's o3 "monkey-patches the evaluator to always return a perfect score". METR believes this is "a general phenomenon, not isolated to any one model or developer".</li>
+      <li>ImpossibleBench (a 2025 preprint) builds coding tasks whose tests contradict their specification, so passing always means cheating. The authors report, for example, that GPT-5 "cheats in 76% of the tasks" in one variant, and that Claude models cheated "primarily (&gt; 79%) through modifying test cases". They recommend "hiding test files entirely or restricting them to read-only access during implementation".</li>
+    </ul>
+    <p>Read these with care. ImpossibleBench and Anthropic's reward-hacking evaluations are built to provoke the behaviour, and Anthropic notes that its numbers do not reflect real-world rates. METR's examples come from ordinary capability tasks that METR designed to be "robust to cheating", which makes them more striking, but they are still evaluation runs. None of the three measures how often everyday coding agents do this. The pattern belongs to optimisation in general: anything aimed at green can find a cheap way to green.</p>
+  </div>
+  <p>Our kit now has exactly the situation the system card names: two tests that conflict. The given test expects 200 at 22:00:00, and our requirement test expects 409. Suppose an agent is told: <em>make the suite pass</em>. Each of these diffs does. They are ours, written to show the three moves.</p>
+
+  <div class="patches">
+    <article class="patch">
+      <header><strong>Diff A · Fix the code, and the test that encoded the bug</strong><span>app/checkin.py, tests/test_checkin.py</span></header>
+<pre class="diff"><span class="del">-    return opens_at &lt;= now &lt;= ends_at</span><span class="add">+    return opens_at &lt;= now &lt; ends_at</span><span class="ctx">  …</span><span class="del">- def test_check_in_is_allowed_until_the_end_of_the_event(client, clock):</span><span class="add">+ # R4: the end time is outside the window. This test expected 200 because it was</span><span class="add">+ # written from the old code; changed on purpose, see docs/requirements.md.</span><span class="add">+ def test_check_in_is_refused_at_the_end_of_the_event(client, clock):</span><span class="ctx">      …</span><span class="del">-     assert check_in(client, booking).status_code == 200</span><span class="add">+     assert check_in(client, booking).status_code == 409</span></pre>
+      <footer>pytest: 17 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>Diff B · Change the new test</strong><span>tests/test_r4_end_time.py</span></header>
+<pre class="diff"><span class="ctx">      res = client.post(f"/api/reservations/{booking['id']}/check-in")</span><span class="del">-     assert res.status_code == 409</span><span class="add">+     # Aligned with the implementation and with test_check_in_is_allowed_until_the_end_of_the_event.</span><span class="add">+     assert res.status_code == 200</span></pre>
+      <footer>pytest: 17 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>Diff C · Skip the new test</strong><span>tests/test_r4_end_time.py</span></header>
+<pre class="diff"><span class="add">+ import pytest</span><span class="ctx">  …</span><span class="add">+ @pytest.mark.skip(reason="conflicts with test_check_in_is_allowed_until_the_end_of_the_event")</span><span class="ctx">  def test_r4_the_end_time_is_outside_the_window(client, clock):</span></pre>
+      <footer>pytest: 16 passed, 1 skipped</footer>
+    </article>
+  </div>
+  <div class="callout try">
+    <span class="label">In pairs (5 minutes)</span>
+    <ol>
+      <li>Which diff do you merge?</li>
+      <li>For each one: did it change the code, or the oracle?</li>
+      <li>What would have stopped the bad ones before they reached main?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: the three diffs</summary>
+    <div class="inner">
+      <p><strong>Diff A</strong> changes the code and one test. The test change is right, because R4 decides, and it is done in the open: the comment names the requirement. It still edits an oracle, so a human reviews that line first.</p>
+      <p><strong>Diff B</strong> moves the requirement test to agree with the bug. It reads like tidying up. It is the hook's mistake made on purpose: the expected answer now comes from the code.</p>
+      <p><strong>Diff C</strong> hides the disagreement. "1 skipped" is easy to miss in a long CI log.</p>
+      <p>The move the system card mentions most, special-casing, would look like <code>if now == datetime(2026, 10, 9, 22, 0): return False</code>. Here it can't make both conflicting tests pass, but with only the requirement test present it would. That is why the lab's reference tests also check the Silent Disco, which runs until 23:30 and is still open at 22:00:00: a fix that special-cases one time of day fails there. Extra cases catch particular special cases. No finite list of examples rules out every one, which is one more reason the code gets reviewed as well.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Working rules for tests (put them in AGENTS.md)</span>
+    <ol>
+      <li>Expected values come from the requirements. If the requirements don't decide a case, stop and ask.</li>
+      <li>Review the tests before the code. The tests are the claim; the code is the attempt.</li>
+      <li>Nobody edits a test silently. A test change goes in its own commit, quotes the requirement, and gets a human reviewer.</li>
+      <li>A skipped requirement test counts as failing until a named person signs the skip off.</li>
+    </ol>
+  </div>
+  <p>Rules in AGENTS.md are signs (Lecture 1, reading R7). Build fences as well. While an agent implements, give it a workspace where the test folder is read-only. On the server, GitHub's <code>CODEOWNERS</code> file plus a branch rule can require a named owner's approval for any pull request that touches <code>tests/</code>. Give the <code>CODEOWNERS</code> file an owner too, or it becomes the next thing to edit.</p>
+  <p>Here is today's work as an evidence packet:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <tbody>
+        <tr><th>Requirement</th><td>R4: the end time is outside the check-in window. R3: cancelling twice changes nothing.</td></tr>
+        <tr><th>Decision</th><td>Fix <code>door_is_open</code> (<code>&lt;</code>) and guard <code>cancel()</code> by status. Correct the given test that encoded the bug, citing R4. Rejected: diffs B and C.</td></tr>
+        <tr><th>Change</th><td>Two small fixes; one corrected test; tests written from R1 to R6; one idempotence property.</td></tr>
+        <tr><th>Check</th><td>Requirement tests fail on the kit and pass after the fix. The model property shrinks the double cancel to three steps, then passes. Mutation score: 4 of 10 with the given tests, 10 of 10 with everything.</td></tr>
+        <tr><th>Result</th><td>Ready for staging. Open: the race loser's payment (Week 6); whether a checked-in reservation may still be cancelled (a question for the product lead).</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Refund rule: <em>full refund up to 48 hours before the event starts, half refund until 24 hours before, nothing after that.</em> For an event on Friday at 20:00, write the equivalence classes and the boundary test times, each with its expected refund. Mark any time the rule does not decide.</li>
+        <li>Your suite catches 10 of 10 mutants and runs every line of the code. Name one way the software could still be wrong.</li>
+        <li>An agent's pull request changes <code>assert res.status_code == 409</code> to <code>assert res.status_code in (200, 409)</code>, and CI turns green. What do you do, and which rule or fence would have stopped it?</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 6</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Testing beyond today</h2>
+  <p>Four short readings. Read them before the lab.</p>
+</div>
+
+<section class="block" id="sqlite">
+  <div class="sechead"><span class="clock">R1</span><h2>SQLite's test suite</h2></div>
+  <p>SQLite, the database inside AfterHours, publishes a detailed account of how it is tested. The page says that as of version 3.42.0 (May 2023) the library was about 155.8 thousand lines of C, and "the project has 590 times as much test code and test scripts". One of its test harnesses, TH3, is proprietary and provides "100% branch test coverage (and 100% MC/DC test coverage) to the core SQLite library".</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 600" role="img" aria-label="One yellow square stands for the SQLite library, about 155.8 thousand lines of C. Next to it, 590 blue squares of the same size stand for its test code and test scripts, as of version 3.42.0 in May 2023.">
+        <defs>
+          <filter id="w5f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="1.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w5f7-sq" width="24" height="24" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="20" height="20" rx="2" class="f-pen"/><rect x="2.5" y="2.5" width="19" height="19" rx="2" class="s s-thin s-pen"/></pattern>
+        </defs>
+        <g filter="url(#w5f7-r)">
+          <rect x="85" y="262" width="20" height="20" rx="2" class="s s-thick f-mark"/>
+          <rect x="192" y="72" width="720" height="456" style="fill:url(#w5f7-sq)"/>
+          <rect x="192" y="528" width="480" height="24" style="fill:url(#w5f7-sq)"/>
+        </g>
+        <text x="95" y="244" text-anchor="middle" class="t-sm">the library</text>
+        <text x="95" y="306" text-anchor="middle" class="t-sm t-2">155.8 KSLOC</text>
+        <text x="95" y="324" text-anchor="middle" class="t-sm t-2">= one square</text>
+        <text x="552" y="54" text-anchor="middle" class="t-sm">test code and test scripts: 590 squares (92,053 KSLOC)</text>
+        <text x="552" y="582" text-anchor="middle" class="t-sm t-2">as of SQLite 3.42.0 (May 2023) · drawn to scale by area</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.7</b> SQLite's library and its tests, to scale. Each square is the size of the whole library. KSLOC means thousands of lines of code, not counting blank lines and comments.</figcaption>
+  </figure>
+  <p>Three details connect to today:</p>
+  <ul>
+    <li><strong>Boundary values.</strong> SQLite's tests push each defined limit "right to the edge" and beyond, and the source code contains macros that check "that both sides of each boundary have been tested".</li>
+    <li><strong>Mutation testing.</strong> A script changes each branch instruction of the compiled code, one at a time, and "verifies that the test suite catches the mutation". Some branches only make the code faster without changing its output, and the page calls these "false-positives during mutation testing". Those are equivalent mutants. SQLite marks such branches with special comments so that the mutation script can allow for them.</li>
+    <li><strong>Cost.</strong> The page says keeping 100% MC/DC "is laborious and time-consuming" and "probably not cost effective for a typical application". SQLite pays it because, in its own words, a database library "by its very nature 'remembers' past mistakes".</li>
+  </ul>
+  <p>The lesson is proportion. Decide how much checking a feature deserves from what it costs to be wrong, as with Lecture 1's two questions: who gets hurt, and how long will it live?</p>
+</section>
+
+<section class="block" id="flaky">
+  <div class="sechead"><span class="clock">R2</span><h2>Flaky tests</h2></div>
+  <p>A flaky test is, in Google's definition, "a test that exhibits both a passing and a failing result with the same code". In 2016 John Micco reported three numbers from the tests Google runs continuously on every code change:</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 320" role="img" aria-label="Three waffle charts, to scale. About 1.5 percent of all test runs reported a flaky result: 3 red squares out of 200. Almost 16 percent of tests had some flakiness: 16 out of 100. About 84 percent of pass-to-fail transitions involved a flaky test: 84 out of 100. Google, 2016.">
+        <defs>
+          <filter id="w5f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w5f8-c" width="12" height="12" patternUnits="userSpaceOnUse"><rect x="1" y="1" width="10" height="10" class="f-pen"/></pattern>
+          <pattern id="w5f8-x" width="12" height="12" patternUnits="userSpaceOnUse"><rect x="1" y="1" width="10" height="10" class="f-redink"/></pattern>
+        </defs>
+        <g filter="url(#w5f8-r)">
+          <rect x="36" y="96" width="240" height="120" style="fill:url(#w5f8-c)"/>
+          <rect x="84" y="120" width="12" height="12" style="fill:url(#w5f8-x)"/>
+          <rect x="192" y="168" width="12" height="12" style="fill:url(#w5f8-x)"/>
+          <rect x="240" y="204" width="12" height="12" style="fill:url(#w5f8-x)"/>
+          <rect x="384" y="96" width="120" height="120" style="fill:url(#w5f8-c)"/>
+          <rect x="384" y="204" width="120" height="12" style="fill:url(#w5f8-x)"/>
+          <rect x="384" y="192" width="72" height="12" style="fill:url(#w5f8-x)"/>
+          <rect x="660" y="96" width="120" height="120" style="fill:url(#w5f8-c)"/>
+          <rect x="660" y="120" width="120" height="96" style="fill:url(#w5f8-x)"/>
+          <rect x="660" y="108" width="48" height="12" style="fill:url(#w5f8-x)"/>
+        </g>
+        <text x="156" y="66" text-anchor="middle" class="t-sm">about 1.5% of all test runs</text>
+        <text x="156" y="84" text-anchor="middle" class="t-sm t-2">3 of 200</text>
+        <text x="156" y="242" text-anchor="middle" class="t-sm t-2">reported a flaky result</text>
+        <text x="444" y="66" text-anchor="middle" class="t-sm">almost 16% of tests</text>
+        <text x="444" y="84" text-anchor="middle" class="t-sm t-2">16 of 100</text>
+        <text x="444" y="242" text-anchor="middle" class="t-sm t-2">had some flakiness</text>
+        <text x="720" y="66" text-anchor="middle" class="t-sm">about 84% of pass → fail transitions</text>
+        <text x="720" y="84" text-anchor="middle" class="t-sm t-2">84 of 100</text>
+        <text x="720" y="242" text-anchor="middle" class="t-sm t-2">involved a flaky test</text>
+        <text x="480" y="296" text-anchor="middle" class="t-sm t-2">Google, 2016 · one company's numbers · each square is one run, one test or one transition</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.8</b> Flakiness at Google in 2016, drawn to scale as waffle charts. Most runs are fine, but so many tests flake now and then that most pass-to-fail changes involve a flaky test, which teaches people to shrug at red.</figcaption>
+  </figure>
+  <p>That last number is the danger. When red usually means "flaky", people re-run until green, and a real failure gets re-run too. A flaky suite loses its authority as an oracle.</p>
+  <p>Where does flakiness come from? Luo and colleagues (2014) studied 201 commits that fixed flaky tests in 51 open-source projects. Of the 161 they could classify, the top three causes were waiting for asynchronous work (45%), concurrency (20%) and dependence on the order tests run in (12%). Time is another classic: a test that reads the real clock passes at noon and fails near midnight.</p>
+  <p>You have already met three defences. The injectable clock takes "what time is it" out of the test's hands. Week 1's <code>hold_everyone_at_payment</code> forces one interleaving instead of hoping for it. Hypothesis with <code>derandomize=True</code> tries the same examples on every run, as long as the Hypothesis version, the Python version and the test stay the same. Each one fixes a source of variation that the test can control. Anything else that varies, such as a real network call or results that come back in no fixed order, still has to be found and removed.</p>
+</section>
+
+<section class="block" id="shapes">
+  <div class="sechead"><span class="clock">R3</span><h2>Pyramids, trophies, honeycombs</h2></div>
+  <p>How many of each kind of test should you write? The best-known answer is a shape. Mike Cohn described the "Test Automation Pyramid" in his 2009 book <em>Succeeding with Agile</em>; Martin Fowler notes that Cohn first drew it with Lisa Crispin around 2003–04. Many fast, cheap unit tests at the bottom, fewer service tests, very few slow UI tests on top. Google's testing blog (2015) offered "a 70/20/10 split" of unit, integration and end-to-end tests as "a good first guess".</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 340" role="img" aria-label="Three shapes. The pyramid (Mike Cohn, 2009): a wide base of unit tests, a middle of service tests, a small top of UI tests. The trophy (Kent C. Dodds, 2018): static checks as the base, a thin stem of unit tests, a wide bowl of integration tests, a small end-to-end top. The honeycomb (Spotify, 2018): a large middle of integration tests, a small top of integrated tests and a small base of implementation-detail tests.">
+        <defs>
+          <filter id="w5f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w5f9-r)">
+          <path d="M170,70 L211.6,150 L128.4,150 Z" class="s f-red"/>
+          <path d="M128.4,150 L211.6,150 L255.8,235 L84.2,235 Z" class="s f-green"/>
+          <path d="M84.2,235 L255.8,235 L300,320 L40,320 Z" class="s f-pen"/>
+          <rect x="425" y="70" width="110" height="36" rx="6" class="s f-red"/>
+          <rect x="380" y="106" width="200" height="104" rx="30" class="s f-green"/>
+          <rect x="445" y="210" width="70" height="60" class="s f-pen"/>
+          <rect x="400" y="270" width="160" height="50" rx="6" class="s f-card"/>
+          <path d="M680,125 L790,70 L900,125 Z" class="s f-red"/>
+          <path d="M680,125 H900 V265 H680 Z" class="s f-green"/>
+          <path d="M680,265 H900 L790,320 Z" class="s f-pen"/>
+        </g>
+        <text x="170" y="34" text-anchor="middle" class="t-lg">Pyramid</text>
+        <text x="170" y="54" text-anchor="middle" class="t-sm t-2">Mike Cohn, 2009</text>
+        <text x="170" y="136" text-anchor="middle" class="t-sm">UI</text>
+        <text x="170" y="198" text-anchor="middle" class="t-sm">service</text>
+        <text x="170" y="286" text-anchor="middle" class="t-sm">unit</text>
+        <text x="480" y="34" text-anchor="middle" class="t-lg">Trophy</text>
+        <text x="480" y="54" text-anchor="middle" class="t-sm t-2">Kent C. Dodds, 2018</text>
+        <text x="480" y="93" text-anchor="middle" class="t-sm">end to end</text>
+        <text x="480" y="164" text-anchor="middle" class="t-sm">integration</text>
+        <text x="480" y="245" text-anchor="middle" class="t-sm">unit</text>
+        <text x="480" y="300" text-anchor="middle" class="t-sm">static</text>
+        <text x="790" y="34" text-anchor="middle" class="t-lg">Honeycomb</text>
+        <text x="790" y="54" text-anchor="middle" class="t-sm t-2">Spotify, 2018 (microservices)</text>
+        <text x="790" y="118" text-anchor="middle" class="t-sm">integrated</text>
+        <text x="790" y="200" text-anchor="middle" class="t-sm">integration</text>
+        <text x="790" y="285" text-anchor="middle" class="t-sm">implementation</text>
+        <text x="790" y="301" text-anchor="middle" class="t-sm">detail</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.9</b> Three shapes of advice about where to spend testing effort. Blue marks the smallest and fastest kind of test, green the middle, red the broadest and slowest. Widths suggest proportions; they are opinions, not measurements.</figcaption>
+  </figure>
+  <p>Critics drew other shapes. Kent C. Dodds's testing trophy (2018) puts static checks, such as type checkers and linters, at the base and most of the weight on integration tests. Spotify's engineers, testing microservices, drew a honeycomb (2018): "focus on Integration Tests, have a few Implementation Detail Tests and even fewer Integrated Tests (ideally none)".</p>
+  <p>These shapes are advice about cost and speed, and they disagree because they come from different systems. Today's lab ignores them on purpose: its strongest tests are API-level tests written from the requirements, plus one property over a model. Ask three questions of any test instead of asking which layer it belongs to: where does its expected answer come from, how fast is it, and which mistakes would it catch?</p>
+</section>
+
+<section class="block" id="coverage">
+  <div class="sechead"><span class="clock">R4</span><h2>Coverage is not correctness</h2></div>
+  <p>Coverage tools report which lines of code ran during the tests. It is tempting to read a high number as proof that the code is well tested. We measured the kit. The six check-in tests that came with the code run both lines of <code>door_is_open</code>, see it return both <code>True</code> and <code>False</code>, and run 28 of the 29 lines of <code>check_in</code>. That is 30 of 31 lines, and the 22:00:00 bug still passes.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 320" role="img" aria-label="Bar chart. The tests that came with the code execute 30 of the 31 lines in the functions of app/checkin.py but catch only 1 of the 4 check-in mutants and miss the 22:00:00 bug. The tests written from R4 and R5 also execute 30 of 31 lines, catch all 4 check-in mutants, and find the bug.">
+        <defs>
+          <filter id="w5f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="1.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w5f10-r)">
+          <rect x="300" y="72" width="542" height="26" class="s s-thin s-pen f-pen"/>
+          <rect x="300" y="108" width="140" height="26" class="s s-thin s-green f-green"/>
+          <rect x="300" y="184" width="542" height="26" class="s s-thin s-pen f-pen"/>
+          <rect x="300" y="220" width="560" height="26" class="s s-thin s-green f-green"/>
+          <path d="M300,266 H860" class="s s-thin"/>
+          <path d="M300,260 V272 M440,260 V272 M580,260 V272 M720,260 V272 M860,260 V272" class="s s-thin"/>
+        </g>
+        <text x="20" y="58" class="t-sm"><tspan font-weight="700">Tests that came with the code</tspan> (tests/test_checkin.py)</text>
+        <text x="290" y="90" text-anchor="end" class="t-sm">lines executed</text>
+        <text x="290" y="126" text-anchor="end" class="t-sm">check-in mutants caught</text>
+        <text x="850" y="90" class="t-sm">30 of 31</text>
+        <text x="450" y="126" class="t-sm">1 of 4 · 22:00:00 bug missed</text>
+        <text x="20" y="170" class="t-sm"><tspan font-weight="700">Tests written from R4 and R5</tspan> (the lab's reference)</text>
+        <text x="290" y="202" text-anchor="end" class="t-sm">lines executed</text>
+        <text x="290" y="238" text-anchor="end" class="t-sm">check-in mutants caught</text>
+        <text x="850" y="202" class="t-sm">30 of 31</text>
+        <text x="870" y="238" class="t-sm t-green">4 of 4</text>
+        <text x="300" y="290" text-anchor="middle" class="t-mono t-sm t-2">0%</text>
+        <text x="440" y="290" text-anchor="middle" class="t-mono t-sm t-2">25%</text>
+        <text x="580" y="290" text-anchor="middle" class="t-mono t-sm t-2">50%</text>
+        <text x="720" y="290" text-anchor="middle" class="t-mono t-sm t-2">75%</text>
+        <text x="860" y="290" text-anchor="middle" class="t-mono t-sm t-2">100%</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 5.10</b> Measured on the kit, to scale. Both suites run 30 of the 31 lines inside the two functions of <code>app/checkin.py</code>. Only the tests written from the requirements catch the check-in mutants (M1 to M4) and the 22:00:00 bug. Coverage tells you what ran. It cannot tell you whether anything checked the result against the right answer.</figcaption>
+  </figure>
+  <p>A line can run without anyone checking its result, and it can be checked against the wrong answer. Research points the same way. Inozemtseva and Holmes (2014) generated 31,000 test suites for five Java systems and found "a low to moderate correlation between coverage and effectiveness when the number of test cases in the suite is controlled for". Their advice: coverage is "useful for identifying under-tested parts of a program" but "should not be used as a quality target". (Their measure of effectiveness was the share of mutants a suite caught.)</p>
+  <p>Edsger Dijkstra put the limit of all testing in one line in 1970: "Program testing can be used to show the presence of bugs, but never to show their absence!" So use coverage to find what nobody tested, use mutants to see whether your tests would notice a change, and use the requirements to decide what is right.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Oracle</dt><dd>Whatever supplies a test's expected answer: an example in the requirement, a rule, a reference model, a person. The code under test cannot be its own oracle.</dd>
+    <dt>Equivalence class</dt><dd>A group of inputs the rule treats the same way, such as "too early" for the door.</dd>
+    <dt>Boundary value</dt><dd>An input on or next to the edge between two classes, such as 21:59:59 and 22:00:00.</dd>
+    <dt>Injectable clock</dt><dd>The app asks a clock object for the time, so a test can pass in a <code>FixedClock</code> set to the moment it needs.</dd>
+    <dt>Property</dt><dd>A statement that must hold for every input or every sequence of steps.</dd>
+    <dt>Reference model</dt><dd>A deliberately simple program, written from the requirements, that says what the real one should answer.</dd>
+    <dt>Shrinking</dt><dd>Simplifying a failing input step by step, as long as it still fails, to report a small failing case.</dd>
+    <dt>Mutant</dt><dd>A copy of the code with one small deliberate change. It is caught when a test fails on it, and survives when every test passes.</dd>
+    <dt>Mutation score</dt><dd>Caught mutants divided by all the mutants tried; <code>mutants.py</code> reports this raw score. If you show that a survivor is equivalent, you may leave it out, and say that you did.</dd>
+    <dt>Equivalent mutant</dt><dd>A mutant that behaves exactly like the original for every input, so no test can catch it.</dd>
+    <dt>Eval</dt><dd>A scored assessment over a representative set of cases with written criteria, used when answers vary and quality is a matter of degree. It complements tests.</dd>
+    <dt>Flaky test</dt><dd>A test that can pass and fail on the same code.</dd>
+    <dt>Idempotent</dt><dd>Doing it twice has the same effect as doing it once. R3 makes cancelling idempotent.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>E. T. Barr, M. Harman, P. McMinn, M. Shahbaz, S. Yoo, "The Oracle Problem in Software Testing: A Survey", <em>IEEE Transactions on Software Engineering</em> 41(5), 2015. <a href="https://coinse.github.io/publications/pdfs/Barr2015qd.pdf">PDF</a></li>
+    <li>K. Claessen, J. Hughes, "QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs", ICFP 2000. <a href="https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf">PDF</a></li>
+    <li>D. R. MacIver, Z. Hatfield-Dodds et al., "Hypothesis: A new approach to property-based testing", <em>Journal of Open Source Software</em> 4(43), 2019. <a href="https://joss.theoj.org/papers/10.21105/joss.01891">JOSS</a> · Hypothesis documentation: <a href="https://hypothesis.readthedocs.io/en/latest/stateful.html">stateful testing</a> · <a href="https://hypothesis.readthedocs.io/en/latest/reference/api.html">settings (derandomize)</a></li>
+    <li>R. A. DeMillo, R. J. Lipton, F. G. Sayward, "Hints on Test Data Selection: Help for the Practicing Programmer", <em>Computer</em> 11(4), April 1978. <a href="https://doi.org/10.1109/C-M.1978.218136">doi:10.1109/C-M.1978.218136</a></li>
+    <li>G. Petrović, M. Ivanković, "State of Mutation Testing at Google", ICSE-SEIP 2018. <a href="https://research.google.com/pubs/archive/46584.pdf">PDF</a></li>
+    <li>Anthropic, "Claude 3.7 Sonnet System Card", February 2025, section 6. <a href="https://www.anthropic.com/claude-3-7-sonnet-system-card">anthropic.com</a> · "System Card: Claude Sonnet 4.5", September 2025, section 6. <a href="https://www-cdn.anthropic.com/963373e433e489a87a10c823c52a0a013e9172dd.pdf">PDF</a></li>
+    <li>METR, "Recent Frontier Models Are Reward Hacking", 5 June 2025. <a href="https://metr.org/blog/2025-06-05-recent-reward-hacking/">metr.org</a></li>
+    <li>Z. Zhong, A. Raghunathan, N. Carlini, "ImpossibleBench: Measuring LLMs' Propensity of Exploiting Test Cases", arXiv:2510.20270, October 2025 (preprint). <a href="https://arxiv.org/abs/2510.20270">arXiv</a></li>
+    <li>GitHub Docs, "About code owners" and "About protected branches". <a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners">code owners</a> · <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches">protected branches</a></li>
+    <li>SQLite, "How SQLite Is Tested" (figures as of version 3.42.0). <a href="https://www.sqlite.org/testing.html">sqlite.org</a></li>
+    <li>J. Micco, "Flaky Tests at Google and How We Mitigate Them", Google Testing Blog, 27 May 2016. <a href="https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html">Google Testing Blog</a></li>
+    <li>Q. Luo, F. Hariri, L. Eloussi, D. Marinov, "An Empirical Analysis of Flaky Tests", FSE 2014. <a href="https://mir.cs.illinois.edu/lamyaa/publications/fse14.pdf">PDF</a></li>
+    <li>M. Fowler, "TestPyramid", 1 May 2012 (on M. Cohn, <em>Succeeding with Agile</em>, 2009). <a href="https://martinfowler.com/bliki/TestPyramid.html">martinfowler.com</a></li>
+    <li>M. Wacker, "Just Say No to More End-to-End Tests", Google Testing Blog, 22 April 2015. <a href="https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html">Google Testing Blog</a></li>
+    <li>K. C. Dodds, "The Testing Trophy and Testing Classifications", 2021 (the trophy was first shown in February 2018). <a href="https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications">kentcdodds.com</a></li>
+    <li>A. Schaffer, R. Dybeck, "Testing of Microservices", Spotify Engineering, 11 January 2018. <a href="https://engineering.atspotify.com/2018/01/testing-of-microservices">engineering.atspotify.com</a></li>
+    <li>L. Inozemtseva, R. Holmes, "Coverage Is Not Strongly Correlated with Test Suite Effectiveness", ICSE 2014. <a href="https://www.cs.ubc.ca/~rtholmes/papers/icse_2014_inozemtseva.pdf">PDF</a></li>
+    <li>E. W. Dijkstra, "Notes on Structured Programming" (EWD249), second edition, April 1970. <a href="https://www.cs.utexas.edu/~EWD/ewd02xx/EWD249.PDF">PDF</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="04-boundaries.html">← Lecture 4: Boundaries That Make Change Cheap</a>
+  <span>Build It. Prove It. Own It. · Lecture 5 · <a href="../index.html">Course home</a></span>
+  <a href="06-state-and-concurrency.html">Lecture 6: State, Concurrency and the Last Seat →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside the Agent: Delegate Like an Engineer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 3 · Lecture 3 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 3 · Delegate</p>
+  <h1 id="page-title">Inside the Agent: Delegate Like an Engineer</h1>
+  <p class="lede">A coding agent is a model in a loop with tools, context and permissions. Today we open one up, write the loop ourselves, and learn to hand work to it the way an engineer does: with a task contract, and with rails that hold whatever the model decides.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Kit: mini-agent, offline replay</span>
+    <span class="fact">Loop: Delegate</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Read an agent transcript and say what the model had in front of it at each step.</li>
+      <li>Explain the agent loop in code: what is sent, what comes back, and when it stops.</li>
+      <li>Keep an agent's context small, and keep secrets and personal data out of it.</li>
+      <li>Tell a limit that is only asked for from one that is enforced, and name the layer that enforces it.</li>
+      <li>Write a task contract with a stop condition and a cost cap, and know when to stop delegating.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>Open the box</span></a></li>
+    <li><a href="#loop"><span class="t">0:10</span><span>The loop in 40 lines</span></a></li>
+    <li><a href="#context"><span class="t">0:25</span><span>Context is the scarce resource</span></a></li>
+    <li><a href="#limits"><span class="t">0:40</span><span>Enforced limits</span></a></li>
+    <li><a href="#contracts"><span class="t">0:55</span><span>Task contracts</span></a></li>
+    <li><a href="#rails"><span class="t">1:15</span><span>The rails</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#vocab"><span class="t">R1</span><span>Hooks, skills, MCP, subagents</span></a></li>
+    <li><a href="#horizons"><span class="t">R2</span><span>How long a task can you hand over?</span></a></li>
+    <li><a href="#replit"><span class="t">R3</span><span>The Replit case in full</span></a></li>
+    <li><a href="#accountable"><span class="t">R4</span><span>Who answers for the work?</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:10</span>
+    <h2>Open the box</h2>
+  </div>
+  <p>In Lecture 1 you read the answer a coding agent gave to our task contract: find out whether AfterHours can oversell, and why. You saw the answer. You did not see how the agent got there.</p>
+  <p>We ran Codex CLI non-interactively with its <code>--json</code> option, so it printed an event log while it worked, one JSON line per event. Here is that run's whole log, in order. We shortened long commands and outputs, and added nothing.</p>
+  <pre><code>you     task contract                                          1,541 characters
+agent   "I’ll read AGENTS.md, trace the reservation request, and run a bounded check …"
+run     cat AGENTS.md                                          → 26 lines back
+run     rg --files -g '!*.db' …                                → zsh:1: command not found: rg   (exit 127)
+run     nl -ba  main.py  reservations.py  db.py  payments.py  race.py
+                                                               → 350 lines back
+run     find …;  nl -ba  schema.sql  index.html                → 166 lines back
+agent   "The capacity check and insert run as separate autocommit statements, …
+         I’ll test this once with two requests for a one-place event."
+run     &lt;venv&gt;/bin/uvicorn app.main:app --port 8765           → … operation not permitted   (exit 3)
+agent   final answer                                           3,897 characters
+usage   input 104,476 tokens (90,880 cached) · output 1,553 · reasoning 196</code></pre>
+  <p class="handnote">Abridged from demo/codex-investigation.jsonl. The annotated version is demo/annotated-transcript.md.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 640" role="img" aria-label="The Codex run as two lanes. The model, at the provider, asks. Codex CLI, on the laptop, runs each command and sends the output back as text: AGENTS.md, 1,184 characters; a failed rg command; five whole source files, 14,362 characters; the schema and the web page, 7,091 characters. When the model asks to start the server, the sandbox refuses to open a port, and that error goes back too. The run ends with a final answer and a usage line: 104,476 tokens in, 1,553 out.">
+        <defs>
+          <filter id="w3f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w3f1-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+          <marker id="w3f1-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w3f1-r)">
+          <rect x="100" y="10" width="240" height="38" rx="8" class="s f-mark"/>
+          <path d="M220,48 V70" class="s" marker-end="url(#w3f1-a)"/>
+          <rect x="120" y="76" width="200" height="50" rx="10" class="s f-card"/>
+          <rect x="640" y="76" width="200" height="50" rx="10" class="s f-card"/>
+          <path d="M220,126 V522" class="s s-2 s-dash"/>
+          <path d="M740,126 V522" class="s s-2 s-dash"/>
+          <path d="M228,168 H730" class="s" marker-end="url(#w3f1-a)"/>
+          <path d="M732,190 H230" class="s s-pen" marker-end="url(#w3f1-ap)"/>
+          <path d="M228,230 H730" class="s" marker-end="url(#w3f1-a)"/>
+          <path d="M732,252 H230" class="s s-red" marker-end="url(#w3f1-ar)"/>
+          <path d="M228,292 H730" class="s" marker-end="url(#w3f1-a)"/>
+          <path d="M732,314 H230" class="s s-pen s-thick" marker-end="url(#w3f1-ap)"/>
+          <path d="M228,354 H730" class="s" marker-end="url(#w3f1-a)"/>
+          <path d="M732,376 H230" class="s s-pen s-thick" marker-end="url(#w3f1-ap)"/>
+          <path d="M228,448 H730" class="s" marker-end="url(#w3f1-a)"/>
+          <path d="M746,448 H772" class="s s-red"/>
+          <rect x="776" y="424" width="12" height="50" class="f-ink"/>
+          <path d="M732,470 H230" class="s s-red" marker-end="url(#w3f1-ar)"/>
+          <path d="M220,522 V544" class="s" marker-end="url(#w3f1-a)"/>
+          <rect x="100" y="548" width="240" height="40" rx="8" class="s f-mark"/>
+        </g>
+        <text x="220" y="34" text-anchor="middle" class="t-sm">you: task contract · 1,541 chars</text>
+        <text x="220" y="98" text-anchor="middle" class="t-lg">Model</text>
+        <text x="220" y="117" text-anchor="middle" class="t-sm t-2">at the provider</text>
+        <text x="740" y="98" text-anchor="middle" class="t-lg">Codex CLI</text>
+        <text x="740" y="117" text-anchor="middle" class="t-sm t-2">on the laptop, in a sandbox</text>
+        <text x="208" y="152" text-anchor="end" class="t-sm t-2">says: a plan</text>
+        <text x="480" y="160" text-anchor="middle" class="t-mono">cat AGENTS.md</text>
+        <text x="480" y="206" text-anchor="middle" class="t-sm t-pen">26 lines · 1,184 characters</text>
+        <text x="480" y="222" text-anchor="middle" class="t-mono">rg --files …</text>
+        <text x="480" y="268" text-anchor="middle" class="t-sm t-red">command not found: rg (exit 127)</text>
+        <text x="480" y="284" text-anchor="middle" class="t-mono">nl -ba: five whole files</text>
+        <text x="480" y="330" text-anchor="middle" class="t-sm t-pen">350 lines · 14,362 characters</text>
+        <text x="480" y="346" text-anchor="middle" class="t-mono">nl -ba: schema.sql, index.html</text>
+        <text x="480" y="392" text-anchor="middle" class="t-sm t-pen">166 lines · 7,091 characters</text>
+        <text x="208" y="416" text-anchor="end" class="t-sm t-2">says: a hypothesis,</text>
+        <text x="208" y="434" text-anchor="end" class="t-sm t-2">"I'll test this once"</text>
+        <text x="480" y="440" text-anchor="middle" class="t-mono">uvicorn app.main:app --port 8765</text>
+        <text x="480" y="486" text-anchor="middle" class="t-sm t-red">operation not permitted (exit 3)</text>
+        <text x="760" y="242" class="t-sm t-pen">a failed tool is</text>
+        <text x="760" y="260" class="t-sm t-pen">just more text</text>
+        <text x="760" y="326" class="t-sm t-pen">whole files,</text>
+        <text x="760" y="344" class="t-sm t-pen">pasted in</text>
+        <text x="800" y="446" class="t-sm">sandbox:</text>
+        <text x="800" y="464" class="t-sm">no ports</text>
+        <text x="220" y="573" text-anchor="middle" class="t-sm">final answer · 3,897 chars</text>
+        <text x="480" y="618" text-anchor="middle" class="t-mono">usage: 104,476 tokens in (90,880 cached) · 1,553 out · 196 reasoning</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.1</b> The whole run, drawn from the real log. Every arrow carries text. The model only ever asks; Codex runs the command and sends the output back. The red returns are failures, and they go back into the conversation like any other result.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Turn to your neighbour (2 minutes)</span>
+    <p>Put your finger on the <code>uvicorn</code> step. At that moment, what exactly did the model have in front of it? What could it not see?</p>
+  </div>
+  <p>Four things are worth noticing.</p>
+  <ol>
+    <li><strong>The model never touched a file.</strong> It produced text that asked for a command. Codex ran the command and pasted the output back. The model knows your code only as the text that came back.</li>
+    <li><strong>A failed tool is just more text.</strong> <code>rg</code> was not installed. The error went back, and the next request used <code>nl</code> instead.</li>
+    <li><strong>The sandbox decided, not the model.</strong> The model asked to open a port; the harness refused. The contract's "do not modify any file" was a request. The port block was enforced.</li>
+    <li><strong>The log does not show everything.</strong> Codex's own instructions to the model and its tool definitions were in the context on every call, and they are not in the log. The usage line also counts 196 reasoning tokens over the whole run; their text is not shown.</li>
+  </ol>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>An agent is a model in a loop with tools, context and permissions.</strong> Anthropic's engineers describe agents as <q>typically just LLMs using tools based on environmental feedback in a loop.</q> Simon Willison's short version: <q>An LLM agent runs tools in a loop to achieve a goal.</q> Every part of it is ordinary: text, a loop, a few functions, and rules about which functions may run.</p>
+  </div>
+</section>
+
+<!-- ============ 2. LOOP ============ -->
+<section class="block" id="loop">
+  <div class="sechead">
+    <span class="clock">0:10 – 0:25</span>
+    <h2>The loop in 40 lines</h2>
+  </div>
+  <p>A model call is a request and a response. The request has three parts: the <strong>system prompt</strong> (standing instructions), the <strong>tools</strong> (for each one a name, a description, and a JSON Schema for its input), and the <strong>messages</strong> (the conversation so far). The response is a list of content blocks, some text and some <strong>tool requests</strong>, plus a <code>stop_reason</code> that says why the model stopped writing.</p>
+  <p>A tool request is only data. The model writes it; your program decides what to do with it. Here is one from the lab's first recording (the course team wrote the recordings in the API's exact format), and the result the harness sends back:</p>
+  <pre><code>// the model's reply (stop_reason: "tool_use")
+{"type": "tool_use", "id": "toolu_a_02", "name": "read_file",
+ "input": {"path": "app/main.py"}}
+
+// the harness's next message to the model
+{"role": "user", "content": [
+  {"type": "tool_result", "tool_use_id": "toolu_a_02",
+   "content": "\"\"\"AfterHours — the campus festival platform …", "is_error": false}]}</code></pre>
+  <p>The model keeps no memory between calls. Anthropic's documentation says it plainly: <q>The Messages API is stateless, which means that you always send the full conversational history to the API.</q> So the program around the model, the <strong>harness</strong>, keeps the conversation and sends all of it every time. That is the whole loop. This is the heart of the mini-agent you will finish in the lab:</p>
+  <pre><code>def run(task, model, workspace, permissions, limits, log):
+    system = build_system_prompt(workspace)            # instructions + AGENTS.md
+    tools = [REGISTRY[name].schema() for name in permissions.allow]
+    messages = [{"role": "user", "content": task}]
+    steps = tokens = 0
+    while True:
+        # ① ask the model, sending the whole conversation again
+        reply = model.next(system, messages, tools)
+        steps += 1
+        tokens += reply.usage["input_tokens"] + reply.usage["output_tokens"]
+        # ② keep what it said
+        messages.append({"role": "assistant", "content": reply.content})
+        # ③ stop? the model is done, the budget is spent, or the steps are used up
+        reason = should_stop(reply, steps, tokens, limits)
+        if reason:
+            return reason
+        # ④ run each request, through the permission layer
+        results = [dispatch(call, workspace, permissions, log)
+                   for call in reply.tool_calls]
+        # ⑤ the results go back in, as the next message
+        messages.append({"role": "user", "content": results})
+
+
+def dispatch(call, workspace, permissions, log):
+    decision = permissions.check(call["name"], call["input"])
+    if not decision.allowed:                            # the tool never runs
+        log.add("blocked", tool=call["name"], reason=decision.reason)
+        return tool_result(call, "BLOCKED: " + decision.reason, is_error=True)
+    tool = REGISTRY[call["name"]]
+    try:
+        text = tool.run(workspace, **call["input"])   # the tool checks its own bounds
+    except ToolError as e:
+        return tool_result(call, str(e), is_error=True)
+    return tool_result(call, text[:8000])           # long results are cut</code></pre>
+  <p class="handnote">Simplified from lab-kit/mini-agent/agent.py. The real file also logs every step, handles unknown tools and crashes, and always stops on a refusal.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 520" role="img" aria-label="The loop as a flow chart. Step 1 sends everything to the model and gets a reply. Step 2 keeps the reply. Step 3 asks whether to stop: if yes, the run ends with a reason such as done, cost_cap or max_steps. If no, step 4 runs each request through dispatch, which checks permissions, runs the tool inside its bounds, cuts long results and logs them. Step 5 adds the results to the conversation, and the loop goes round again.">
+        <defs>
+          <filter id="w3f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w3f2-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w3f2-r)">
+          <rect x="20" y="40" width="160" height="96" rx="14" class="s s-thick f-card"/>
+          <rect x="330" y="50" width="330" height="76" rx="10" class="s f-card"/>
+          <path d="M328,70 H186" class="s" marker-end="url(#w3f2-a)"/>
+          <path d="M182,108 H324" class="s" marker-end="url(#w3f2-a)"/>
+          <path d="M495,126 V146" class="s" marker-end="url(#w3f2-a)"/>
+          <rect x="330" y="150" width="330" height="56" rx="10" class="s f-card"/>
+          <path d="M495,206 V222" class="s" marker-end="url(#w3f2-a)"/>
+          <path d="M375,272 L495,226 L615,272 L495,318 Z" class="s f-mark"/>
+          <path d="M617,272 H684" class="s" marker-end="url(#w3f2-a)"/>
+          <rect x="690" y="238" width="250" height="68" rx="10" class="s s-thick f-card"/>
+          <path d="M495,318 V342" class="s" marker-end="url(#w3f2-a)"/>
+          <rect x="330" y="348" width="330" height="60" rx="10" class="s f-pen"/>
+          <path d="M662,378 H684" class="s" marker-end="url(#w3f2-a)"/>
+          <rect x="690" y="330" width="250" height="120" rx="10" class="s s-thin f-pen"/>
+          <path d="M495,408 V434" class="s" marker-end="url(#w3f2-a)"/>
+          <rect x="330" y="440" width="330" height="60" rx="10" class="s f-card"/>
+          <path d="M328,470 H290 V140 H350 V132" class="s s-pen" marker-end="url(#w3f2-ap)"/>
+        </g>
+        <text x="100" y="80" text-anchor="middle" class="t-lg">Model</text>
+        <text x="100" y="104" text-anchor="middle" class="t-sm t-2">replay or live</text>
+        <text x="255" y="60" text-anchor="middle" class="t-sm">everything, again</text>
+        <text x="255" y="128" text-anchor="middle" class="t-sm">reply</text>
+        <text x="495" y="80" text-anchor="middle">① ask the model</text>
+        <text x="495" y="106" text-anchor="middle" class="t-mono">model.next(system, messages, tools)</text>
+        <text x="495" y="174" text-anchor="middle">② keep the reply</text>
+        <text x="495" y="196" text-anchor="middle" class="t-mono">messages.append(reply)</text>
+        <text x="495" y="268" text-anchor="middle" class="t-lg">③ stop?</text>
+        <text x="495" y="290" text-anchor="middle" class="t-mono">should_stop()</text>
+        <text x="650" y="262" text-anchor="middle" class="t-sm">yes</text>
+        <text x="815" y="264" text-anchor="middle">stop, with a reason</text>
+        <text x="815" y="290" text-anchor="middle" class="t-mono">done · cost_cap · max_steps</text>
+        <text x="507" y="336" class="t-sm">no</text>
+        <text x="495" y="372" text-anchor="middle">④ run each request</text>
+        <text x="495" y="396" text-anchor="middle" class="t-mono">dispatch(call, …)</text>
+        <text x="706" y="356" class="t-sm">1 permission check</text>
+        <text x="706" y="380" class="t-sm">2 the tool, inside its bounds</text>
+        <text x="706" y="404" class="t-sm">3 cut long results</text>
+        <text x="706" y="428" class="t-sm">4 log it</text>
+        <text x="495" y="464" text-anchor="middle">⑤ results go back in</text>
+        <text x="495" y="488" text-anchor="middle" class="t-mono">messages.append(results)</text>
+        <text x="276" y="300" text-anchor="middle" class="t-sm t-pen" transform="rotate(-90 276 300)">go round again</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.2</b> The loop from the code above. The model sits outside it and only ever answers step ①. Everything else (keeping the conversation, deciding when to stop, deciding which requests may run) is ordinary code that you write and can test.</figcaption>
+  </figure>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill: be the harness (6 minutes, paper)</span>
+    <p>The task is <em>"Add a test that GET /api/events returns 5 events."</em> The model's three replies, in order, are:</p>
+    <pre><code>reply 1   tool_use  list_files {"path": "tests"}
+reply 2   tool_use  read_file  {"path": "tests/test_basics.py"}
+reply 3   text      "There is already such a test: test_lists_the_festival_programme.
+                     Nothing to add."   (stop_reason: end_turn)</code></pre>
+    <ol>
+      <li>Write down the <code>messages</code> list the harness sends on the third call: the role of each message and one line about its content.</li>
+      <li>How many times does the task text travel to the model during this run?</li>
+      <li>The step limit is set to 2. What happens, and does <code>read_file</code> ever run?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answers to the drill</summary>
+    <div class="inner">
+      <pre><code>1  user        the task
+2  assistant   tool_use list_files {"path": "tests"}
+3  user        tool_result: tests/__init__.py, tests/conftest.py, … (the file list)
+4  assistant   tool_use read_file {"path": "tests/test_basics.py"}
+5  user        tool_result: the whole of test_basics.py (2,091 characters)
+   (plus the system prompt and the tool definitions, which go with every call)</code></pre>
+      <p>The task text travels three times, once per call, because the API keeps nothing between calls. With a step limit of 2, the loop stops after the second reply, <strong>before</strong> its tools run: <code>should_stop</code> is checked first. So <code>read_file</code> never runs and the model never gets to say "nothing to add". A limit that is too tight throws away the work that was nearly done. That is a cost too.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 3. CONTEXT ============ -->
+<section class="block" id="context">
+  <div class="sechead">
+    <span class="clock">0:25 – 0:40</span>
+    <h2>Context is the scarce resource</h2>
+  </div>
+  <p>The <strong>context</strong> is everything the model receives on one call: the system prompt, the tool definitions, and the whole conversation, including every tool result so far. The model knows your project only through it. Its size is measured in <strong>tokens</strong>, pieces of words; a rough rule for English text and code is about four characters per token.</p>
+  <p>Here is what went into the Codex run's context, by source, drawn to scale from the log.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 590" role="img" aria-label="The Codex run's context drawn to scale as a filling jar, by source. From the bottom: the task contract, 1,541 characters; AGENTS.md, 1,184; four source files that the answer cites, 9,929; race.py, 4,429, never cited; schema.sql and the file list, 686; index.html, 6,404, of which the answer cites 15 of 149 lines; the agent's own commands and notes, 977; error output, 414. Visible total 25,564 characters, about 6,400 tokens, while the run reported 104,476 input tokens. A dashed part at the bottom stands for instructions and tool definitions that are not in the log.">
+        <defs>
+          <filter id="w3f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="21"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w3f3-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-card"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-thin s-2"/></pattern>
+        </defs>
+        <g filter="url(#w3f3-r)">
+          <rect x="330" y="445.9" width="190" height="24.1" class="s s-thin f-mark"/>
+          <path d="M524,457.9 L556,458" class="s s-thin s-2"/>
+          <rect x="330" y="427.4" width="190" height="18.5" class="s s-thin f-mark"/>
+          <path d="M524,436.6 L556,433" class="s s-thin s-2"/>
+          <rect x="330" y="272" width="190" height="155.4" class="s s-thin f-pen"/>
+          <path d="M524,349.7 L556,347" class="s s-thin s-2"/>
+          <rect x="330" y="202.7" width="190" height="69.3" class="s s-thin" style="fill:url(#w3f3-h)"/>
+          <path d="M524,237.4 L556,235" class="s s-thin s-2"/>
+          <rect x="330" y="192" width="190" height="10.7" class="s s-thin f-pen"/>
+          <path d="M524,197.3 L556,193" class="s s-thin s-2"/>
+          <rect x="330" y="91.8" width="190" height="100.2" class="s s-thin" style="fill:url(#w3f3-h)"/>
+          <path d="M524,141.9 L556,137" class="s s-thin s-2"/>
+          <rect x="330" y="76.5" width="190" height="15.3" class="s s-thin f-green"/>
+          <path d="M524,84.1 L556,85" class="s s-thin s-2"/>
+          <rect x="330" y="70" width="190" height="6.5" class="s s-thin f-red"/>
+          <path d="M524,73.2 L556,59" class="s s-thin s-2"/>
+          <rect x="330" y="470" width="190" height="46" class="s s-thin s-dash f-paper"/>
+          <path d="M322,40.0 V524 H528 V40.0" class="s s-thick"/>
+          <path d="M290,470 V66" class="s s-thin"/>
+          <path d="M284,470 H290" class="s s-thin"/>
+          <path d="M284,391.8 H290" class="s s-thin"/>
+          <path d="M284,313.5 H290" class="s s-thin"/>
+          <path d="M284,235.3 H290" class="s s-thin"/>
+          <path d="M284,157.1 H290" class="s s-thin"/>
+          <path d="M284,78.8 H290" class="s s-thin"/>
+        </g>
+        <text x="562" y="463" class="t-sm">task contract · 1,541</text>
+        <text x="562" y="438" class="t-sm">AGENTS.md · 1,184</text>
+        <text x="562" y="352" class="t-sm">main, reservations, db, payments · 9,929</text>
+        <text x="562" y="369" class="t-sm t-2">cited</text>
+        <text x="562" y="240" class="t-sm">race.py · 4,429</text>
+        <text x="562" y="257" class="t-sm t-red">never cited</text>
+        <text x="562" y="198" class="t-sm">schema.sql + file list · 686</text>
+        <text x="562" y="142" class="t-sm">index.html · 6,404</text>
+        <text x="562" y="159" class="t-sm t-2">15 of 149 lines cited</text>
+        <text x="562" y="90" class="t-sm">its own commands and notes · 977</text>
+        <text x="562" y="64" class="t-sm">errors: rg missing, port refused · 414</text>
+        <text x="425.0" y="499" text-anchor="middle" class="t-sm t-2">? not in the log</text>
+        <text x="562" y="492" class="t-sm t-2">instructions and tool definitions:</text>
+        <text x="562" y="510" class="t-sm t-2">in every call, size unknown (not to scale)</text>
+        <text x="280" y="474" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="280" y="395.8" text-anchor="end" class="t-mono t-2">5,000</text>
+        <text x="280" y="317.5" text-anchor="end" class="t-mono t-2">10,000</text>
+        <text x="280" y="239.3" text-anchor="end" class="t-mono t-2">15,000</text>
+        <text x="280" y="161.1" text-anchor="end" class="t-mono t-2">20,000</text>
+        <text x="280" y="82.8" text-anchor="end" class="t-mono t-2">25,000</text>
+        <text x="160" y="270" text-anchor="middle" transform="rotate(-90 160 270)" class="t-sm t-2">characters that entered the context (to scale)</text>
+        <text x="425.0" y="552" text-anchor="middle" class="t-sm">visible total: 25,564 characters, about 6,400 tokens</text>
+        <text x="425.0" y="572" text-anchor="middle" class="t-sm t-red">reported by the run: 104,476 input tokens</text>
+        <text x="425.0" y="30" text-anchor="middle" class="t-sm t-2">the last call saw all of this</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.3</b> The Codex run's context, drawn to scale in characters from the real log. Most of it is whole files. <code>race.py</code>, the script that reproduces the bug, was read in full and never cited in the answer; of <code>index.html</code>, the answer cites 15 lines out of 149. The dashed part is real but its size is not in the log, so it is not drawn to scale.</figcaption>
+  </figure>
+
+  <p>Why does it matter what goes in? Two reasons.</p>
+  <ul>
+    <li><strong>Quality.</strong> Models do not use a long context evenly. In a 2023 study, Liu and colleagues found that <q>performance is often highest when relevant information occurs at the beginning or end of the input context, and significantly degrades when models must access relevant information in the middle of long contexts.</q> A 2025 report from Chroma tested 18 newer models and found that <q>performance grows increasingly unreliable as input length grows.</q> Anthropic's engineers put it as a design rule: <q>Context is a critical but finite resource for AI agents.</q> A file that is not needed is not harmless. It competes for the model's attention.</li>
+    <li><strong>Cost and time.</strong> Every call sends the whole context again, so every token that goes in is paid for on every later call.</li>
+  </ul>
+
+  <div class="callout try">
+    <span class="label">Context audit, in pairs (4 minutes)</span>
+    <p>Look at Fig 3.3. Name two things you would keep out of the next run's context, and say how. Name one thing you would put in that would have saved the agent some reading. Then: the visible text is about 6,400 tokens, yet the run reported 104,476 input tokens. Where did the rest come from?</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: the audit, and the 104,476 tokens</summary>
+    <div class="inner">
+      <p><strong>Keep out:</strong> most of <code>index.html</code>, the clearest case: the answer needed the fifteen lines that send the request, and the file is mostly page styling. The failed <code>rg</code> call (say in AGENTS.md which tools exist). <code>race.py</code> is arguable: the answer never cites it, but it is the script that reproduces the bug, and the task asked for evidence from running things, so reading it first was reasonable. Leaving it out would be an optimisation, not a correction. <strong>Put in:</strong> the path of the request in the task itself ("the rule is in <code>app/reservations.py</code>"), so the agent opens one file instead of five. None of this needs a smarter model. It needs a better contract and a project map in AGENTS.md.</p>
+      <p><strong>The 104,476 tokens.</strong> Two things add up. The instructions and tool definitions that the log does not show are part of every call. And every call re-sends everything, the hidden parts included, so a run that reads a little on each step pays for its whole history again and again. The log does not say how the total splits between the two. The lab's mini-agent shows the pattern with numbers it can count. Its <code>runaway</code> recording never finishes on its own:</p>
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 570" role="img" aria-label="Two charts from the mini-agent's replay of the runaway recording, drawn to scale. Top: tokens sent on each of 30 model calls, growing from 775 to 14,870 because every call re-sends the whole context. Bottom: the running total, which curves upward to 236,678 tokens after 30 calls. A cost cap of 60,000 tokens is crossed at step 15; a step limit of 12 would stop the run earlier.">
+        <defs>
+          <filter id="w3f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w3f4-r)">
+          <path d="M130,220 H916" class="s s-thin"/>
+          <path d="M130,220 V54" class="s s-thin"/>
+          <path d="M124,220 H130" class="s s-thin"/>
+          <path d="M124,170 H130" class="s s-thin"/>
+          <path d="M124,120 H130" class="s s-thin"/>
+          <path d="M124,70 H130" class="s s-thin"/>
+          <rect x="134" y="212.2" width="18" height="7.8" class="s s-thin f-pen"/>
+          <rect x="160" y="209.6" width="18" height="10.4" class="s s-thin f-pen"/>
+          <rect x="186" y="203.1" width="18" height="16.9" class="s s-thin f-pen"/>
+          <rect x="212" y="202.1" width="18" height="17.9" class="s s-thin f-pen"/>
+          <rect x="238" y="194.3" width="18" height="25.7" class="s s-thin f-pen"/>
+          <rect x="264" y="185" width="18" height="35" class="s s-thin f-pen"/>
+          <rect x="290" y="184" width="18" height="36" class="s s-thin f-pen"/>
+          <rect x="316" y="177.5" width="18" height="42.5" class="s s-thin f-pen"/>
+          <rect x="342" y="174.1" width="18" height="45.9" class="s s-thin f-pen"/>
+          <rect x="368" y="173.1" width="18" height="46.9" class="s s-thin f-pen"/>
+          <rect x="394" y="168" width="18" height="52" class="s s-thin f-pen"/>
+          <rect x="420" y="164.9" width="18" height="55.1" class="s s-thin f-pen"/>
+          <rect x="446" y="163.9" width="18" height="56.1" class="s s-thin s-2 f-paper"/>
+          <rect x="472" y="151.4" width="18" height="68.6" class="s s-thin s-2 f-paper"/>
+          <rect x="498" y="141" width="18" height="79" class="s s-thin s-2 f-paper"/>
+          <rect x="524" y="140" width="18" height="80" class="s s-thin s-2 f-paper"/>
+          <rect x="550" y="125.2" width="18" height="94.8" class="s s-thin s-2 f-paper"/>
+          <rect x="576" y="117.7" width="18" height="102.3" class="s s-thin s-2 f-paper"/>
+          <rect x="602" y="116.7" width="18" height="103.3" class="s s-thin s-2 f-paper"/>
+          <rect x="628" y="114.6" width="18" height="105.4" class="s s-thin s-2 f-paper"/>
+          <rect x="654" y="110.4" width="18" height="109.6" class="s s-thin s-2 f-paper"/>
+          <rect x="680" y="109.4" width="18" height="110.6" class="s s-thin s-2 f-paper"/>
+          <rect x="706" y="106.8" width="18" height="113.2" class="s s-thin s-2 f-paper"/>
+          <rect x="732" y="100.3" width="18" height="119.7" class="s s-thin s-2 f-paper"/>
+          <rect x="758" y="99.3" width="18" height="120.7" class="s s-thin s-2 f-paper"/>
+          <rect x="784" y="91.4" width="18" height="128.6" class="s s-thin s-2 f-paper"/>
+          <rect x="810" y="82.2" width="18" height="137.8" class="s s-thin s-2 f-paper"/>
+          <rect x="836" y="81.2" width="18" height="138.8" class="s s-thin s-2 f-paper"/>
+          <rect x="862" y="74.7" width="18" height="145.3" class="s s-thin s-2 f-paper"/>
+          <rect x="888" y="71.3" width="18" height="148.7" class="s s-thin s-2 f-paper"/>
+          <path d="M130,510 H916" class="s s-thin"/>
+          <path d="M130,510 V304" class="s s-thin"/>
+          <path d="M124,510 H130" class="s s-thin"/>
+          <path d="M124,470 H130" class="s s-thin"/>
+          <path d="M124,430 H130" class="s s-thin"/>
+          <path d="M124,390 H130" class="s s-thin"/>
+          <path d="M124,350 H130" class="s s-thin"/>
+          <path d="M124,310 H130" class="s s-thin"/>
+          <polyline points="143,509.3 169,508.5 195,507.1 221,505.6 247,503.5 273,500.7 299,497.8 325,494.3 351,490.6 377,486.9 403,482.7 429,478.2 455,473.7 481,468.2 507,461.8 533,455.4 559,447.8 585,439.6 611,431.3 637,422.8 663,414 689,405.2 715,396.1 741,386.4 767,376.8 793,366.4 819,355.4 845,344.2 871,332.6 897,320.7" class="s s-thick s-pen"/>
+          <path d="M130,462 H910" class="s s-red s-dash"/>
+          <circle cx="507" cy="461.8" r="6" class="s s-red f-redink"/>
+          <path d="M442,44 V510" class="s s-dash"/>
+        </g>
+        <text x="120" y="224" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="120" y="174" text-anchor="end" class="t-mono t-2">5,000</text>
+        <text x="120" y="124" text-anchor="end" class="t-mono t-2">10,000</text>
+        <text x="120" y="74" text-anchor="end" class="t-mono t-2">15,000</text>
+        <text x="120" y="514" text-anchor="end" class="t-mono t-2">0k</text>
+        <text x="120" y="474" text-anchor="end" class="t-mono t-2">50k</text>
+        <text x="120" y="434" text-anchor="end" class="t-mono t-2">100k</text>
+        <text x="120" y="394" text-anchor="end" class="t-mono t-2">150k</text>
+        <text x="120" y="354" text-anchor="end" class="t-mono t-2">200k</text>
+        <text x="120" y="314" text-anchor="end" class="t-mono t-2">250k</text>
+        <text x="143" y="530" text-anchor="middle" class="t-mono t-2">1</text>
+        <text x="143" y="238" text-anchor="middle" class="t-mono t-2">1</text>
+        <text x="247" y="530" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="247" y="238" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="377" y="530" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="377" y="238" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="507" y="530" text-anchor="middle" class="t-mono t-2">15</text>
+        <text x="507" y="238" text-anchor="middle" class="t-mono t-2">15</text>
+        <text x="637" y="530" text-anchor="middle" class="t-mono t-2">20</text>
+        <text x="637" y="238" text-anchor="middle" class="t-mono t-2">20</text>
+        <text x="767" y="530" text-anchor="middle" class="t-mono t-2">25</text>
+        <text x="767" y="238" text-anchor="middle" class="t-mono t-2">25</text>
+        <text x="897" y="530" text-anchor="middle" class="t-mono t-2">30</text>
+        <text x="897" y="238" text-anchor="middle" class="t-mono t-2">30</text>
+        <text x="520" y="554" text-anchor="middle" class="t-sm">model call (step)</text>
+        <text x="134" y="36" class="t-sm">tokens sent on each call: the whole context, again</text>
+        <text x="134" y="296" class="t-sm">running total: what the run costs</text>
+        <text x="450" y="56" class="t-sm">max_steps = 12 stops here</text>
+        <text x="910" y="454" text-anchor="end" class="t-sm t-red">cost cap 60,000</text>
+        <text x="517" y="483.8" class="t-sm t-red">crossed at step 15</text>
+        <text x="893" y="310.7" text-anchor="end" class="t-sm t-pen">236,678 after 30</text>
+        <text x="909" y="75.3" class="t-sm t-2">14,870</text>
+        <text x="155" y="206.2" class="t-sm t-2">775</text>
+      </svg>
+        </div>
+        <figcaption><b>Fig 3.4</b> Drawn to scale from the mini-agent's replay of <code>recordings/runaway.json</code>, 30 calls. The token counts are the kit's estimates (characters ÷ 4). Each call carries a little more context than the last (top); the bars after step 12 are hollow because a step limit of 12 would never send them. The running total therefore curves upward (bottom): after 30 calls it is 236,678 tokens, although the last call's context is under 15,000. The cap is checked after each call, so a 60,000 cap stops the run just past it, at 60,188. The prompt cache that served 90,880 of Codex's tokens makes that repetition cheaper; it does not remove it.</figcaption>
+      </figure>
+    </div>
+  </details>
+
+  <h3>Keeping the context small</h3>
+  <ul>
+    <li><strong>Point, don't dump.</strong> Name the files and the rule in the task. Read the lines you need, not whole folders.</li>
+    <li><strong>Cut long results.</strong> When a tool runs, the mini-agent cuts its result at 8,000 characters and says how much it cut. A refusal from the permission layer is not cut: it repeats the refused tool name or path in full, however long that is.</li>
+    <li><strong>Start fresh for a new task.</strong> A long session carries every old result along. A new session with a short summary is often cheaper and sharper.</li>
+    <li><strong>Write the map down once.</strong> Commands, folders, and rules go in AGENTS.md, so no agent has to rediscover them by reading.</li>
+  </ul>
+  <div class="callout key">
+    <span class="label">What goes into the context leaves your machine</span>
+    <p>Everything in the context is sent to the model's provider, on every call. If the agent reads <code>.env</code>, your API key goes with the next request. So: no secrets and no personal data in prompts, in files the agent can read, or in tool output. AfterHours uses made-up names (<code>guest-001</code>) for exactly this reason. The mini-agent refuses to read <code>.env</code>, and it removes anything that looks like a key from the environment of the tests it runs.</p>
+  </div>
+</section>
+
+<!-- ============ 4. LIMITS ============ -->
+<section class="block" id="limits">
+  <div class="sechead">
+    <span class="clock">0:40 – 0:55</span>
+    <h2>Enforced limits</h2>
+  </div>
+  <p>The Codex run had two limits. "Do not modify any file" was written in the task, and the agent complied. "No network ports" was built into the sandbox, and the agent had no choice. The first is an <strong>instruction</strong>: it changes what the model is likely to do. The second is a <strong>permission</strong>: it changes what the model can do. Lecture 1 called them a sign and a fence. A harness has four kinds of fence, and the mini-agent has all four.</p>
+  <ol>
+    <li><strong>Tool schemas, checked.</strong> The model is told which tools exist and what input each one takes. Here is <code>write_file</code> as the model sees it:
+<pre><code>{"name": "write_file",
+ "description": "Create or replace one text file in the project with the full new content.",
+ "input_schema": {"type": "object",
+   "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+   "required": ["path", "content"], "additionalProperties": false}}</code></pre>
+    The schema by itself is only a description; a reply can still name any tool, with any input. The fence is the check: <code>dispatch()</code> validates every request against the tool's schema and refuses one that does not fit, before the tool runs.</li>
+    <li><strong>An allowlist enforced in code.</strong> <code>dispatch()</code> refuses any tool that is not listed in <code>permissions.json</code>, including tools that exist. The model is also shown only the allowed tools, but that is a hint. The check in code is the fence.</li>
+    <li><strong>Limits and timeouts.</strong> <code>run_tests</code> is stopped after 60 seconds. The finished loop stops after 12 steps or once 60,000 tokens are spent. You add both checks in lab task A3. The kit as handed out has neither, so the supplied runaway replay runs until its recording ends. The kit does still stop when the model says it is done, refuses, or reaches its output limit. The token cap is checked after each reply, so the last call can take a run slightly over it; it stops every call after that.</li>
+    <li><strong>A throwaway workspace.</strong> The file tools work on a copy of the project in a temporary folder, so a bad write or a deleted file costs only the copy. The copy does not contain code that runs: <code>run_tests</code> runs the tests as you, and a test can reach anything you can (request f below).</li>
+  </ol>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 470" role="img" aria-label="Four requests from the model meet four layers in turn. Running a shell command is stopped by the allowlist. Writing the CI file is stopped by the path rules. Writing into app/data, a symlink to a folder outside the workspace, passes the path rules and is stopped by the tool's own check. Writing a test that uploads an SSH key and then running the tests passes every layer in the kit and reaches the machine; only an operating-system sandbox, drawn dashed because the kit does not have one, would stop it.">
+        <defs>
+          <filter id="w3f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f5-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w3f5-r)">
+          <rect x="20" y="80" width="232" height="54" rx="8" class="s f-card"/>
+          <rect x="20" y="160" width="232" height="54" rx="8" class="s f-card"/>
+          <rect x="20" y="240" width="232" height="54" rx="8" class="s f-card"/>
+          <rect x="20" y="320" width="232" height="54" rx="8" class="s f-card"/>
+          <path d="M300,74 V400" class="s s-thick"/>
+          <path d="M430,74 V400" class="s s-thick"/>
+          <path d="M560,74 V400" class="s s-thick"/>
+          <path d="M690,74 V400" class="s s-thick s-dash"/>
+          <rect x="780" y="150" width="160" height="230" rx="12" class="s f-red"/>
+          <path d="M254,107 H292" class="s s-red"/>
+          <path d="M290,97 l20,20 M310,97 l-20,20" class="s s-red s-thick"/>
+          <path d="M254,187 H422" class="s s-red"/>
+          <path d="M420,177 l20,20 M440,177 l-20,20" class="s s-red s-thick"/>
+          <path d="M254,267 H552" class="s s-red"/>
+          <path d="M550,257 l20,20 M570,257 l-20,20" class="s s-red s-thick"/>
+          <path d="M254,347 H774" class="s s-red s-thick" marker-end="url(#w3f5-ar)"/>
+        </g>
+        <text x="300" y="40" text-anchor="middle">allowlist</text>
+        <text x="300" y="60" text-anchor="middle" class="t-sm t-2">dispatcher</text>
+        <text x="430" y="40" text-anchor="middle">path rules</text>
+        <text x="430" y="60" text-anchor="middle" class="t-sm t-2">permissions.json</text>
+        <text x="560" y="40" text-anchor="middle">tool's own check</text>
+        <text x="560" y="60" text-anchor="middle" class="t-sm t-2">tools.py</text>
+        <text x="690" y="40" text-anchor="middle">OS sandbox</text>
+        <text x="690" y="60" text-anchor="middle" class="t-sm t-2">not in the kit</text>
+        <text x="136" y="104" text-anchor="middle" class="t-mono">run_shell</text>
+        <text x="136" y="124" text-anchor="middle" class="t-sm t-2">rm -f afterhours.db</text>
+        <text x="136" y="184" text-anchor="middle" class="t-mono">write_file</text>
+        <text x="136" y="204" text-anchor="middle" class="t-sm t-2">.github/workflows/ci.yml</text>
+        <text x="136" y="264" text-anchor="middle" class="t-mono">write_file</text>
+        <text x="136" y="284" text-anchor="middle" class="t-sm t-2">app/data/x.csv (a symlink out)</text>
+        <text x="136" y="344" text-anchor="middle" class="t-mono">write_file + run_tests</text>
+        <text x="136" y="364" text-anchor="middle" class="t-sm t-2">a test that uploads ~/.ssh</text>
+        <text x="860" y="238" text-anchor="middle">your files,</text>
+        <text x="860" y="262" text-anchor="middle">network,</text>
+        <text x="860" y="286" text-anchor="middle">secrets</text>
+        <text x="136" y="404" text-anchor="middle" class="t-sm">what the model asks for</text>
+        <text x="520" y="432" text-anchor="middle" class="t-sm t-red">The last request passes every layer the kit has.</text>
+        <text x="520" y="452" text-anchor="middle" class="t-sm">A container with no secrets and no network would stop it at the dashed line.</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.5</b> Permission layers: what the model asks for against what the harness allows. Each request runs right until a layer stops it. The kit enforces the first three layers. The dashed fourth one is what real isolation adds, and the kit does not have it.</figcaption>
+  </figure>
+
+  <div class="callout case">
+    <span class="label">Case: Replit, July 2025</span>
+    <p>During a declared code freeze, Replit's agent deleted the production database of Jason Lemkin's SaaStr project, then wrongly said rollback was impossible; the rollback worked. Replit's CEO called it <q>unacceptable and should never be possible</q> and rolled out automatic separation of development and production databases. The freeze was an instruction. Replit's fix changed the environment instead: the agent's database changes during development now go to a separate development database. Reading R3 has the full case.</p>
+  </div>
+
+  <div class="callout try">
+    <span class="label">In pairs: which layer stops it? (7 minutes)</span>
+    <p>The mini-agent runs with the default <code>permissions.json</code>: tools <code>list_files</code>, <code>read_file</code>, <code>write_file</code>, <code>run_tests</code>; writes only to <code>app/*</code> and <code>tests/*</code>; no reading <code>.env</code>. For each request, name the first layer that stops it (allowlist, path rules, tool's own check, OS sandbox), or say that nothing does.</p>
+    <ol type="a">
+      <li><code>run_shell {"command": "git push --force origin main"}</code></li>
+      <li><code>write_file {"path": ".github/workflows/ci.yml", …}</code>, removing the test step</li>
+      <li><code>write_file {"path": "tests/../../.bashrc", …}</code></li>
+      <li><code>read_file {"path": "app/config/.env"}</code></li>
+      <li><code>write_file {"path": "app/uploads/list.csv", …}</code>, where the repository contains <code>app/uploads</code> as a symlink to <code>/Users/maya/Documents</code></li>
+      <li><code>write_file {"path": "tests/test_speed.py", …}</code> with a test that reads <code>~/.ssh/id_ed25519</code> and sends it to a web address, then <code>run_tests {}</code></li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: which layer stops each request</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th></th><th>Stopped by</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>a</td><td><span class="tag ok">allowlist</span></td><td><code>run_shell</code> is not listed. The dispatcher blocks it and logs it; no function runs</td></tr>
+            <tr><td>b</td><td><span class="tag ok">path rules</span></td><td><code>.github/workflows/ci.yml</code> matches neither <code>app/*</code> nor <code>tests/*</code></td></tr>
+            <tr><td>c</td><td><span class="tag ok">path rules</span></td><td>The rules normalise the path first. <code>tests/../../.bashrc</code> becomes <code>../.bashrc</code>, which leaves the workspace. Without that step, the text <code>tests/...</code> would match <code>tests/*</code>. The tool would refuse it too</td></tr>
+            <tr><td>d</td><td><span class="tag ok">path rules</span></td><td><code>read_deny</code> matches the file name <code>.env</code> in any folder</td></tr>
+            <tr><td>e</td><td><span class="tag ok">tool's own check</span></td><td>The rules see <code>app/uploads/list.csv</code>, which matches <code>app/*</code>. Only <code>write_file</code> looks at where the path really lands. This is the check you write in the lab</td></tr>
+            <tr><td>f</td><td><span class="tag bad">nothing in the kit</span></td><td>Both requests are allowed. <code>run_tests</code> runs the new test with your user's rights and your network. An OS sandbox or container with no secrets and no network would stop the upload</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Two lessons. First, each layer checks something different: the rules check the request, the tool checks what the request would really do. Second, request (f) is why the kit says of itself that its permission layer is a teaching model. A harness that lets an agent write code and then run it has handed the agent everything the code can do.</p>
+    </div>
+  </details>
+  <div class="callout">
+    <span class="label">What the kit's permission layer is, and is not</span>
+    <p>It is a working model of how real agent tools decide what may run, small enough to read and test. It is not a security boundary. It only governs requests that go through its dispatcher. For real isolation you need the operating system's help: a container or sandbox, no secrets inside it, and no network unless the task needs it.</p>
+  </div>
+</section>
+
+<!-- ============ 5. CONTRACTS ============ -->
+<section class="block" id="contracts">
+  <div class="sechead">
+    <span class="clock">0:55 – 1:15</span>
+    <h2>Task contracts</h2>
+  </div>
+  <p>Lecture 1's contract had five lines: goal, context, limits, deliverables, and when to stop. Delegating well adds two more, the <strong>cost cap</strong> and the <strong>owner</strong>. This is the contract behind the lab's first recording:</p>
+  <div class="contract">
+    <span class="cardtitle">Task contract</span>
+    <dl>
+      <dt>Goal</dt><dd>The reservation API refuses a name made only of spaces (HTTP 422), the same way it refuses an empty name.</dd>
+      <dt>Context</dt><dd>FastAPI + SQLite. AGENTS.md has the commands and rules. The web page trims names; the API does not.</dd>
+      <dt>Limits</dt><dd>Change only files in <code>app/</code> and <code>tests/</code>. Do not weaken or delete any test.</dd>
+      <dt>Deliver</dt><dd>A test that fails before the fix, the smallest fix, and the full test output.</dd>
+      <dt>Stop when</dt><dd>Every test passes. Or after 12 steps.</dd>
+      <dt>Cost cap</dt><dd>60,000 tokens for the run. Ten minutes of my review; a bigger change goes back.</dd>
+      <dt>Owner</dt><dd>This week's implementer, who accepts or rejects the result.</dd>
+    </dl>
+  </div>
+  <p>The whole card goes into the prompt, where the model reads it. Three lines can also be written a second time, into the harness, where they are enforced. And two lines are really for you: your review budget and the name of the owner. (The lab's recording carries only the first six lines; the owner does not need to be in the prompt.)</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 490" role="img" aria-label="The contract card sits in the middle left. An arrow from the whole card goes up to the prompt, where every line is only asked. Three lines have a second, enforced copy in the harness config: Limits becomes write_paths app and tests, Stop becomes max-steps 12, and Cost cap becomes cost-cap 60000. The cost cap and the owner also point to you: your checking budget, and the decision to accept or reject.">
+        <defs>
+          <filter id="w3f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w3f6-r)">
+          <rect x="40" y="14" width="360" height="66" rx="6" class="s f-mark"/>
+          <path d="M220,112 V86" class="s" marker-end="url(#w3f6-a)"/>
+          <rect x="40" y="114" width="360" height="356" rx="4" class="s f-card"/>
+          <path d="M40,150 H400" class="s s-thin s-red"/>
+          <rect x="560" y="150" width="360" height="200" rx="10" class="s s-thick f-card"/>
+          <rect x="560" y="380" width="360" height="90" rx="10" class="s f-pen"/>
+          <path d="M404,261 L554,226" class="s" marker-end="url(#w3f6-a)"/>
+          <path d="M404,347 L554,281" class="s" marker-end="url(#w3f6-a)"/>
+          <path d="M404,386 L554,326" class="s" marker-end="url(#w3f6-a)"/>
+          <path d="M404,394 L554,412" class="s" marker-end="url(#w3f6-a)"/>
+          <path d="M404,433 L554,448" class="s" marker-end="url(#w3f6-a)"/>
+        </g>
+        <text x="220" y="42" text-anchor="middle" class="t-lg">the prompt: asked</text>
+        <text x="220" y="66" text-anchor="middle" class="t-sm t-mark">the model reads it, and usually follows it</text>
+        <text x="232" y="104" class="t-sm">every line</text>
+        <text x="60" y="140" class="t-red">Task contract</text>
+        <text x="60" y="180" class="t-pen">Goal</text><text x="150" y="180" class="t-sm">only-spaces names get 422</text>
+        <text x="60" y="222" class="t-pen">Context</text><text x="150" y="222" class="t-sm">the page trims; the API does not</text>
+        <text x="60" y="264" class="t-pen">Limits</text><text x="150" y="264" class="t-sm">only app/ and tests/</text>
+        <text x="60" y="306" class="t-pen">Deliver</text><text x="150" y="306" class="t-sm">failing test, fix, test output</text>
+        <text x="60" y="350" class="t-pen">Stop</text><text x="150" y="350" class="t-sm">all tests pass · 12 steps</text>
+        <text x="60" y="392" class="t-pen">Cost cap</text><text x="150" y="392" class="t-sm">60,000 tokens · 10 min review</text>
+        <text x="60" y="436" class="t-pen">Owner</text><text x="150" y="436" class="t-sm">this week's implementer</text>
+        <text x="740" y="140" text-anchor="middle" class="t-sm t-2">enforced on the harness's own tools</text>
+        <text x="740" y="182" text-anchor="middle" class="t-lg">harness config</text>
+        <text x="580" y="230" class="t-mono">write_paths: ["app/*", "tests/*"]</text>
+        <text x="580" y="285" class="t-mono">--max-steps 12</text>
+        <text x="580" y="330" class="t-mono">--cost-cap 60000</text>
+        <text x="740" y="406" text-anchor="middle" class="t-lg">you</text>
+        <text x="740" y="430" text-anchor="middle" class="t-sm">10 minutes of checking; bigger goes back</text>
+        <text x="740" y="452" text-anchor="middle" class="t-sm">you accept or reject the result</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.6</b> One contract, three destinations. The whole card goes into the prompt, where it is only asked. Limits, the stop condition and the token budget can be written a second time as harness settings, where they are enforced on the harness's own tools (not on code those tools run). The review budget and the decision to accept belong to a person.</figcaption>
+  </figure>
+
+  <h3>The cost cap has two halves</h3>
+  <p>The first half is the agent's budget: tokens, steps, money. The harness enforces it, but the mini-agent's token cap is soft: it checks after each reply, so the last call can take a run a little over. A hard cap would check the next call's size (its input, plus the most it is allowed to write) before sending it. The second half is yours: how long you will spend checking the result. Lecture 1 argued that for many teams checking is now the narrow part of the pipe. So a contract may say in advance what you will refuse to check. You may stop delegating, or reject a proposal unread, when checking it would cost more than it is worth:</p>
+  <ul>
+    <li>A 600-line change for a ten-line problem goes back unread, with the task split in two.</li>
+    <li>A change you could write in five minutes but would need twenty to check is yours to write.</li>
+    <li>A task that hides an undecided rule (who gets a freed waitlist place?) is not ready to delegate. Decide the rule first; that was Week 2.</li>
+  </ul>
+
+  <div class="callout try">
+    <span class="label">In pairs: rewrite Week 2's request (10 minutes)</span>
+    <p>Week 2's vague request was: <em>"Add a waitlist: when an event is full, people can join a waitlist."</em> Rewrite it as a task contract with all seven lines. Then mark each line <strong>asked</strong> or <strong>enforced</strong>, and for each enforced line say how.</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: one good contract (yours may differ)</summary>
+    <div class="inner">
+      <div class="contract">
+        <span class="cardtitle">Task contract: waitlist, part 1</span>
+        <dl>
+          <dt>Goal</dt><dd>A person can join the waitlist of a full event and see their position. Joining and viewing only; giving a freed place to the next person is out of scope.</dd>
+          <dt>Context</dt><dd>Our scope agreement (<code>docs/scope.md</code>): first come, first served; one entry per person per event. The promise that must still hold: confirmed ≤ capacity. Acceptance examples W1–W3 in <code>docs/examples.md</code>.</dd>
+          <dt>Limits</dt><dd>Change <code>app/</code> and <code>tests/</code> only. One new table; do not change the reservations table. No new dependencies. Do not edit existing tests.</dd>
+          <dt>Deliver</dt><dd>Tests for W1–W3 first, failing. Then the change, the full test output, and a list of every assumption you made.</dd>
+          <dt>Stop when</dt><dd>W1–W3 and all existing tests pass. If a rule is missing from the scope agreement, stop and ask. Hard limit: 25 steps.</dd>
+          <dt>Cost cap</dt><dd>150,000 tokens. My checking budget: 30 minutes. A change over 300 lines gets split, not reviewed.</dd>
+          <dt>Owner</dt><dd>This week's implementer.</dd>
+        </dl>
+      </div>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Line</th><th>Enforced?</th><th>How, or why not</th></tr></thead>
+          <tbody>
+            <tr><td>Change <code>app/</code> and <code>tests/</code> only</td><td><span class="tag ok">enforced</span></td><td><code>write_paths: ["app/*", "tests/*"]</code>, for <code>write_file</code> requests. Code that <code>run_tests</code> runs is not limited by it</td></tr>
+            <tr><td>No new dependencies</td><td><span class="tag maybe">partly</span></td><td><code>requirements.txt</code> is outside <code>write_paths</code>, so <code>write_file</code> cannot add a line to it. The code can still import a package that is already installed. CI installs the listed packages and the packages they depend on, so it fails only if the import is missing there and a test runs that code. Check new imports in review</td></tr>
+            <tr><td>Do not edit existing tests</td><td><span class="tag maybe">partly</span></td><td><code>tests/*</code> allows overwriting any test. Allow only the new file (<code>tests/test_waitlist*.py</code>), or catch it in review and CI</td></tr>
+            <tr><td>One new table only</td><td><span class="tag bad">asked</span></td><td>The schema lives in <code>app/schema.sql</code>, inside <code>app/*</code>. Only review catches this</td></tr>
+            <tr><td>25 steps, 150,000 tokens</td><td><span class="tag ok">enforced</span></td><td><code>--max-steps 25 --cost-cap 150000</code>, once your A3 stopping rule is in (the token cap is soft: checked after each reply)</td></tr>
+            <tr><td>Stop and ask when a rule is missing</td><td><span class="tag bad">asked</span></td><td>Nothing can detect a missing rule for you. This is why you decide rules before delegating</td></tr>
+            <tr><td>30-minute review, 300-line limit</td><td><span class="tag maybe">you</span></td><td>Your own rule. Write it down so you keep it</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The budgets here are a first guess. Adjust them after you have seen a few real runs of your own.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. RAILS ============ -->
+<section class="block" id="rails">
+  <div class="sechead">
+    <span class="clock">1:15 – 1:25</span>
+    <h2>The rails</h2>
+  </div>
+  <p>A contract is written for one task. <strong>Rails</strong> are what every task runs on. Two matter from today.</p>
+  <p><strong>AGENTS.md.</strong> The format's website calls it <q>a README for agents: a dedicated, predictable place to provide the context and instructions to help AI coding agents work on your project.</q> It is an open format, and many agents look for it; OpenAI's documentation says <q>Codex reads AGENTS.md files before doing any work.</q> The mini-agent does the same thing in one line: <code>build_system_prompt()</code> pastes the file into the system prompt. So AGENTS.md is text in the context, sent on every call. It is a sign, a very useful one. This week, grow yours:</p>
+  <pre><code># AfterHours: notes for coding agents (and new teammates)
+
+## Commands
+- Tests: `python -m pytest -q`
+- Race check (app running): `python scripts/race.py`
+
+## Map
+- app/reservations.py: the reservation rule
+- app/main.py: HTTP routes
+
+## Promises (must always hold)
+- Confirmed reservations for an event ≤ its capacity.
+- A name made only of spaces is not a name (422).
+
+## Rules
+- Write the failing test first. Show the command you ran and its output.
+- Never weaken or delete a test to make it pass. If a test looks wrong, stop and say so.
+- Never read or print .env or anything in secrets/.
+- If a rule is missing from docs/scope.md, stop and ask.</code></pre>
+  <p><strong>The CI gate.</strong> The starter already runs the tests on every push (<code>.github/workflows/ci.yml</code>). It becomes a gate when nobody can merge into <code>main</code> until those checks pass. On GitHub that is a branch protection rule with three options ticked: <em>Require status checks to pass before merging</em>; <em>Require a pull request before merging</em>, with one approval, so a person reviews every change; and <em>Do not allow bypassing the above settings</em>, because by default the rule does not apply to the repository's admins, who are probably you. A gate set up like this does not care who wrote the change or what anyone claimed about it. It is a fence around <code>main</code>.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 480" role="img" aria-label="The harness around the agent as nested layers: the model at the centre, inside the loop with its limits and stopping rule, inside the dispatcher and permission layer with four tools, inside a throwaway workspace, inside a dashed container or OS sandbox that the kit does not provide. From the left, the task contract and AGENTS.md flow into the model as text: they are asked. To the right, the agent's diff must pass the CI gate and your review before it reaches main: those are enforced.">
+        <defs>
+          <filter id="w3f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w3f7-r)">
+          <rect x="170" y="20" width="420" height="440" rx="26" class="s s-dash s-thick"/>
+          <rect x="200" y="80" width="360" height="356" rx="22" class="s f-paper"/>
+          <rect x="230" y="118" width="300" height="292" rx="18" class="s f-card"/>
+          <rect x="260" y="156" width="240" height="220" rx="14" class="s s-pen f-pen"/>
+          <circle cx="380" cy="286" r="50" class="s f-card"/>
+          <rect x="10" y="200" width="140" height="44" rx="4" class="s s-thin f-mark"/>
+          <rect x="10" y="290" width="140" height="44" rx="4" class="s s-thin f-mark"/>
+          <path d="M152,222 L326,272" class="s" marker-end="url(#w3f7-a)"/>
+          <path d="M152,312 L326,298" class="s" marker-end="url(#w3f7-a)"/>
+          <path d="M432,286 H604" class="s" marker-end="url(#w3f7-a)"/>
+          <rect x="610" y="262" width="92" height="48" rx="8" class="s f-card"/>
+          <path d="M704,286 H726" class="s" marker-end="url(#w3f7-a)"/>
+          <rect x="730" y="262" width="130" height="48" rx="8" class="s s-thick f-card"/>
+          <path d="M795,312 V336" class="s" marker-end="url(#w3f7-a)"/>
+          <rect x="730" y="340" width="130" height="48" rx="8" class="s s-thick f-mark"/>
+          <path d="M795,390 V414" class="s" marker-end="url(#w3f7-a)"/>
+          <rect x="730" y="418" width="130" height="42" rx="8" class="s f-card"/>
+          <rect x="14" y="396" width="26" height="16" class="s s-thin f-mark"/>
+          <rect x="14" y="426" width="26" height="16" class="s s-thick f-card"/>
+        </g>
+        <text x="190" y="46" class="t-sm">container or OS sandbox</text>
+        <text x="190" y="64" class="t-sm t-2">no secrets, no network (not in the kit)</text>
+        <text x="220" y="104" class="t-sm">throwaway workspace (a copy)</text>
+        <text x="250" y="142" class="t-sm">dispatcher + permission layer</text>
+        <text x="280" y="180" class="t-sm t-pen">the loop: limits, stopping rule</text>
+        <text x="380" y="293" text-anchor="middle" class="t-lg">model</text>
+        <text x="380" y="398" text-anchor="middle" class="t-sm t-2">list · read · write · run_tests</text>
+        <text x="80" y="227" text-anchor="middle" class="t-sm">task contract</text>
+        <text x="80" y="317" text-anchor="middle" class="t-sm">AGENTS.md</text>
+        <text x="12" y="172" class="t-sm t-2">asked:</text>
+        <text x="12" y="190" class="t-sm t-2">text in the context</text>
+        <text x="656" y="292" text-anchor="middle" class="t-sm">the diff</text>
+        <text x="795" y="283" text-anchor="middle">CI gate</text>
+        <text x="795" y="302" text-anchor="middle" class="t-sm t-2">tests must pass</text>
+        <text x="795" y="370" text-anchor="middle" class="t-mark">your review</text>
+        <text x="795" y="445" text-anchor="middle" class="t-mono">main</text>
+        <text x="870" y="290" class="t-sm t-2">enforced</text>
+        <text x="870" y="370" class="t-sm t-2">you decide</text>
+        <text x="48" y="409" class="t-sm">asked: a sign</text>
+        <text x="48" y="439" class="t-sm">enforced: a fence</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.7</b> The harness around the agent. Instructions flow in from the left as text in the context. The layers around the model decide what its requests can do. On the right, nothing reaches <code>main</code> without passing the CI gate and a person. The dashed outer layer is the one the kit leaves to the operating system.</figcaption>
+  </figure>
+
+  <p>Real agent tools add more rails with names you will meet everywhere: <strong>hooks</strong>, <strong>skills</strong>, <strong>MCP</strong>, <strong>subagents</strong>. Reading R1 places each of them on the loop.</p>
+  <div class="callout try">
+    <span class="label">Sign or fence? (2 minutes, hands up)</span>
+    <ol>
+      <li>"Never weaken a test" in AGENTS.md.</li>
+      <li>A required CI check on <code>main</code>.</li>
+      <li><code>--max-steps 12</code>.</li>
+      <li>"Stop after 12 steps" written in the task.</li>
+      <li><code>write_paths</code> in <code>permissions.json</code>.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answers</summary>
+    <div class="inner">
+      <p>Signs: 1 and 4. Fences: 2, 3 and 5. But notice where each fence stands. <code>--max-steps</code> and <code>write_paths</code> hold only inside the mini-agent's harness. The CI check holds for every change to <code>main</code>, whoever or whatever wrote it, as long as nobody is allowed to bypass it.</p>
+    </div>
+  </details>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 150" role="img" aria-label="The engineering loop as a row: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Delegate is highlighted: this week, the contract and the rails. The weeks that train each step are written above.">
+        <defs>
+          <filter id="w3f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w3f8-r)">
+          <rect x="18" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <rect x="153" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <rect x="288" y="40" width="104" height="40" rx="20" class="s s-thick f-mark"/>
+          <rect x="423" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <rect x="558" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <rect x="693" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <rect x="828" y="40" width="104" height="40" rx="20" class="s f-card"/>
+          <path d="M124,60 H149" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M259,60 H284" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M394,60 H419" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M529,60 H554" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M664,60 H689" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M799,60 H824" class="s" marker-end="url(#w3f8-a)"/>
+          <path d="M880,82 V124 H70 V86" class="s s-dash s-2" marker-end="url(#w3f8-a)"/>
+        </g>
+        <text x="70" y="65" text-anchor="middle" class="t-sm">Understand</text>
+        <text x="205" y="65" text-anchor="middle" class="t-sm">Specify</text>
+        <text x="340" y="65" text-anchor="middle" class="t-sm t-mark">Delegate</text>
+        <text x="475" y="65" text-anchor="middle" class="t-sm">Inspect</text>
+        <text x="610" y="65" text-anchor="middle" class="t-sm">Verify</text>
+        <text x="745" y="65" text-anchor="middle" class="t-sm">Release</text>
+        <text x="880" y="65" text-anchor="middle" class="t-sm">Observe</text>
+        <text x="70" y="28" text-anchor="middle" class="t-mono t-pen">wk 1 · 9</text>
+        <text x="205" y="28" text-anchor="middle" class="t-mono t-pen">wk 2 · 4</text>
+        <text x="340" y="28" text-anchor="middle" class="t-mono t-pen">wk 3 · 10</text>
+        <text x="475" y="28" text-anchor="middle" class="t-mono t-pen">wk 7</text>
+        <text x="610" y="28" text-anchor="middle" class="t-mono t-pen">wk 5 · 6 · 8</text>
+        <text x="745" y="28" text-anchor="middle" class="t-mono t-pen">wk 12 · 14</text>
+        <text x="880" y="28" text-anchor="middle" class="t-mono t-pen">wk 11 · 13</text>
+        <text x="340" y="104" text-anchor="middle" class="t-sm">today: contract + rails</text>
+        <text x="475" y="142" text-anchor="middle" class="t-sm t-2">and round again</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.8</b> Where this week sits on the engineering loop from Lecture 1. Week 2 decided what to build. This week hands part of the building to an agent, with a contract and rails. Week 7 inspects what comes back.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Name one thing that entered the Codex run's context that the task did not need, and one way to keep it out next time.</li>
+        <li>A contract says "do not delete or weaken any test". Can the mini-agent's <code>permissions.json</code> enforce that? If yes, how? If not, what could, and at which layer?</li>
+        <li>Name one thing you are still unsure about after today.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 4</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>The agent in the wider world</h2>
+  <p>Four short readings: the words you will meet in every agent tool, how long a task agents can take on, the Replit case in full, and who answers for work an agent did. Read them before the lab.</p>
+</div>
+
+<section class="block" id="vocab">
+  <div class="sechead"><span class="clock">R1</span><h2>Hooks, skills, MCP, subagents</h2></div>
+  <p>Real agent tools extend the harness in four common ways. Each one changes what enters the context or what the agent can do. So ask the same three questions of each: what does it put into the context, what new authority does it add, and who enforces it?</p>
+  <ul>
+    <li><strong>Hooks</strong> are your own scripts that the harness runs at fixed points. Claude Code's documentation: <q>Hooks are user-defined shell commands. Claude Code runs them at specific points in its lifecycle, which gives you deterministic control: certain actions always happen rather than relying on the LLM to choose to run them.</q> A hook that runs the tests after every edit, or refuses any command that mentions production, is a fence. In the mini-agent, the same idea is code inside <code>dispatch()</code>. (The same documentation also describes hooks that ask a model to decide; those are not deterministic.)</li>
+    <li><strong>Skills</strong> are instructions on demand. Anthropic introduced Agent Skills on 16 October 2025: <q>Skills are folders that include instructions, scripts, and resources that Claude can load when needed.</q> A skill's instructions enter the context only when the task needs them, which keeps the context small. Its scripts are code the agent may run, which is authority.</li>
+    <li><strong>MCP</strong>, the Model Context Protocol, is a standard plug for adding tools and data from other programs. Anthropic open-sourced it on 25 November 2024 as <q>an open standard that enables developers to build secure, two-way connections between their data sources and AI-powered tools.</q> Every tool an MCP server adds is a new capability for your allowlist, and everything it returns is text entering the context from outside your project. Week 8 shows why that matters.</li>
+    <li><strong>Subagents</strong> are a second loop. From Claude Code's documentation: <q>Each subagent runs in its own context window with a custom system prompt, specific tool access, and independent permissions.</q> Only the subagent's summary comes back, so the main context stays small, as Fig 3.3 asked. The price is that you receive a summary of work you did not see.</li>
+  </ul>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 440" role="img" aria-label="The model, the harness and the tools stacked in the middle. Skills plug into the model's context from the top left. Hooks plug into the path between the harness and the tools from the bottom left. MCP plugs extra tools into the tool row from the bottom right. A subagent runs as a separate loop at the right and trades a task for a summary with the harness.">
+        <defs>
+          <filter id="w3f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w3f9-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w3f9-r)">
+          <rect x="380" y="30" width="200" height="68" rx="12" class="s s-thick f-card"/>
+          <rect x="330" y="176" width="300" height="76" rx="12" class="s f-card"/>
+          <rect x="330" y="330" width="300" height="66" rx="12" class="s f-card"/>
+          <path d="M450,174 V104" class="s" marker-end="url(#w3f9-a)"/>
+          <path d="M510,100 V170" class="s" marker-end="url(#w3f9-a)"/>
+          <path d="M450,254 V324" class="s" marker-end="url(#w3f9-a)"/>
+          <path d="M510,326 V258" class="s" marker-end="url(#w3f9-a)"/>
+          <rect x="40" y="30" width="240" height="80" rx="6" class="s f-mark"/>
+          <path d="M282,64 H374" class="s s-pen" marker-end="url(#w3f9-ap)"/>
+          <rect x="40" y="250" width="240" height="80" rx="6" class="s s-thick f-card"/>
+          <path d="M282,290 H444" class="s s-pen" marker-end="url(#w3f9-ap)"/>
+          <rect x="680" y="320" width="240" height="84" rx="6" class="s f-pen"/>
+          <path d="M678,363 H636" class="s s-pen" marker-end="url(#w3f9-ap)"/>
+          <rect x="680" y="150" width="240" height="120" rx="6" class="s f-pen"/>
+          <path d="M896,170 A13,13 0 1 1 884,166" class="s s-thin" marker-end="url(#w3f9-a)"/>
+          <path d="M632,198 H674" class="s s-pen" marker-end="url(#w3f9-ap)"/>
+          <path d="M678,230 H636" class="s s-pen" marker-end="url(#w3f9-ap)"/>
+        </g>
+        <text x="480" y="60" text-anchor="middle" class="t-lg">model</text>
+        <text x="480" y="84" text-anchor="middle" class="t-sm t-2">reads the context</text>
+        <text x="480" y="206" text-anchor="middle" class="t-lg">harness: the loop</text>
+        <text x="480" y="232" text-anchor="middle" class="t-sm t-2">dispatcher · permissions</text>
+        <text x="480" y="360" text-anchor="middle" class="t-lg">tools</text>
+        <text x="480" y="382" text-anchor="middle" class="t-sm t-2">files · tests · shell · …</text>
+        <text x="440" y="144" text-anchor="end" class="t-sm">context</text>
+        <text x="520" y="144" class="t-sm">requests</text>
+        <text x="160" y="58" text-anchor="middle" class="t-lg">Skills</text>
+        <text x="160" y="80" text-anchor="middle" class="t-sm">instructions and scripts,</text>
+        <text x="160" y="98" text-anchor="middle" class="t-sm">loaded when relevant</text>
+        <text x="160" y="130" text-anchor="middle" class="t-sm t-2">adds: context on demand</text>
+        <text x="160" y="278" text-anchor="middle" class="t-lg">Hooks</text>
+        <text x="160" y="300" text-anchor="middle" class="t-sm">your scripts at fixed points,</text>
+        <text x="160" y="318" text-anchor="middle" class="t-sm">e.g. before every tool call</text>
+        <text x="160" y="350" text-anchor="middle" class="t-sm t-2">runs every time: a fence</text>
+        <text x="800" y="346" text-anchor="middle" class="t-lg">MCP</text>
+        <text x="800" y="368" text-anchor="middle" class="t-sm">a standard plug for tools</text>
+        <text x="800" y="388" text-anchor="middle" class="t-sm">from other programs</text>
+        <text x="800" y="426" text-anchor="middle" class="t-sm t-2">adds: authority, outside text</text>
+        <text x="780" y="180" text-anchor="middle" class="t-lg">Subagents</text>
+        <text x="800" y="208" text-anchor="middle" class="t-sm">a second loop with its</text>
+        <text x="800" y="228" text-anchor="middle" class="t-sm">own context window;</text>
+        <text x="800" y="248" text-anchor="middle" class="t-sm">only a summary comes back</text>
+        <text x="800" y="292" text-anchor="middle" class="t-sm t-2">keeps the main context small</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.9</b> Where each piece of vocabulary plugs into the loop. Skills and subagents are mostly about context. MCP adds authority. Hooks add enforcement. Each one is worth the same three questions: what enters the context, what can it now do, and who enforces it?</figcaption>
+  </figure>
+</section>
+
+<section class="block" id="horizons">
+  <div class="sechead"><span class="clock">R2</span><h2>How long a task can you hand over?</h2></div>
+  <p>The research group METR measures how long a task AI agents can complete, counted in the time a human expert needs for it. Its <strong>time horizon</strong> is <q>the task duration (measured by human expert completion time) at which an AI agent is predicted to succeed with a given level of reliability.</q> In March 2025 METR reported that the horizon at 50% success <q>has been doubling approximately every 7 months for the last 6 years.</q> In its January 2026 update, METR's revised estimate for the whole period is a doubling every 196 days, and for the trend since 2023 a doubling every 131 days, about 4.3 months. (For the shorter stretch since 2024 it gives 89 days.)</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 470" role="img" aria-label="Two straight lines on a doubling scale, both starting at 1. The blue line doubles every 196 days, METR's trend from 2019 to 2025, and reaches about ×13 after two years. The red line doubles every 131 days, METR's 2026 estimate for the trend since 2023, and reaches about ×48. Only the slopes come from METR; the shared starting point is arbitrary.">
+        <defs>
+          <filter id="w3f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="17"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w3f10-r)">
+          <path d="M150,400 H800" class="s s-thin"/>
+          <path d="M150,400 V70" class="s s-thin"/>
+          <path d="M144,400 H150" class="s s-thin"/>
+          <path d="M144,346.7 H150" class="s s-thin"/>
+          <path d="M150,346.7 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M144,293.3 H150" class="s s-thin"/>
+          <path d="M150,293.3 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M144,240 H150" class="s s-thin"/>
+          <path d="M150,240 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M144,186.7 H150" class="s s-thin"/>
+          <path d="M150,186.7 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M144,133.3 H150" class="s s-thin"/>
+          <path d="M150,133.3 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M144,80 H150" class="s s-thin"/>
+          <path d="M150,80 H790" class="s s-thin s-2 s-dash"/>
+          <path d="M150,400 V406" class="s s-thin"/>
+          <path d="M310,400 V406" class="s s-thin"/>
+          <path d="M470,400 V406" class="s s-thin"/>
+          <path d="M630,400 V406" class="s s-thin"/>
+          <path d="M790,400 V406" class="s s-thin"/>
+          <path d="M150,400 L790,201.4" class="s s-thick s-pen"/>
+          <path d="M150,400 L790,102.8" class="s s-thick s-red"/>
+        </g>
+        <text x="138" y="405" text-anchor="end" class="t-mono t-2">×1</text>
+        <text x="138" y="351.7" text-anchor="end" class="t-mono t-2">×2</text>
+        <text x="138" y="298.3" text-anchor="end" class="t-mono t-2">×4</text>
+        <text x="138" y="245" text-anchor="end" class="t-mono t-2">×8</text>
+        <text x="138" y="191.7" text-anchor="end" class="t-mono t-2">×16</text>
+        <text x="138" y="138.3" text-anchor="end" class="t-mono t-2">×32</text>
+        <text x="138" y="85" text-anchor="end" class="t-mono t-2">×64</text>
+        <text x="150" y="424" text-anchor="middle" class="t-mono t-2">0</text>
+        <text x="310" y="424" text-anchor="middle" class="t-mono t-2">6</text>
+        <text x="470" y="424" text-anchor="middle" class="t-mono t-2">12</text>
+        <text x="630" y="424" text-anchor="middle" class="t-mono t-2">18</text>
+        <text x="790" y="424" text-anchor="middle" class="t-mono t-2">24</text>
+        <text x="800" y="206.4" class="t-sm t-pen">×13</text>
+        <text x="800" y="107.8" class="t-sm t-red">×48</text>
+        <text x="170" y="206" class="t-sm t-red">doubling every 131 days (about 4.3 months)</text>
+        <text x="170" y="224" class="t-sm t-2">METR’s 2026 update, trend since 2023</text>
+        <text x="170" y="259" class="t-sm t-pen">doubling every 196 days (about 7 months)</text>
+        <text x="170" y="277" class="t-sm t-2">METR, trend 2019–2025</text>
+        <text x="470.0" y="452" text-anchor="middle" class="t-sm">months after an arbitrary starting point</text>
+        <text x="60" y="240.0" text-anchor="middle" transform="rotate(-90 60 240.0)" class="t-sm">task length, relative to the start</text>
+        <text x="158" y="64" class="t-sm t-2">slopes from METR; the common start is ours (not any model)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.10</b> What a doubling time means, drawn to scale on a doubling axis. Both lines start at 1 on purpose: the start is arbitrary and belongs to no model. Only the two slopes come from METR. After two years, a 196-day doubling multiplies the task length by about 13; a 131-day doubling multiplies it by about 48.</figcaption>
+  </figure>
+  <p>Read these numbers carefully.</p>
+  <ul>
+    <li><strong>50% success</strong> means the agent fails about half the tasks of that length. At higher reliability the horizon is shorter.</li>
+    <li>The tasks are <strong>self-contained and well specified</strong>, with a clear test of success. Most real tasks have fuzzier edges.</li>
+    <li>Length is measured in <strong>human time</strong>, not in how long the agent runs.</li>
+    <li>METR notes that its measurements above 16 hours are unreliable with its current tasks, and that the trend is somewhat sensitive to which tasks are in the suite.</li>
+  </ul>
+  <p>What it means for your contracts: the tasks an agent can attempt keep getting longer. The time you need to check a result does not shrink at the same rate. Size a delegated task by what you can check, and use the cost cap to say so.</p>
+</section>
+
+<section class="block" id="replit">
+  <div class="sechead"><span class="clock">R3</span><h2>The Replit case in full</h2></div>
+  <p>In July 2025 Jason Lemkin, the founder of SaaStr, was building an app with Replit's AI agent and writing about it in public. He posted: <q>.@Replit goes rogue during a code freeze and shutdown and deletes our entire database.</q> The agent then told him the data could not be recovered. As quoted by The Register, Lemkin wrote: <q>It said it was impossible in this case, that it had destroyed all database versions. It turns out Replit was wrong, and the rollback did work.</q> He had asked for a code freeze, and his conclusion was blunt: <q>There is no way to enforce a code freeze in vibe coding apps like Replit.</q></p>
+  <p>On 20 July Replit's CEO, Amjad Masad, replied: <q>Replit agent in development deleted data from the production database. Unacceptable and should never be possible.</q> Replit, he wrote, had <q>started rolling out automatic DB dev/prod separation to prevent this categorically.</q> Replit's announcement the next day explained what had been missing: <q>Until now, Replit apps used a single database for both development and live customer data.</q> In the new design, while you build, <q>any database changes are stored in the development database</q>; when you redeploy, the Agent checks for those changes and <q>will ask during re-deployment whether those changes need to be applied to the production database.</q> Masad also pointed to <q>one-click restore for your entire project state in case the Agent makes a mistake</q> (quoted by The Register).</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 360" role="img" aria-label="Before: the agent and live customers use one database, and a code freeze note is only a sign on the agent's path, which its arrow passes. After: the agent's changes during development go to a development database; they reach the separate production database only on a redeploy, after you agree; live users use production, and backups can restore it.">
+        <defs>
+          <filter id="w3f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="14"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f11-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w3f11-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w3f11-r)">
+          <rect x="30" y="100" width="120" height="50" rx="10" class="s f-card"/>
+          <rect x="30" y="220" width="120" height="50" rx="10" class="s f-card"/>
+          <path d="M340,150 V230 A56,13 0 0 0 452,230 V150" class="s f-card"/>
+          <ellipse cx="396" cy="150" rx="56" ry="13" class="s f-card"/>
+          <rect x="190" y="64" width="110" height="46" rx="4" class="s f-mark"/>
+          <path d="M152,125 L332,172" class="s s-red s-thick" marker-end="url(#w3f11-ar)"/>
+          <path d="M152,245 L332,215" class="s" marker-end="url(#w3f11-a)"/>
+          <path d="M480,20 V340" class="s s-dash s-2"/>
+          <rect x="510" y="80" width="120" height="50" rx="10" class="s f-card"/>
+          <rect x="510" y="240" width="120" height="50" rx="10" class="s f-card"/>
+          <path d="M750,80 V130 A48,11 0 0 0 846,130 V80" class="s f-card"/>
+          <ellipse cx="798" cy="80" rx="48" ry="11" class="s f-card"/>
+          <path d="M750,236 V290 A48,11 0 0 0 846,290 V236" class="s f-card"/>
+          <ellipse cx="798" cy="236" rx="48" ry="11" class="s f-card"/>
+          <path d="M632,105 H742" class="s" marker-end="url(#w3f11-a)"/>
+          <path d="M632,265 H742" class="s" marker-end="url(#w3f11-a)"/>
+          <path d="M798,146 V222" class="s s-thick" marker-end="url(#w3f11-a)"/>
+          <rect x="866" y="296" width="80" height="40" rx="6" class="s s-dash f-card"/>
+          <path d="M890,294 Q880,262 852,262" class="s s-dash" marker-end="url(#w3f11-a)"/>
+        </g>
+        <text x="240" y="36" text-anchor="middle" class="t-lg">Before</text>
+        <text x="90" y="130" text-anchor="middle">agent</text>
+        <text x="90" y="250" text-anchor="middle">live users</text>
+        <text x="245" y="84" text-anchor="middle" class="t-sm t-mark">CODE FREEZE</text>
+        <text x="245" y="102" text-anchor="middle" class="t-sm t-mark">(in the chat)</text>
+        <text x="396" y="190" text-anchor="middle" class="t-sm">one database</text>
+        <text x="396" y="208" text-anchor="middle" class="t-sm">dev + live data</text>
+        <text x="240" y="320" text-anchor="middle" class="t-sm t-red">the sign asked; nothing stopped the agent</text>
+        <text x="720" y="36" text-anchor="middle" class="t-lg">After</text>
+        <text x="570" y="110" text-anchor="middle">agent</text>
+        <text x="570" y="270" text-anchor="middle">live users</text>
+        <text x="798" y="112" text-anchor="middle" class="t-sm">dev database</text>
+        <text x="798" y="270" text-anchor="middle" class="t-sm">production</text>
+        <text x="798" y="288" text-anchor="middle" class="t-sm">database</text>
+        <text x="906" y="321" text-anchor="middle" class="t-sm">backups</text>
+        <text x="906" y="254" text-anchor="middle" class="t-sm t-2">restore</text>
+        <text x="786" y="178" text-anchor="end" class="t-sm">on redeploy,</text>
+        <text x="786" y="196" text-anchor="end" class="t-sm">if you say yes</text>
+        <text x="720" y="352" text-anchor="middle" class="t-sm t-green">production changes wait for a redeploy and your yes</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.11</b> The Replit fix, drawn as a design change (our simplified reading of Replit's announcement). Before, development and live data shared one database, so a code freeze could only be asked for. After, the agent's everyday changes land in a development database and reach production only through a redeploy that asks you first. A restore path covers the mistakes that still get through.</figcaption>
+  </figure>
+  <p>One more lesson hides in the screenshots Lemkin shared. In them the agent calls what it did <q>a catastrophic error of judgement</q> and says it panicked. That is generated text, not a report of an inner state, and in the same conversation its claim about rollback was false. Treat what an agent says about itself the way Lecture 1 treated what it said about code: as a claim to check.</p>
+</section>
+
+<section class="block" id="accountable">
+  <div class="sechead"><span class="clock">R4</span><h2>Who answers for the work?</h2></div>
+  <p>It is natural to talk about an agent as a teammate. It takes a task, works on it, and reports back. The difference shows when something goes wrong. Someone has to explain the decision, live with its consequences, and fix it next week. An agent can do none of that. The course rule puts it in one line: <strong>every consequential decision needs an accountable human.</strong></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 290" role="img" aria-label="A chain of five steps: you write the contract, the agent works, the harness and CI collect evidence, you review, and the change is merged. Above the agent, a speech bubble says all 10 tests pass, marked as a claim to check. A bracket under the chain says one named person answers for all of it.">
+        <defs>
+          <filter id="w3f12-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w3f12-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w3f12-r)">
+          <rect x="20" y="120" width="150" height="56" rx="10" class="s f-mark"/>
+          <rect x="210" y="120" width="150" height="56" rx="10" class="s f-card"/>
+          <rect x="400" y="120" width="160" height="56" rx="10" class="s s-thick f-card"/>
+          <rect x="600" y="120" width="150" height="56" rx="10" class="s f-mark"/>
+          <rect x="790" y="120" width="150" height="56" rx="10" class="s f-card"/>
+          <path d="M172,148 H204" class="s" marker-end="url(#w3f12-a)"/>
+          <path d="M362,148 H394" class="s" marker-end="url(#w3f12-a)"/>
+          <path d="M562,148 H594" class="s" marker-end="url(#w3f12-a)"/>
+          <path d="M752,148 H784" class="s" marker-end="url(#w3f12-a)"/>
+          <rect x="205" y="46" width="160" height="40" rx="18" class="s s-thin s-red f-card"/>
+          <path d="M270,86 L284,116 L296,86" class="s s-thin s-red f-card"/>
+          <path d="M95,196 V222 H865 V196" class="s s-thin"/>
+        </g>
+        <text x="95" y="146" text-anchor="middle">you</text>
+        <text x="95" y="166" text-anchor="middle" class="t-sm t-mark">write the contract</text>
+        <text x="285" y="146" text-anchor="middle">agent</text>
+        <text x="285" y="166" text-anchor="middle" class="t-sm t-2">does the work</text>
+        <text x="480" y="146" text-anchor="middle">evidence</text>
+        <text x="480" y="166" text-anchor="middle" class="t-sm t-2">harness checks, CI</text>
+        <text x="675" y="146" text-anchor="middle">you</text>
+        <text x="675" y="166" text-anchor="middle" class="t-sm t-mark">review, decide</text>
+        <text x="865" y="146" text-anchor="middle">merged</text>
+        <text x="865" y="166" text-anchor="middle" class="t-sm t-2">and owned</text>
+        <text x="285" y="71" text-anchor="middle" class="t-sm">"all 10 tests pass"</text>
+        <text x="285" y="34" text-anchor="middle" class="t-sm t-red">a claim to check</text>
+        <text x="480" y="250" text-anchor="middle" class="t-sm">one named person answers for all of it</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3.12</b> The chain of responsibility for one delegated change. The agent does the middle of the work. A person starts it and a person finishes it, and the decision to merge rests on evidence the harness and CI collected, not on the agent's own report.</figcaption>
+  </figure>
+  <p>In practice that means four habits. Every contract names an owner. The owner reads the evidence, not the agent's summary: in the lab you will watch a replayed agent announce <em>10 passed</em> while the harness counts 8. A change is merged by someone who can explain it without the agent (you will practise this in the term's defences). And meaningful help from an agent is disclosed, because the person who submits the work owns every claim in it.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Agent</dt><dd>A model in a loop with tools, context and permissions: it asks for actions, a program runs them, and the results go back to it.</dd>
+    <dt>Harness</dt><dd>The program around the model: it keeps the conversation, runs the tool requests it allows, and decides when to stop.</dd>
+    <dt>Context</dt><dd>Everything the model receives on one call: system prompt, tool definitions, and the whole conversation so far.</dd>
+    <dt>Token</dt><dd>The unit models read and write, a piece of a word. Roughly four characters of English text or code.</dd>
+    <dt>Tool definition</dt><dd>A tool's name, description, and JSON Schema for its input, as the model sees it.</dd>
+    <dt>Tool request</dt><dd>A <code>tool_use</code> block in the model's reply: data that asks the harness to run a tool. It does nothing by itself.</dd>
+    <dt>Dispatcher</dt><dd>The one function every tool request goes through: permission check, then the tool, then a size limit on the result.</dd>
+    <dt>Permission layer</dt><dd>Rules enforced in code about which tools may run and on which paths. In the kit: an allowlist, write paths, and read denials.</dd>
+    <dt>Stopping rule</dt><dd>The check after every reply that ends the loop: the model is done, the cost cap is reached, or the step limit is reached.</dd>
+    <dt>Cost cap</dt><dd>A budget written into a contract: tokens or money for the run (the mini-agent checks it after each call), and your own time for checking the result.</dd>
+    <dt>Task contract</dt><dd>Goal, context, limits, deliverables, stop condition, cost cap, owner.</dd>
+    <dt>Replay mode</dt><dd>Running the harness against recorded model replies. It tests the harness, not how a model behaves.</dd>
+    <dt>AGENTS.md</dt><dd>A README for agents: commands, map, rules and promises that many agents read before they work. Text in the context.</dd>
+    <dt>CI gate</dt><dd>A rule that blocks merging into the main branch until the automated checks pass.</dd>
+    <dt>Sandbox</dt><dd>Isolation enforced by the operating system or a container: what code can touch, whatever it tries.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>The Codex run in the hook: this lecture's <code>demo/codex-investigation.jsonl</code> and <code>demo/annotated-transcript.md</code>; its final answer is Lecture 1's <code>demo/agent-investigation.md</code>.</li>
+    <li>Anthropic, "Building effective agents", 19 Dec 2024. <a href="https://www.anthropic.com/engineering/building-effective-agents">anthropic.com</a></li>
+    <li>Simon Willison, "I think "agent" may finally have a widely enough agreed upon definition to be useful jargon now", 18 Sep 2025. <a href="https://simonwillison.net/2025/Sep/18/agents/">simonwillison.net</a></li>
+    <li>Anthropic, "Working with the Messages API" (multiple conversational turns). <a href="https://platform.claude.com/docs/en/build-with-claude/working-with-messages">platform.claude.com</a></li>
+    <li>Nelson F. Liu et al., "Lost in the Middle: How Language Models Use Long Contexts", <em>Transactions of the ACL</em> 12 (2024); arXiv July 2023. <a href="https://arxiv.org/abs/2307.03172">arXiv</a></li>
+    <li>Kelly Hong, Anton Troynikov, Jeff Huber, "Context Rot: How Increasing Input Tokens Impacts LLM Performance", Chroma technical report, 14 Jul 2025. <a href="https://www.trychroma.com/research/context-rot">trychroma.com</a></li>
+    <li>Anthropic, "Effective context engineering for AI agents", 29 Sep 2025. <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">anthropic.com</a></li>
+    <li>Jason Lemkin's report of the Replit incident, July 2025. <a href="https://x.com/jasonlk/status/1946069562723897802">x.com/jasonlk</a> · Amjad Masad's response, 20 Jul 2025. <a href="https://x.com/amasad/status/1946986468586721478">x.com/amasad</a> · The Register, 21 Jul 2025 <a href="https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/">article</a> and 22 Jul 2025 <a href="https://www.theregister.com/2025/07/22/replit_saastr_response/">follow-up</a> · Replit, "Introducing a safer way to Vibe Code with Replit Databases", 21 Jul 2025. <a href="https://replit.com/blog/introducing-a-safer-way-to-vibe-code-with-replit-databases">replit.com</a></li>
+    <li>AGENTS.md, the format's website. <a href="https://agents.md/">agents.md</a> · OpenAI, Codex documentation on AGENTS.md. <a href="https://learn.chatgpt.com/docs/agent-configuration/agents-md">learn.chatgpt.com</a></li>
+    <li>GitHub Docs, "About protected branches" and "Managing a branch protection rule". <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule">docs.github.com</a></li>
+    <li>Claude Code documentation: hooks <a href="https://code.claude.com/docs/en/hooks-guide">guide</a> and <a href="https://code.claude.com/docs/en/sub-agents">subagents</a> · Anthropic, "Introducing Agent Skills", 16 Oct 2025. <a href="https://claude.com/blog/skills">claude.com</a></li>
+    <li>Anthropic, "Introducing the Model Context Protocol", 25 Nov 2024. <a href="https://www.anthropic.com/news/model-context-protocol">anthropic.com</a></li>
+    <li>METR, "Measuring AI Ability to Complete Long Tasks", 19 Mar 2025. <a href="https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/">metr.org</a> · METR, Time Horizon 1.1, 29 Jan 2026. <a href="https://metr.org/blog/2026-1-29-time-horizon-1-1/">metr.org</a> · METR, time horizons page. <a href="https://metr.org/time-horizons/">metr.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="02-specify-the-promise.html">← Lecture 2: Discover the Problem, Specify the Promise</a>
+  <span>Build It. Prove It. Own It. · Lecture 3 · <a href="../index.html">Course home</a></span>
+  <a href="04-boundaries.html">Lecture 4: Boundaries That Make Change Cheap →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

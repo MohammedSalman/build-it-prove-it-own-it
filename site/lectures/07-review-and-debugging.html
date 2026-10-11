@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Review and Debugging at Agent Speed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* Week 7 only: the pull-request card reuses .patch and adds a text body. */
+  .prcard { max-width: 860px; }
+  .prcard .body { padding: 12px 16px; display: grid; gap: 10px; }
+  .prcard .body ul { padding-left: 1.2em; display: grid; gap: 4px; margin: 0; }
+  .prcard footer { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .prcard .review { color: var(--ink-2); font-style: italic; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 7 · Lecture 7 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 7 · Inspect</p>
+  <h1 id="page-title">Review and Debugging at Agent Speed</h1>
+  <p class="lede">An agent can open a 450-line pull request in an afternoon, with every test green. This lecture is about reading it with a method, and about what to do when something slips through anyway: write down hypotheses, run the experiment that tells them apart, and let git find the commit.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Loop: Inspect</span>
+    <span class="fact">Kit: PR #14 and a 20-commit history</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Review a large pull request in order of risk, starting from its claims and its tests.</li>
+      <li>Recognise six kinds of problem that a green test run does not show.</li>
+      <li>Keep a hypothesis log and design an experiment that tells two hypotheses apart.</li>
+      <li>Use <code>git bisect run</code> to find the commit that changed a behaviour, and say what it needs from you.</li>
+      <li>Point to where evidence disappears on a request's path, and put it back with request ids and counts.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The 450-line PR</span></a></li>
+    <li><a href="#method"><span class="t">0:15</span><span>A review method</span></a></li>
+    <li><a href="#experiment"><span class="t">0:35</span><span>Debugging as an experiment</span></a></li>
+    <li><a href="#bisect"><span class="t">0:55</span><span>Let git do the search</span></a></li>
+    <li><a href="#evidence"><span class="t">1:10</span><span>Where evidence disappears</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#twice"><span class="t">R1</span><span>Twice as hard</span></a></li>
+    <li><a href="#science"><span class="t">R2</span><span>Debugging is a science</span></a></li>
+    <li><a href="#debt"><span class="t">R3</span><span>Comprehension debt</span></a></li>
+    <li><a href="#fatigue"><span class="t">R4</span><span>Review fatigue</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>The 450-line PR</h2>
+  </div>
+  <p>It is Tuesday of festival week. Maya gives a coding agent the team's next task: <em>add a waitlist for full events, and make the confirmations real emails</em>. At 16:31 the agent opens pull request #14.</p>
+
+  <article class="patch prcard">
+    <header><strong>#14 · Waitlist + email confirmations</strong><span>AfterHours Agent wants to merge 6 commits into <code>main</code> · 13 files · +399 −56</span></header>
+    <div class="body">
+      <ul>
+        <li><strong>Waitlist.</strong> Join a full event's waitlist. When someone cancels, the first person waiting gets the place at once, in the same transaction, and receives a notice.</li>
+        <li><strong>Email confirmations.</strong> Confirmations are now standard email messages with From, To and Subject headers, ready for the mail relay.</li>
+        <li><strong>More robust.</strong> Confirmations are queued after the booking commits, so a problem in the notification step can never block or roll back a booking.</li>
+        <li><strong>Housekeeping.</strong> Settings collected in <code>app/settings.py</code>. Slow end-to-end confirmation tests replaced with fast unit tests. The suite grew from 17 to 26 tests.</li>
+      </ul>
+      <p class="review">Sam Okafor approved, 17:02: "LGTM, nice work! Tests are green."</p>
+    </div>
+    <footer><span>✓ CI: 26 passed</span><span>✓ 1 approval</span><span>merged Wed 09:05</span></footer>
+  </article>
+
+  <div class="callout try">
+    <span class="label">Vote</span>
+    <p>You are the reviewer. <strong>Approve</strong> or <strong>request changes</strong>? Raise a hand, and name one piece of evidence behind your vote.</p>
+  </div>
+
+  <p>Now read it with a method. With a checklist and the diff read in order of risk, the same pull request shows six problems. Every one of them passes a green CI run.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Kind of problem</th><th>What it does in PR #14</th><th>Why the green check missed it</th></tr></thead>
+      <tbody>
+        <tr><td>A deleted test</td><td>The only tests that booked a place and then looked for the confirmation are gone</td><td>A deleted test cannot fail. The count went up, from 17 to 26</td></tr>
+        <tr><td>A silently changed default</td><td>The app now logs much less than before. The description does not mention it</td><td>No test looks at the log level</td></tr>
+        <tr><td>A swallowed exception</td><td>An error in one step is caught and logged at a level nobody sees</td><td>The request still answers 201</td></tr>
+        <tr><td>A query per row (N+1)</td><td>Listing the programme runs one extra query for every event</td><td>The answers are right. It is a question to ask, with a measurement</td></tr>
+        <tr><td>A hard-coded secret</td><td>A live-looking token sits in the code as a default value</td><td>It works. That is the problem</td></tr>
+        <tr><td>A call to a function that does not exist</td><td>One line calls a library function that is not in the library</td><td>No test runs that line, and Python only looks a name up when the line runs, so the app still starts</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout case">
+    <span class="label">About this pull request</span>
+    <p>We wrote PR #14 ourselves, in the style of real agent pull requests, and planted all six problems so they show up on cue. The team and the agent are fictional; the code is real and every commit runs. It says nothing about any particular model or tool. Each kind of problem also turns up in code written by people.</p>
+  </div>
+
+  <p>One of the six is already hurting people. On Thursday at 10:40, the lead door volunteer writes in the team channel: <q>Five people at the info desk this morning said they never got a booking confirmation.</q> The rest of today uses this one incident twice: first to see how the review should have gone, then to find the cause with evidence.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 235" role="img" aria-label="The engineering loop drawn as a strip: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Inspect is highlighted as this week. Delegate returns a diff and a claim; Inspect reviews the diff and debugs what escapes.">
+        <defs>
+          <filter id="w7f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w7f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w7f1-r)">
+          <rect x="20" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="156" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="292" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="428" y="80" width="110" height="50" rx="10" class="s s-thick f-mark"/>
+          <rect x="564" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="700" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <rect x="836" y="80" width="110" height="50" rx="10" class="s f-card"/>
+          <path d="M132,105 H153" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M268,105 H289" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M404,105 H425" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M540,105 H561" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M676,105 H697" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M812,105 H833" class="s" marker-end="url(#w7f1-a)"/>
+          <path d="M891,132 V200 H75 V135" class="s s-2 s-dash" marker-end="url(#w7f1-a)"/>
+        </g>
+        <text x="75" y="110" text-anchor="middle">Understand</text>
+        <text x="211" y="110" text-anchor="middle">Specify</text>
+        <text x="347" y="110" text-anchor="middle">Delegate</text>
+        <text x="483" y="112" text-anchor="middle" class="t-lg t-mark">Inspect</text>
+        <text x="619" y="110" text-anchor="middle">Verify</text>
+        <text x="755" y="110" text-anchor="middle">Release</text>
+        <text x="891" y="110" text-anchor="middle">Observe</text>
+        <text x="483" y="62" text-anchor="middle" class="t-lg t-pen">this week</text>
+        <text x="347" y="152" text-anchor="middle" class="t-sm t-2">returns a diff</text>
+        <text x="347" y="170" text-anchor="middle" class="t-sm t-2">and a claim</text>
+        <text x="483" y="152" text-anchor="middle" class="t-sm t-pen">review it</text>
+        <text x="483" y="170" text-anchor="middle" class="t-sm t-pen">debug what escapes</text>
+        <text x="483" y="224" text-anchor="middle" class="t-sm t-2">and round again, every week</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.1</b> Where this week sits on the engineering loop from Lecture 1. Delegating returns a diff and a claim about it. Inspecting is the step that decides whether to believe the claim.</figcaption>
+  </figure>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A green check says the tests that still exist passed.</strong> Review asks what the tests no longer cover, and what changed besides the code you were told about.</p>
+  </div>
+</section>
+
+<!-- ============ 2. REVIEW METHOD ============ -->
+<section class="block" id="method">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:35</span>
+    <h2>A review method</h2>
+  </div>
+  <p>Read 455 lines top to bottom, file by file, and your attention runs out somewhere in the middle. The diff lists files in alphabetical order, which has nothing to do with risk. A method puts your freshest attention on the lines most likely to hurt someone.</p>
+
+  <h3>1 · Claims and tests before code</h3>
+  <p>Start with the description and write down each claim it makes: "a problem in the notification step can never block a booking", "26 tests pass". Each claim is something to check. Then look at the tests, because they show what the author thinks is covered. Three commands give you the shape of the change:</p>
+  <pre><code>git diff --stat 4ac8467 b7675a2                       # every file, lines changed
+git diff --stat 4ac8467 b7675a2 -- tests/             # what happened to the tests
+git diff --diff-filter=D --name-only 4ac8467 b7675a2  # files that were deleted</code></pre>
+  <p>For every deleted test, ask two questions: what did it check, and what checks that now?</p>
+
+  <h3>2 · Read in order of risk</h3>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 520" role="img" aria-label="A reading plan for PR 14. Thirteen files as horizontal bars, length proportional to lines changed, grouped into three risk tiers. Read first, 168 lines: app/reservations.py 64, the deleted tests/test_confirmations.py 32, app/settings.py 16, app/notify.py 47, app/schema.sql 9. Then, 188 lines: app/main.py 28, app/waitlist.py 56, tests/test_waitlist.py 78, tests/test_notify.py 26. Skim last, 99 lines: app/static/index.html 50, docs/waitlist.md 44, README.md 3, AGENTS.md 2.">
+        <defs>
+          <filter id="w7f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w7f2-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-red"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-red s-thin"/></pattern>
+        </defs>
+        <g filter="url(#w7f2-r)">
+          <rect x="262" y="41" width="384" height="20" rx="3" class="s s-red f-red"/>
+          <rect x="262" y="71" width="192" height="20" rx="3" class="s s-red" style="fill:url(#w7f2-h)"/>
+          <rect x="262" y="101" width="96" height="20" rx="3" class="s s-red f-red"/>
+          <rect x="262" y="131" width="282" height="20" rx="3" class="s s-red f-red"/>
+          <rect x="262" y="161" width="54" height="20" rx="3" class="s s-red f-red"/>
+          <rect x="262" y="207" width="168" height="20" rx="3" class="s s-pen f-pen"/>
+          <rect x="262" y="237" width="336" height="20" rx="3" class="s s-pen f-pen"/>
+          <rect x="262" y="267" width="468" height="20" rx="3" class="s s-pen f-pen"/>
+          <rect x="262" y="297" width="156" height="20" rx="3" class="s s-pen f-pen"/>
+          <rect x="262" y="343" width="300" height="20" rx="3" class="s s-2 f-card"/>
+          <rect x="262" y="373" width="264" height="20" rx="3" class="s s-2 f-card"/>
+          <rect x="262" y="403" width="18" height="20" rx="3" class="s s-2 f-card"/>
+          <rect x="262" y="433" width="12" height="20" rx="3" class="s s-2 f-card"/>
+          <path d="M790,38 H800 V184 H790" class="s s-red"/>
+          <path d="M790,204 H800 V320 H790" class="s s-pen"/>
+          <path d="M790,340 H800 V456 H790" class="s s-2"/>
+          <path d="M262,468 H742" class="s s-thin"/>
+          <path d="M262,462 V474 M382,462 V474 M502,462 V474 M622,462 V474 M742,462 V474" class="s s-thin"/>
+        </g>
+        <text x="262" y="22" class="t-sm t-2">bar = lines changed · colour = risk tier (our judgement)</text>
+        <text x="250" y="56" text-anchor="end" class="t-mono">app/reservations.py</text>
+        <text x="250" y="86" text-anchor="end" class="t-mono">tests/test_confirmations.py</text>
+        <text x="250" y="116" text-anchor="end" class="t-mono">app/settings.py</text>
+        <text x="250" y="146" text-anchor="end" class="t-mono">app/notify.py</text>
+        <text x="250" y="176" text-anchor="end" class="t-mono">app/schema.sql</text>
+        <text x="250" y="222" text-anchor="end" class="t-mono">app/main.py</text>
+        <text x="250" y="252" text-anchor="end" class="t-mono">app/waitlist.py</text>
+        <text x="250" y="282" text-anchor="end" class="t-mono">tests/test_waitlist.py</text>
+        <text x="250" y="312" text-anchor="end" class="t-mono">tests/test_notify.py</text>
+        <text x="250" y="358" text-anchor="end" class="t-mono">app/static/index.html</text>
+        <text x="250" y="388" text-anchor="end" class="t-mono">docs/waitlist.md</text>
+        <text x="250" y="418" text-anchor="end" class="t-mono">README.md</text>
+        <text x="250" y="448" text-anchor="end" class="t-mono">AGENTS.md</text>
+        <text x="654" y="56" class="t-mono t-sm">64</text>
+        <text x="462" y="86" class="t-mono t-sm t-red">32 · deleted</text>
+        <text x="366" y="116" class="t-mono t-sm">16</text>
+        <text x="552" y="146" class="t-mono t-sm">47</text>
+        <text x="324" y="176" class="t-mono t-sm">9</text>
+        <text x="438" y="222" class="t-mono t-sm">28</text>
+        <text x="606" y="252" class="t-mono t-sm">56</text>
+        <text x="738" y="282" class="t-mono t-sm">78</text>
+        <text x="426" y="312" class="t-mono t-sm">26</text>
+        <text x="570" y="358" class="t-mono t-sm">50</text>
+        <text x="534" y="388" class="t-mono t-sm">44</text>
+        <text x="288" y="418" class="t-mono t-sm">3</text>
+        <text x="282" y="448" class="t-mono t-sm">2</text>
+        <text x="812" y="104" class="t-red">read first</text>
+        <text x="812" y="124" class="t-sm t-2">168 lines</text>
+        <text x="812" y="256" class="t-pen">then</text>
+        <text x="812" y="276" class="t-sm t-2">188 lines</text>
+        <text x="812" y="392" class="t-2">skim last</text>
+        <text x="812" y="412" class="t-sm t-2">99 lines</text>
+        <text x="262" y="490" text-anchor="middle" class="t-mono t-sm t-2">0</text>
+        <text x="382" y="490" text-anchor="middle" class="t-mono t-sm t-2">20</text>
+        <text x="502" y="490" text-anchor="middle" class="t-mono t-sm t-2">40</text>
+        <text x="622" y="490" text-anchor="middle" class="t-mono t-sm t-2">60</text>
+        <text x="742" y="490" text-anchor="middle" class="t-mono t-sm t-2">80</text>
+        <text x="502" y="512" text-anchor="middle" class="t-sm t-2">lines changed in the file (added + removed)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.2</b> A reading plan for PR #14, drawn to scale from <code>git diff --stat</code> (455 changed lines in all). The bar lengths are measured; the three tiers are our judgement. The first tier is 168 lines and includes a whole deleted test file. Read it while your attention is fresh.</figcaption>
+  </figure>
+  <p>The tiers come from one question per hunk: <em>if this line is wrong, who gets hurt, and would anyone notice?</em> Transactions and promises, error handling, changed defaults, secrets and calls into libraries go first. UI and docs go last, and for docs you check one thing: that they claim only what the code does.</p>
+
+  <h3>3 · A checklist, so you don't rely on memory</h3>
+  <ul>
+    <li><strong>Transactions and promises.</strong> What moved into or out of a transaction? Which invariant could this break?</li>
+    <li><strong>Every <code>except</code>.</strong> What is caught, what happens next, and who finds out?</li>
+    <li><strong>Every changed default.</strong> Who relied on the old value? Does the description mention it?</li>
+    <li><strong>Secrets.</strong> Tokens and passwords in code, tests or config, including as default values.</li>
+    <li><strong>Calls into libraries.</strong> Does every function exist in the pinned version? Did anyone run this line?</li>
+    <li><strong>Work per request.</strong> Queries inside loops. Ask for a measurement before calling it slow or fine.</li>
+    <li><strong>Observability.</strong> If this fails in production, which log line or number tells you?</li>
+  </ul>
+  <p>The full checklist, with the commands, is <code>review-checklist.md</code> in the lab kit.</p>
+
+  <h3>4 · Ask for small pull requests</h3>
+  <p>Small changes get better reviews, and the evidence supports the habit. At Google, in about 9 million changes from 2014 to 2016, the median change modified 24 lines, over 35% touched a single file, and the median time for the whole review process was under 4 hours (Sadowski et al., 2018). SmartBear's study at Cisco, 2,500 reviews done with SmartBear's own review tool, advised reviewing at most 200 to 400 lines at a time, under about 500 lines an hour, for no more than 60 to 90 minutes. It is a vendor study that reports little of its method, so treat its numbers as a rule of thumb.</p>
+  <p>Reviews are also less about bugs than people expect. At Microsoft, finding defects was the top reason developers gave for reviewing, yet only 14% of the review comments in the researchers' sample were about defects, and developers named <em>understanding the change</em> as their main challenge (Bacchelli &amp; Bird, 2013). PR #14 is 455 changed lines with four purposes: a waitlist, a notifications rework, a test rewrite and new settings. A fair first comment is "please split this into four".</p>
+
+  <h3>5 · AI reviewers are a signal</h3>
+  <p>An AI reviewer can go through a long diff quickly, and it may flag something like a swallowed exception. It may also miss parts of a large change, or be confidently wrong, and it cannot be accountable for the merge. Treat its comments as more findings to check, the way you treated the agent's claims in Lecture 1. A person approves the change, and that person owns the approval.</p>
+
+  <div class="callout try">
+    <span class="label">In pairs (10 minutes)</span>
+    <p>Here are three excerpts from PR #14, shortened. For each one:</p>
+    <ol>
+      <li>Which line of the checklist does it hit?</li>
+      <li>Write one review comment: <em>file:line · what you see · why it matters · what you ask for</em>.</li>
+      <li>Is it a blocker?</li>
+    </ol>
+  </div>
+
+  <div class="patches">
+    <article class="patch">
+      <header><strong>A · Queue the confirmation after the commit</strong><span>app/reservations.py · commit 59e817e</span></header>
+<pre class="diff"><span class="ctx">             cur = conn.execute("INSERT INTO reservations …", (event_id, attendee, email))</span><span class="del">-            # Same transaction: the booking and its confirmation are saved together.</span><span class="del">-            outbox_id = notify.queue_confirmation(conn, attendee, email, dict(event))</span><span class="ctx">             conn.execute("COMMIT")</span><span class="ctx">         …</span><span class="ctx">         log.info("[%s] reservation #%d saved", attendee, cur.lastrowid)</span><span class="del">-        log.info("[%s] confirmation #%d queued for %s", attendee, outbox_id, email)</span><span class="add">+        # Queue the confirmation only after the booking has committed, so that a</span><span class="add">+        # problem in the notification step can never block or roll back a booking.</span><span class="add">+        try:</span><span class="add">+            outbox_id = notify.queue_confirmation(conn, attendee, email, dict(event))</span><span class="add">+            log.info("[%s] confirmation #%d queued for %s", attendee, outbox_id, email)</span><span class="add">+        except Exception as exc:</span><span class="add">+            log.debug("[%s] confirmation not queued: %s", attendee, exc)</span></pre>
+      <footer>pytest: 17 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>B · Collect settings in one module</strong><span>app/main.py and the new app/settings.py · commit b7675a2</span></header>
+<pre class="diff"><span class="ctx">  app/main.py</span><span class="del">- log = logs.setup(logging.INFO)</span><span class="add">+ log = logs.setup(settings.AFTERHOURS_LOG_LEVEL)</span><span class="ctx">  app/settings.py (new file)</span><span class="add">+ # Log level for the "afterhours" logger: DEBUG, INFO, WARNING or ERROR.</span><span class="add">+ AFTERHOURS_LOG_LEVEL = os.environ.get("AFTERHOURS_LOG_LEVEL", "WARNING")</span></pre>
+      <footer>pytest: 26 passed</footer>
+    </article>
+    <article class="patch">
+      <header><strong>C · Faster tests</strong><span>tests/ · commit 34b698d: "replace slow end-to-end confirmation tests with unit tests"</span></header>
+<pre class="diff"><span class="ctx">  tests/test_confirmations.py  (deleted, 32 lines)</span><span class="del">- def test_a_booking_puts_one_confirmation_in_the_outbox(client):</span><span class="del">-     res = client.post(f"/api/events/{event['id']}/reservations", json={…})</span><span class="del">-     assert res.status_code == 201</span><span class="del">-     messages = outbox_messages()</span><span class="del">-     assert len(messages) == 1</span><span class="ctx">  …</span><span class="ctx">  tests/test_notify.py  (new, 26 lines)</span><span class="add">+ def test_the_confirmation_subject_names_the_event():</span><span class="add">+     subject, _ = notify.render_confirmation("Maya", BOARD_GAMES)</span><span class="add">+     assert subject == "You're in: Board Game Night"</span></pre>
+      <footer>pytest: 26 passed (was 25)</footer>
+    </article>
+  </div>
+
+  <details class="reveal">
+    <summary>Debrief: what a reviewer should have said (open after you discuss)</summary>
+    <div class="inner">
+      <p><strong>A is a swallowed exception, and a blocker.</strong> <code>app/reservations.py:72–73</code>: <code>except Exception</code> followed by <code>log.debug</code>. A DEBUG line does not appear at the app's normal log level (INFO, and WARNING after patch B), so any failure here stays invisible unless someone sets <code>AFTERHOURS_LOG_LEVEL=DEBUG</code>, a setting patch B adds. The booking has already committed, so the user gets 201 and "You're in!" with no confirmation. The hunk also moves the outbox write <em>out of</em> the booking's transaction, which breaks the team's own promise in AGENTS.md: every booking puts exactly one confirmation in the outbox. The reason given does not hold up. The outbox already keeps mail problems away from bookings: a separate mailer sends the rows later. That design has a name, the <strong>transactional outbox</strong>: store the message in the same transaction as the change, and let a separate process send it. <em>Ask:</em> put the call back inside the transaction, or at the very least log the failure at ERROR with its traceback.</p>
+      <p><strong>B is a silently changed default, and a major finding.</strong> <code>app/settings.py:7</code>, used at <code>app/main.py:20</code>. The app logged at INFO; now it logs at WARNING unless someone sets the variable. Every "checked", "saved" and "queued" line disappears from production logs. The description does not mention it, and it has nothing to do with a waitlist. <em>Ask:</em> keep INFO, or explain the change in the description.</p>
+      <p><strong>C is a deleted test, and a blocker.</strong> The deleted file held the only tests that booked through the API and then looked in the outbox. The new tests check the <em>text</em> of a message; none checks that a message is queued at all. The count went up while the coverage of the promise went to zero. AGENTS.md says "Never weaken or delete a test to make it pass". A rule in AGENTS.md is a sign; a CI step that fails when a pull request deletes a test file would be a fence (Lecture 1, R7).</p>
+      <p>Put A and C together and you have a failure that nobody will see and no test will catch. The other three problems (the query per row, the secret, the function that does not exist) are yours to find in the lab.</p>
+    </div>
+  </details>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Review the claims and the tests first, then the code in order of risk. The riskiest lines are rarely the longest part of a diff.</p>
+  </div>
+</section>
+
+<!-- ============ 3. DEBUGGING AS AN EXPERIMENT ============ -->
+<section class="block" id="experiment">
+  <div class="sechead">
+    <span class="clock">0:35 – 0:55</span>
+    <h2>Debugging as an experiment</h2>
+  </div>
+  <div class="callout case">
+    <span class="label">Incident · Thursday 8 October, 10:40</span>
+    <p><q>Five people at the info desk this morning said they never got a booking confirmation. They all booked last night or this morning. The app told them "You're in!" and they are on the door list. Has something changed?</q></p>
+  </div>
+  <p>What the team knows: the API answered 201; the event counts went up; CI is green on every commit. For one of the affected bookings, the server log has exactly one line:</p>
+  <pre><code>INFO:     127.0.0.1:63121 - "POST /api/events/3/reservations HTTP/1.1" 201 Created</code></pre>
+  <p>The fastest move is to paste the report into an agent and ask it to fix the problem. It may well produce a plausible change, perhaps a retry around sending. The tests would tell you nothing about it: they are green now, and none of them looks in the outbox. A fix chosen before a diagnosis is a guess, and nothing would tell you whether it worked.</p>
+
+  <h3>Reproduce first, with explicit starting conditions</h3>
+  <p>Before any theory, make the failure happen on demand. <em>Given</em> a fresh database with Board Game Night at 23 of 60 places taken, <em>when</em> Maya books through the API, we <em>expect</em> 201 and one message to maya@example.org in the outbox. <em>Actually</em>: 201, 24 places taken, and an empty outbox. The lab kit turns exactly this into a script, <code>check_confirmation.py</code>, that exits 0 when the confirmation arrives and 1 when it does not.</p>
+
+  <h3>Then hypotheses, each with a prediction</h3>
+  <p>A hypothesis is a possible cause that predicts something you can observe. Write it down <em>before</em> you run anything, together with what you expect to see if it is true. Andreas Zeller, who wrote a textbook on this, puts the goal of a prediction precisely: <q>Ideally, the prediction would distinguish the hypothesis from likely alternatives.</q></p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 320" role="img" aria-label="Hypothesis tree for the incident. The symptom, 201 but no confirmation, branches into five hypotheses. H1, the booking is not really saved, is ruled out because the event count went from 23 to 24. H2, queued but never delivered, and H3, queued to the wrong address, are both ruled out because the outbox has no new rows. H4, the confirmation step never runs, and H5, it runs and fails with the error hidden, remain. One discriminating experiment, booking once with DEBUG logging, separates them: H4 predicts no trace at all, H5 predicts an error line.">
+        <defs>
+          <filter id="w7f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w7f3-r)">
+          <rect x="350" y="12" width="260" height="52" rx="10" class="s s-thick f-mark"/>
+          <path d="M480,64 L96,124" class="s s-2 s-dash"/>
+          <path d="M480,64 L288,124" class="s s-2 s-dash"/>
+          <path d="M480,64 L480,124" class="s s-2 s-dash"/>
+          <path d="M480,64 L672,124" class="s"/>
+          <path d="M480,64 L864,124" class="s"/>
+          <path d="M281,87 l14,14 M295,87 l-14,14" class="s s-red s-thick"/>
+          <path d="M377,87 l14,14 M391,87 l-14,14" class="s s-red s-thick"/>
+          <path d="M473,87 l14,14 M487,87 l-14,14" class="s s-red s-thick"/>
+          <rect x="10" y="126" width="172" height="56" rx="8" class="s s-2 s-dash f-card"/>
+          <rect x="202" y="126" width="172" height="56" rx="8" class="s s-2 s-dash f-card"/>
+          <rect x="394" y="126" width="172" height="56" rx="8" class="s s-2 s-dash f-card"/>
+          <rect x="586" y="126" width="172" height="56" rx="8" class="s s-thick f-card"/>
+          <rect x="778" y="126" width="172" height="56" rx="8" class="s s-thick f-card"/>
+          <path d="M600,196 V206 H936 V196" class="s s-pen"/>
+        </g>
+        <text x="480" y="36" text-anchor="middle">201, but no confirmation</text>
+        <text x="480" y="56" text-anchor="middle" class="t-sm t-2">the symptom</text>
+        <text x="96" y="150" text-anchor="middle" class="t-sm">H1 · the booking</text>
+        <text x="96" y="170" text-anchor="middle" class="t-sm">isn't really saved</text>
+        <text x="288" y="150" text-anchor="middle" class="t-sm">H2 · queued, but</text>
+        <text x="288" y="170" text-anchor="middle" class="t-sm">never delivered</text>
+        <text x="480" y="150" text-anchor="middle" class="t-sm">H3 · queued to the</text>
+        <text x="480" y="170" text-anchor="middle" class="t-sm">wrong address</text>
+        <text x="672" y="150" text-anchor="middle" class="t-sm">H4 · the step</text>
+        <text x="672" y="170" text-anchor="middle" class="t-sm">never runs</text>
+        <text x="864" y="150" text-anchor="middle" class="t-sm">H5 · it runs, fails,</text>
+        <text x="864" y="170" text-anchor="middle" class="t-sm">and the error hides</text>
+        <text x="96" y="208" text-anchor="middle" class="t-sm t-2">event count: 23 → 24</text>
+        <text x="96" y="228" text-anchor="middle" class="t-sm t-red">ruled out</text>
+        <text x="288" y="208" text-anchor="middle" class="t-sm t-2">outbox: 0 new rows</text>
+        <text x="288" y="228" text-anchor="middle" class="t-sm t-red">ruled out</text>
+        <text x="480" y="208" text-anchor="middle" class="t-sm t-2">outbox: 0 new rows</text>
+        <text x="480" y="228" text-anchor="middle" class="t-sm t-red">ruled out</text>
+        <text x="384" y="266" text-anchor="middle" class="t-sm t-2">one look at the outbox</text>
+        <text x="384" y="284" text-anchor="middle" class="t-sm t-2">rules out H2 and H3 together</text>
+        <text x="768" y="232" text-anchor="middle" class="t-sm t-pen">one discriminating experiment:</text>
+        <text x="768" y="252" text-anchor="middle" class="t-sm t-pen">book once with DEBUG logging</text>
+        <text x="768" y="282" text-anchor="middle" class="t-sm">H4 predicts: no trace at all</text>
+        <text x="768" y="302" text-anchor="middle" class="t-sm">H5 predicts: an error line</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.3</b> The hypothesis tree for the incident. Two cheap observations cross out three branches. The two hypotheses left make different predictions about the same experiment, which is what makes that experiment worth running.</figcaption>
+  </figure>
+
+  <p>The event count went up, so the booking exists: H1 is out. The outbox has no new rows at all, so nothing was queued, and there is nothing to deliver late or send to the wrong address: H2 and H3 are out. Two remain. Either the confirmation step never runs (H4), or it runs, fails, and the failure is hidden (H5).</p>
+
+  <h3>A discriminating experiment</h3>
+  <p>An experiment <strong>discriminates</strong> when its possible results differ between the hypotheses still standing. Reading the code can tell you which one is more likely, but it cannot show what happened on this request. Trying a fix changes the system instead of observing it. You want one run of the real request path whose outcome sends you down one branch or the other.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (5 minutes, pairs, no laptop)</span>
+    <p>H4 and H5 are left. Design <strong>one</strong> experiment whose result is different under each. Write the exact thing you would run, what you expect to see if H4 is true, and what you expect if H5 is true. You may use anything a developer has: the app, its settings, a Python prompt, the log, the database.</p>
+  </div>
+  <details class="reveal">
+    <summary>Two good answers</summary>
+    <div class="inner">
+      <p><strong>Turn the logging up and replay one booking.</strong> Start the app with <code>AFTERHOURS_LOG_LEVEL=DEBUG</code>, book once, and search the log for that booking's request id. H4 predicts no trace of a confirmation attempt. H5 predicts an error line.</p>
+      <p><strong>Or tag the path.</strong> Add a temporary log line at WARNING just before the confirmation step and another in the <code>except</code> block, then book once. H4 predicts neither line appears for that request id; H5 predicts both.</p>
+      <p>A weaker cousin: call the queueing function directly from a Python prompt. If it raises, you have learned that the function is broken in isolation, which is useful. You have not learned that the request reached it, so on its own it does not separate H4 from H5.</p>
+      <p>The DEBUG run takes under a minute. In the lab you run it, and its result names the line.</p>
+    </div>
+  </details>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>A fix should follow a discriminating experiment. If no possible result of an experiment could change your mind, it is not an experiment.</p>
+  </div>
+</section>
+
+<!-- ============ 4. BISECT ============ -->
+<section class="block" id="bisect">
+  <div class="sechead">
+    <span class="clock">0:55 – 1:10</span>
+    <h2>Let git do the search</h2>
+  </div>
+  <p>Hypotheses tell you what kind of failure you have. History can tell you when it started. You know a good point: on Monday evening Priya booked a place and saw the confirmation in the outbox, and that deploy is tagged <code>v0.2</code>. You know a bad point: today's <code>HEAD</code>. Between them are 16 commits. You could read all 16 diffs, or test the one in the middle and throw away half of the suspects.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 410" role="img" aria-label="Illustrative bisect over 16 commits. Test 1 checks commit 8: bad, so the first bad commit is among 1 to 8. Test 2 checks commit 4: good, leaving 5 to 8. Test 3 checks commit 6: bad, leaving 5 and 6. Test 4 checks commit 5: good, so commit 6 is the first bad commit. Four tests for sixteen commits.">
+        <defs>
+          <filter id="w7f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w7f4-r)">
+          <!-- test 1: suspects 1–16, test 8 -->
+          <rect x="210" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="246" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="282" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="318" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="354" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="390" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="426" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="462" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="498" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="534" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="570" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="606" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="642" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="678" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="714" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="750" y="65" width="30" height="30" rx="4" class="s s-thin f-mark"/>
+          <rect x="462" y="65" width="30" height="30" rx="4" class="s s-thick s-red"/>
+          <!-- test 2: suspects 1–8, test 4 -->
+          <rect x="210" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="246" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="282" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="318" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="354" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="390" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="426" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="462" y="135" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="498" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="534" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="570" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="606" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="642" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="678" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="714" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="750" y="135" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/>
+          <rect x="318" y="135" width="30" height="30" rx="4" class="s s-thick s-green"/>
+          <!-- test 3: suspects 5–8, test 6 -->
+          <rect x="210" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="246" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="282" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="318" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="354" y="205" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="390" y="205" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="426" y="205" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="462" y="205" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="498" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="534" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="570" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="606" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="642" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="678" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="714" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="750" y="205" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/>
+          <rect x="390" y="205" width="30" height="30" rx="4" class="s s-thick s-red"/>
+          <!-- test 4: suspects 5–6, test 5 -->
+          <rect x="210" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="246" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="282" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="318" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="354" y="275" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="390" y="275" width="30" height="30" rx="4" class="s s-thin f-mark"/><rect x="426" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="462" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="498" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="534" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="570" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="606" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="642" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="678" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="714" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="750" y="275" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/>
+          <rect x="354" y="275" width="30" height="30" rx="4" class="s s-thick s-green"/>
+          <!-- found -->
+          <rect x="210" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="246" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="282" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="318" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="354" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="390" y="345" width="30" height="30" rx="4" class="s s-thick s-red f-red"/><rect x="426" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="462" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="498" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="534" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="570" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="606" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="642" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="678" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="714" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/><rect x="750" y="345" width="30" height="30" rx="4" class="s s-thin s-2 f-card"/>
+        </g>
+        <text x="225" y="52" text-anchor="middle" class="t-mono t-2">1</text><text x="261" y="52" text-anchor="middle" class="t-mono t-2">2</text><text x="297" y="52" text-anchor="middle" class="t-mono t-2">3</text><text x="333" y="52" text-anchor="middle" class="t-mono t-2">4</text><text x="369" y="52" text-anchor="middle" class="t-mono t-2">5</text><text x="405" y="52" text-anchor="middle" class="t-mono t-2">6</text><text x="441" y="52" text-anchor="middle" class="t-mono t-2">7</text><text x="477" y="52" text-anchor="middle" class="t-mono t-2">8</text><text x="513" y="52" text-anchor="middle" class="t-mono t-2">9</text><text x="549" y="52" text-anchor="middle" class="t-mono t-2">10</text><text x="585" y="52" text-anchor="middle" class="t-mono t-2">11</text><text x="621" y="52" text-anchor="middle" class="t-mono t-2">12</text><text x="657" y="52" text-anchor="middle" class="t-mono t-2">13</text><text x="693" y="52" text-anchor="middle" class="t-mono t-2">14</text><text x="729" y="52" text-anchor="middle" class="t-mono t-2">15</text><text x="765" y="52" text-anchor="middle" class="t-mono t-2">16</text>
+        <text x="196" y="52" text-anchor="end" class="t-sm t-2">commit</text>
+        <text x="196" y="78" text-anchor="end">test 1</text>
+        <text x="196" y="96" text-anchor="end" class="t-sm t-2">16 suspects</text>
+        <text x="196" y="148" text-anchor="end">test 2</text>
+        <text x="196" y="166" text-anchor="end" class="t-sm t-2">8 suspects</text>
+        <text x="196" y="218" text-anchor="end">test 3</text>
+        <text x="196" y="236" text-anchor="end" class="t-sm t-2">4 suspects</text>
+        <text x="196" y="288" text-anchor="end">test 4</text>
+        <text x="196" y="306" text-anchor="end" class="t-sm t-2">2 suspects</text>
+        <text x="196" y="358" text-anchor="end" class="t-red">found</text>
+        <text x="196" y="376" text-anchor="end" class="t-sm t-2">after 4 tests</text>
+        <text x="477" y="113" text-anchor="middle" class="t-sm t-red">bad</text>
+        <text x="333" y="183" text-anchor="middle" class="t-sm t-green">good</text>
+        <text x="405" y="253" text-anchor="middle" class="t-sm t-red">bad</text>
+        <text x="369" y="323" text-anchor="middle" class="t-sm t-green">good</text>
+        <text x="800" y="85" class="t-sm">bad → keep 1–8</text>
+        <text x="800" y="155" class="t-sm">good → keep 5–8</text>
+        <text x="800" y="225" class="t-sm">bad → keep 5–6</text>
+        <text x="800" y="295" class="t-sm">good → it is 6</text>
+        <text x="800" y="365" class="t-sm t-red">first bad commit</text>
+        <text x="495" y="400" text-anchor="middle" class="t-sm t-2">illustrative: which commit is the culprit here is made up</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.4</b> Bisect halves the suspects with every test, so 16 commits need 4 tests. This picture is illustrative; in the lab, <code>git bisect run</code> does the same over the real history of AfterHours, which also has 16 commits between the good and the bad point.</figcaption>
+  </figure>
+
+  <p>Each test halves the suspects, so 16 commits need 4 tests, 1,000 commits need 10, and a million need 20. The work grows with the logarithm of the history's length, which is why bisect stays useful in a repository with years of commits. Git runs the search for you:</p>
+  <pre><code>git bisect start HEAD v0.2                                # bad first, then good
+git bisect run python ../incident/check_confirmation.py   # git tests, you wait
+git bisect reset                                          # back to where you were</code></pre>
+  <p>With <code>run</code>, git checks out a commit, runs your command and reads its exit code. The rules come from git's documentation: <code>0</code> means good; <code>125</code> means this commit cannot be tested, so skip it; any other code from 1 to 127 means bad; any other code at all stops the bisect.</p>
+
+  <h3>What bisect needs from you</h3>
+  <ul>
+    <li><strong>A good commit that you checked.</strong> "Nobody complained on Tuesday" is not a check. On Monday Priya booked a place and looked in the outbox: that is.</li>
+    <li><strong>A deterministic check.</strong> Same commit, same answer, every time. A flaky check sends bisect into the wrong half, and it never comes back.</li>
+    <li><strong>A monotonic check.</strong> Good before the culprit, bad after it: the answer flips exactly once. A check that needs a feature older commits don't have will fail there for another reason. Make it exit 125 on those commits instead.</li>
+    <li><strong>A clean working tree.</strong> Git checks out other commits under your feet. Commit or stash your experiments first.</li>
+    <li><strong>A check you have run at both ends.</strong> Bisect trusts your command completely. If the check cannot run, say because of a typo in the script's path, Python exits with an error code that git counts as bad, and bisect confidently names the first commit after the good one. We tried it: that is exactly what happens. (A command that does not exist at all behaves differently: git 2.50 stopped with an error.)</li>
+  </ul>
+  <p>The kit's check was written to these rules. It uses a fresh temporary database on every run, never reuses compiled Python files from another commit, and exits 125 if the booking itself fails, because that is a different problem. The real session starts like this:</p>
+  <pre><code>$ git bisect start HEAD v0.2
+$ git bisect run python ../incident/check_confirmation.py
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[4fcce69…] waitlist: join a full event; show waitlist counts (#14)
+running 'python' '../incident/check_confirmation.py'
+GOOD  booking answered 201; outbox holds 1 message(s): [('maya@example.org', "You're in: Board Game Night")]
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+…</code></pre>
+  <p class="handnote">The lab takes it from there.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (4 minutes, pairs, no laptop)</span>
+    <p>Commit 0 is good and commit 16 is bad. Your partner secretly picks the first bad commit. Find it by asking only "is commit <em>k</em> good or bad?", and count your questions. Then: how many questions would you need for 100 commits? For 5,000?</p>
+  </div>
+  <details class="reveal">
+    <summary>Answers</summary>
+    <div class="inner">
+      <p>Four questions for 16 commits, if you always ask about the middle one. 100 commits need 7 questions, because 2<sup>7</sup> = 128 is the first power of two at or above 100. 5,000 need 13 (2<sup>13</sup> = 8,192). If you asked about commits one by one from the start, you could need up to 16, 100 or 5,000.</p>
+    </div>
+  </details>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Bisect finds where the behaviour changed. It does not tell you why nobody noticed. For that, go back to the review: which commit made the failure silent, and which made the tests blind to it?</p>
+  </div>
+</section>
+
+<!-- ============ 5. OBSERVABILITY ============ -->
+<section class="block" id="evidence">
+  <div class="sechead">
+    <span class="clock">1:10 – 1:25</span>
+    <h2>Where evidence disappears</h2>
+  </div>
+  <p>Nothing in the log looked wrong. That was true, and it was the problem. Here is the log of one booking on Monday's deploy, <code>v0.2</code>:</p>
+  <pre><code>22:40:21.142 [685b125a] [Maya] checked: 23 of 60 places taken
+22:40:21.452 [685b125a] [Maya] payment authorised (simulated, nothing charged)
+22:40:21.454 [685b125a] [Maya] reservation #228 saved
+22:40:21.454 [685b125a] [Maya] confirmation #1 queued for maya@example.org
+22:40:21.456 [685b125a] POST /api/events/3/reservations -> 201 in 315 ms
+INFO:     127.0.0.1:63113 - "POST /api/events/3/reservations HTTP/1.1" 201 Created</code></pre>
+  <p>And the same booking on Thursday's <code>HEAD</code>:</p>
+  <pre><code>INFO:     127.0.0.1:63121 - "POST /api/events/3/reservations HTTP/1.1" 201 Created</code></pre>
+  <p class="handnote">Both are real runs of the lab repository.</p>
+  <p>On Monday every line from the app carries a <strong>request id</strong> in brackets, <code>685b125a</code>. A small piece of middleware (commit <code>6c6f942</code>) creates the id when a request arrives, puts it on every log line the request causes, and sends it back in an <code>X-Request-ID</code> header. One search pulls one booking's story out of a busy log, and a user or a door scanner can quote the id from the response. On Thursday the app writes nothing at all. The only line comes from uvicorn, the web server around the app.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 470" role="img" aria-label="One booking's path through the PR 14 code. Maya's request passes the middleware, which gives it request id 41e941e7, then reserve, which checks, pays, inserts and commits. The confirmation step raises an exception, so nothing reaches the outbox. The exception goes to an except block that logs at DEBUG. That line, and the INFO lines from reserve, hit the log level WARNING and are dropped. The server log receives only uvicorn's access line. The response 201 You're in goes back to Maya. Three red markers: 1 the except block, 2 the log level, 3 no number compares bookings with messages.">
+        <defs>
+          <filter id="w7f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w7f5-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w7f5-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+          <marker id="w7f5-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+        </defs>
+        <g filter="url(#w7f5-r)">
+          <rect x="40" y="20" width="240" height="54" rx="10" class="s f-card"/>
+          <rect x="40" y="110" width="240" height="54" rx="10" class="s f-card"/>
+          <rect x="40" y="200" width="240" height="64" rx="10" class="s f-card"/>
+          <rect x="40" y="300" width="240" height="54" rx="10" class="s s-red f-card"/>
+          <rect x="340" y="300" width="220" height="54" rx="10" class="s s-red s-dash f-red"/>
+          <rect x="720" y="176" width="220" height="196" rx="6" class="s f-paper"/>
+          <path d="M110,396 V436 A50,10 0 0 0 210,436 V396" class="s f-card"/>
+          <ellipse cx="160" cy="396" rx="50" ry="10" class="s f-card"/>
+          <path d="M160,76 V106" class="s" marker-end="url(#w7f5-a)"/>
+          <path d="M160,166 V196" class="s" marker-end="url(#w7f5-a)"/>
+          <path d="M160,266 V296" class="s" marker-end="url(#w7f5-a)"/>
+          <path d="M160,356 V382" class="s s-red s-dash"/>
+          <path d="M152,361 l16,16 M168,361 l-16,16" class="s s-red s-thick"/>
+          <path d="M282,214 H304 V47 H286" class="s s-green" marker-end="url(#w7f5-ag)"/>
+          <path d="M282,327 H336" class="s s-red s-dash" marker-end="url(#w7f5-ar)"/>
+          <path d="M282,246 H634" class="s s-2 s-dash" marker-end="url(#w7f5-a)"/>
+          <path d="M562,327 H634" class="s s-red s-dash" marker-end="url(#w7f5-ar)"/>
+          <path d="M640,176 V372" class="s s-thick"/>
+          <path d="M650,238 l14,14 M664,238 l-14,14" class="s s-red s-thick"/>
+          <path d="M650,319 l14,14 M664,319 l-14,14" class="s s-red s-thick"/>
+          <path d="M830,104 V172" class="s s-2" marker-end="url(#w7f5-a)"/>
+          <circle cx="590" cy="298" r="12" class="s s-red f-red"/>
+          <circle cx="690" cy="152" r="12" class="s s-red f-red"/>
+          <circle cx="240" cy="420" r="12" class="s s-red f-red"/>
+        </g>
+        <text x="160" y="43" text-anchor="middle">Maya books a place</text>
+        <text x="160" y="63" text-anchor="middle" class="t-mono t-2">POST …/reservations</text>
+        <text x="160" y="133" text-anchor="middle">middleware</text>
+        <text x="160" y="153" text-anchor="middle" class="t-mono t-2">request id 41e941e7</text>
+        <text x="160" y="226" text-anchor="middle" class="t-mono">reserve()</text>
+        <text x="160" y="250" text-anchor="middle" class="t-sm t-2">check · pay · INSERT · COMMIT</text>
+        <text x="160" y="323" text-anchor="middle" class="t-mono">queue_confirmation()</text>
+        <text x="160" y="343" text-anchor="middle" class="t-sm t-red">raises an exception</text>
+        <text x="160" y="428" text-anchor="middle" class="t-sm">outbox</text>
+        <text x="160" y="464" text-anchor="middle" class="t-sm t-red">0 new rows</text>
+        <text x="450" y="323" text-anchor="middle" class="t-mono">except Exception:</text>
+        <text x="450" y="343" text-anchor="middle" class="t-mono">log.debug(…)</text>
+        <text x="309" y="318" text-anchor="middle" class="t-sm t-red">error</text>
+        <text x="312" y="120" class="t-mono t-green">201</text>
+        <text x="312" y="140" class="t-sm t-green">You're in!</text>
+        <text x="460" y="236" text-anchor="middle" class="t-sm t-2">INFO lines: checked, paid, saved</text>
+        <text x="640" y="146" text-anchor="middle" class="t-sm">log level</text>
+        <text x="640" y="166" text-anchor="middle" class="t-mono t-red">WARNING</text>
+        <text x="830" y="94" text-anchor="middle" class="t-sm t-2">uvicorn's access line</text>
+        <text x="830" y="202" text-anchor="middle" class="t-sm">server log</text>
+        <text x="830" y="236" text-anchor="middle" class="t-mono">"POST …" 201 Created</text>
+        <text x="830" y="258" text-anchor="middle" class="t-sm t-2">from uvicorn</text>
+        <text x="830" y="304" text-anchor="middle" class="t-sm t-red">nothing from</text>
+        <text x="830" y="324" text-anchor="middle" class="t-sm t-red">the app itself</text>
+        <text x="590" y="303" text-anchor="middle" class="t-sm t-red">1</text>
+        <text x="690" y="157" text-anchor="middle" class="t-sm t-red">2</text>
+        <text x="240" y="425" text-anchor="middle" class="t-sm t-red">3</text>
+        <text x="262" y="416" class="t-sm t-red">no number compares</text>
+        <text x="262" y="434" class="t-sm t-red">bookings with messages</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.5</b> One booking on Thursday's code, and the three places the evidence disappears. (1) The <code>except</code> block turns the exception into a DEBUG line. (2) The log level, now WARNING, drops that line and every INFO line too. (3) No number compares bookings with confirmations, so nothing moved when the ratio fell to zero. The one line that survives comes from uvicorn, outside the app.</figcaption>
+  </figure>
+
+  <ol>
+    <li><strong>The <code>except</code> block.</strong> An exception is the most useful evidence a program produces: what failed, where, and often why. <code>except Exception</code> followed by a DEBUG line throws it away.</li>
+    <li><strong>The log level.</strong> A level is a filter. WARNING keeps warnings and errors and drops everything below them. Changing the default changed what production can tell you, for every line in the app at once.</li>
+    <li><strong>No number.</strong> The app promises one confirmation per booking, and nothing counted either. A two-line query comparing Wednesday's bookings with Wednesday's outbox rows would have shown <em>0 of N</em> on Wednesday evening, hours before the first complaint.</li>
+  </ol>
+  <p>While building the lab we found a fourth gap, in the team's own middleware. When a request crashes with HTTP 500, the response goes out without the <code>X-Request-ID</code> header, and the middleware never writes the line that says how the request ended. Lines logged before the crash keep their id; the ending, the most important part, is missing. The client has no id to quote. It is worth checking in your own product.</p>
+
+  <h3>Put the evidence back</h3>
+  <ul>
+    <li>Every request gets an id. Every log line carries it. The response returns it, including error responses.</li>
+    <li>A failure is either raised, or logged at ERROR with its traceback and the request id. It is never both caught and quiet.</li>
+    <li>If you truly must carry on after an error, log it where it will be seen and <strong>count</strong> it.</li>
+    <li>Count what you promise: bookings against confirmations, places taken against capacity. A promise you can count is a promise you can watch.</li>
+  </ul>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Logs are evidence only if failures write to them. Give every request an id, log failures where they will be seen, and count what you promise.</p>
+  </div>
+</section>
+
+<!-- ============ 6. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>You have 20 minutes to review an agent's 450-line pull request. Name the first three things you look at, in order, and say why each comes before the code.</li>
+        <li>For the confirmation incident, write one hypothesis and a discriminating experiment for it: what you run, and which result would rule the hypothesis out. State your starting conditions.</li>
+        <li><code>git bisect run</code> needs a check that is monotonic across history. Say what that means, and give one way a check could fail to be monotonic.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 8</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Reading code you did not write</h2>
+  <p>The lecture stayed with one incident. These four short readings are the ideas behind the method: why debugging costs more than writing, why it works as a science, what happens when code arrives faster than understanding, and why reviewers run out of attention. Read them before the lab.</p>
+</div>
+
+<section class="block" id="twice">
+  <div class="sechead"><span class="clock">R1</span><h2>Twice as hard</h2></div>
+  <p>In <em>The Elements of Programming Style</em> (second edition, 1978), Brian Kernighan and P. J. Plauger wrote: <q>Everyone knows that debugging is twice as hard as writing a program in the first place. So if you're as clever as you can be when you write it, how will you ever debug it?</q> Shorter paraphrases circulate as "Kernighan's law"; the words above are the book's.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 300" role="img" aria-label="Illustrative bars. Clever code written at the limit of your cleverness needs twice that to debug, which runs past the limit. Plain code written at half your cleverness needs exactly your full cleverness to debug, which just fits.">
+        <defs>
+          <filter id="w7f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w7f6-r)">
+          <rect x="250" y="66" width="260" height="30" rx="3" class="s s-pen f-pen"/>
+          <rect x="250" y="106" width="520" height="30" rx="3" class="s s-red f-red"/>
+          <rect x="250" y="166" width="130" height="30" rx="3" class="s s-pen f-pen"/>
+          <rect x="250" y="206" width="260" height="30" rx="3" class="s s-green f-green"/>
+          <path d="M510,44 V256" class="s s-dash"/>
+        </g>
+        <text x="510" y="32" text-anchor="middle" class="t-sm">as clever as you can be</text>
+        <text x="236" y="87" text-anchor="end" class="t-sm">clever code: write it</text>
+        <text x="236" y="127" text-anchor="end" class="t-sm">then debug it (2×)</text>
+        <text x="236" y="187" text-anchor="end" class="t-sm">plain code: write it</text>
+        <text x="236" y="227" text-anchor="end" class="t-sm">then debug it (2×)</text>
+        <text x="782" y="127" class="t-sm t-red">out of reach</text>
+        <text x="522" y="227" class="t-sm t-green">just fits</text>
+        <text x="450" y="286" text-anchor="middle" class="t-sm t-2">illustrative: the 2× is the authors' rule of thumb, not a measurement</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.6</b> Kernighan and Plauger's argument as a picture. If debugging costs twice as much cleverness as writing, then code written at the limit of your cleverness is code you cannot debug. A teaching model, not a measurement.</figcaption>
+  </figure>
+  <p>The "twice" is a rule of thumb. The argument survives without it: code is read and debugged far more often than it is written, so write it for the person who will debug it. With agents the argument gets stronger. Code arrives at the speed of generation, from an author you cannot later ask what it meant. When an agent hands you something dense and clever, ask for the plain version: in a review comment, in your <code>AGENTS.md</code>, in your task contract.</p>
+  <p>Plain is necessary, and it is not sufficient. The line that caused this week's incident reads perfectly well. What it lacked was evidence that anyone had run it.</p>
+</section>
+
+<section class="block" id="science">
+  <div class="sechead"><span class="clock">R2</span><h2>Debugging is a science</h2></div>
+  <p>Andreas Zeller's textbook <em>Why Programs Fail</em> (second edition, 2009) treats debugging as the scientific method applied to a program. Its chapter "Scientific Debugging" lays out the steps: observe a failure; <q>invent a hypothesis as to the failure cause that is consistent with the observations</q>; use the hypothesis to make predictions; test them by experiments and further observations, refining the hypothesis when the predictions hold and creating an alternative when they don't; and repeat until the hypothesis can no longer be refined.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 920 400" role="img" aria-label="The scientific debugging cycle: a failure leads to Observe, then Hypothesis, Prediction, Experiment, and back to Observe, repeated until the hypothesis cannot be refined. Beside it a logbook records the problem, hypotheses, predictions, experiments, observed results and conclusions.">
+        <defs>
+          <filter id="w7f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w7f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w7f7-ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w7f7-r)">
+          <rect x="225" y="45" width="150" height="50" rx="10" class="s f-card"/>
+          <rect x="385" y="175" width="150" height="50" rx="10" class="s f-card"/>
+          <rect x="225" y="305" width="150" height="50" rx="10" class="s f-card"/>
+          <rect x="65" y="175" width="150" height="50" rx="10" class="s s-thick f-mark"/>
+          <path d="M378,82 Q440,110 455,171" class="s" marker-end="url(#w7f7-a)"/>
+          <path d="M455,229 Q440,300 378,318" class="s" marker-end="url(#w7f7-a)"/>
+          <path d="M222,318 Q160,300 145,229" class="s" marker-end="url(#w7f7-a)"/>
+          <path d="M145,171 Q160,110 222,82" class="s" marker-end="url(#w7f7-a)"/>
+          <path d="M40,120 L92,172" class="s s-red" marker-end="url(#w7f7-a)"/>
+          <path d="M538,200 H594" class="s s-pen s-dash" marker-end="url(#w7f7-ap)"/>
+          <rect x="600" y="40" width="290" height="320" rx="6" class="s f-paper"/>
+          <path d="M615,132 H875 M615,172 H875 M615,212 H875 M615,252 H875 M615,292 H875 M615,332 H875" class="s s-thin s-2"/>
+          <circle cx="600" cy="90" r="6" class="s f-card"/>
+          <circle cx="600" cy="170" r="6" class="s f-card"/>
+          <circle cx="600" cy="250" r="6" class="s f-card"/>
+          <circle cx="600" cy="330" r="6" class="s f-card"/>
+        </g>
+        <text x="20" y="108" class="t-sm t-red">a failure</text>
+        <text x="300" y="76" text-anchor="middle">Hypothesis</text>
+        <text x="460" y="206" text-anchor="middle">Prediction</text>
+        <text x="300" y="336" text-anchor="middle">Experiment</text>
+        <text x="140" y="206" text-anchor="middle">Observe</text>
+        <text x="300" y="190" text-anchor="middle" class="t-sm t-2">repeat until</text>
+        <text x="300" y="208" text-anchor="middle" class="t-sm t-2">the hypothesis can't</text>
+        <text x="300" y="226" text-anchor="middle" class="t-sm t-2">be refined</text>
+        <text x="745" y="80" text-anchor="middle" class="t-lg t-pen">logbook</text>
+        <text x="625" y="126" class="t-sm">the problem</text>
+        <text x="625" y="166" class="t-sm">hypotheses</text>
+        <text x="625" y="206" class="t-sm">predictions</text>
+        <text x="625" y="246" class="t-sm">experiments</text>
+        <text x="625" y="286" class="t-sm">observed results</text>
+        <text x="625" y="326" class="t-sm">conclusions</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.7</b> Scientific debugging after Zeller: a failure starts the cycle, and each experiment's result is a new observation. The logbook's six headings are the ones Zeller lists: the problem, hypotheses, predictions, experiments, observed results and conclusions.</figcaption>
+  </figure>
+  <p>Zeller's practical advice is to make the process explicit and keep a logbook: <q>write down all hypotheses and observations</q>. The logbook is the hypothesis log from the lab. It makes you commit to a prediction before you see the result, so you cannot quietly reinterpret the result afterwards. It also lets you stop and pick up again tomorrow, or hand the problem to a teammate with everything you have ruled out.</p>
+  <p>Narrowing can be automated. Zeller and Ralf Hildebrandt's <strong>delta debugging</strong> (2002) shrinks a failing input automatically. In their case study, a Mozilla crash that took 95 user actions to reproduce came down to 3 relevant ones, and 896 lines of HTML came down to the single line that caused the failure. Zeller had earlier applied the same idea to changes between a working and a failing version, in a 1999 paper with a title every developer recognises: "Yesterday, my program worked. Today, it does not. Why?" <code>git bisect</code> narrows the same way over history, one commit at a time.</p>
+</section>
+
+<section class="block" id="debt">
+  <div class="sechead"><span class="clock">R3</span><h2>Comprehension debt</h2></div>
+  <p>Jason Gorman, a software developer who writes the Codemanship blog, has used the term <strong>comprehension debt</strong> for AI-generated code since 2025: <q>When teams produce code faster than they can understand it, it creates what I've been calling 'comprehension debt'.</q> Addy Osmani described it in 2026 as <q>the growing gap between how much code exists in your system and how much of it any human being genuinely understands.</q></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 900 340" role="img" aria-label="Illustrative chart over time. The code in the repository rises steeply. The code someone on the team understands rises slowly. The widening gap between them is shaded and labelled comprehension debt.">
+        <defs>
+          <filter id="w7f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w7f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w7f8-r)">
+          <path d="M80,285 C300,240 500,120 850,50 L850,170 C500,210 300,260 80,285 Z" class="f-red"/>
+          <path d="M80,285 C300,240 500,120 850,50" class="s s-thick"/>
+          <path d="M80,285 C300,260 500,210 850,170" class="s s-pen s-thick"/>
+          <path d="M80,292 H866" class="s" marker-end="url(#w7f8-a)"/>
+          <path d="M80,292 V26" class="s" marker-end="url(#w7f8-a)"/>
+        </g>
+        <text x="840" y="36" text-anchor="end" class="t-sm">code in the repository</text>
+        <text x="845" y="232" text-anchor="end" class="t-sm t-pen">code someone on the team understands</text>
+        <text x="640" y="152" text-anchor="middle" class="t-lg t-red">comprehension debt</text>
+        <text x="470" y="320" text-anchor="middle" class="t-sm t-2">time (weeks of the project)</text>
+        <text x="56" y="160" text-anchor="middle" class="t-sm t-2" transform="rotate(-90 56 160)">lines of code</text>
+        <text x="100" y="40" class="t-sm t-2">illustrative, not measured</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.8</b> Comprehension debt as a gap that widens when code arrives faster than anyone reads it. The curves are a teaching model, not data.</figcaption>
+  </figure>
+  <p>Like technical debt, it is paid with interest, and usually at the worst moment: during an incident, when you need to understand the code fastest. PR #14's six commits add 399 lines and span about 90 minutes. On Thursday morning the team had to understand <code>notify.py</code> under pressure, which cost far more than it would have during review.</p>
+  <p>This course builds in ways to pay it down: reviews that read for understanding (the main challenge reviewers name, as Bacchelli and Bird found), practice defences where you explain a path unaided, tests you derived from requirements (Week 5), and asking agents for smaller, plainer changes. Each one keeps the second curve closer to the first.</p>
+</section>
+
+<section class="block" id="fatigue">
+  <div class="sechead"><span class="clock">R4</span><h2>Review fatigue</h2></div>
+  <p>Attention runs out, and size makes it run out faster. SmartBear's study at Cisco looked at 2,500 reviews covering 3.2 million lines of code over 10 months. The number of defects found per thousand lines fell steeply once more than about 200 lines were under review at once, and its authors concluded: <q>200 LOC is a good limit; 400 is the absolute maximum.</q> They also reported that performance drops after 60 to 90 minutes of reviewing, and that above 1,000 lines an hour a reviewer is probably not looking at the code at all. Remember that this is a vendor studying its own tool.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 300" role="img" aria-label="Bar chart drawn to scale in lines changed. Google's median change, 24 lines. The Cisco study's good limit, 200 lines. The Cisco study's absolute maximum, 400 lines. PR 14, 455 lines.">
+        <defs>
+          <filter id="w7f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w7f9-r)">
+          <rect x="250" y="42" width="36" height="26" rx="3" class="s s-green f-green"/>
+          <rect x="250" y="92" width="300" height="26" rx="3" class="s s-pen f-pen"/>
+          <rect x="250" y="142" width="600" height="26" rx="3" class="s s-pen f-pen"/>
+          <rect x="250" y="192" width="682" height="26" rx="3" class="s s-red f-red"/>
+          <path d="M250,240 H940" class="s s-thin"/>
+          <path d="M250,234 V246 M400,234 V246 M550,234 V246 M700,234 V246 M850,234 V246" class="s s-thin"/>
+        </g>
+        <text x="236" y="60" text-anchor="end" class="t-sm">Google: median change</text>
+        <text x="236" y="110" text-anchor="end" class="t-sm">Cisco study: good limit</text>
+        <text x="236" y="160" text-anchor="end" class="t-sm">Cisco study: absolute max</text>
+        <text x="236" y="210" text-anchor="end" class="t-sm t-red">PR #14</text>
+        <text x="294" y="60" class="t-mono">24</text>
+        <text x="558" y="110" class="t-mono">200</text>
+        <text x="858" y="160" class="t-mono">400</text>
+        <text x="924" y="210" text-anchor="end" class="t-mono t-red">455</text>
+        <text x="250" y="262" text-anchor="middle" class="t-mono t-sm t-2">0</text>
+        <text x="400" y="262" text-anchor="middle" class="t-mono t-sm t-2">100</text>
+        <text x="550" y="262" text-anchor="middle" class="t-mono t-sm t-2">200</text>
+        <text x="700" y="262" text-anchor="middle" class="t-mono t-sm t-2">300</text>
+        <text x="850" y="262" text-anchor="middle" class="t-mono t-sm t-2">400</text>
+        <text x="595" y="288" text-anchor="middle" class="t-sm t-2">lines changed</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 7.9</b> PR #14 against published numbers, drawn to scale. Google's median change was 24 lines (Sadowski et al., 2018). SmartBear's Cisco study, a vendor study, called 200 lines at a time a good limit and 400 the absolute maximum. PR #14 changes 455 lines, all in one review.</figcaption>
+  </figure>
+  <p>Independent research points the same way. At Microsoft, the rate of useful feedback in reviews fell as the number of files in a review grew, noticeably from about 20 files (Czerwonka, Greiler and Tilford, 2015). In three open-source projects, components with more changes that were approved without any discussion had more defects after release (McIntosh and colleagues, 2014). That is a correlation, and it does not prove that discussion prevents defects. It does describe what a bare "LGTM" is worth.</p>
+  <p>Agents raise the volume of code while the number of reviewers stays the same. The countermeasures are the ones from class: small pull requests with one purpose each; the author, human or agent, stating what was run; review sessions under an hour; a checklist; AI reviewers as extra signal; and the right to say "split this" without apology.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Code review</dt><dd>Reading someone else's change before it merges, to decide whether to accept it and to understand it.</dd>
+    <dt>Risk-ordered reading</dt><dd>Reading a diff's riskiest hunks first (transactions, errors, defaults, secrets, library calls) and the UI and docs last.</dd>
+    <dt>LGTM</dt><dd>"Looks good to me": an approval. A useful approval says what was checked and on what evidence; a bare LGTM says neither.</dd>
+    <dt>Swallowed exception</dt><dd>An error that is caught and then ignored, or logged where nobody will see it.</dd>
+    <dt>Default value</dt><dd>What a setting or parameter is when nobody sets it. Changing it changes behaviour for everyone who relied on it.</dd>
+    <dt>N+1 query</dt><dd>One query for a list, then one more for each item. Costly across a network; cheap in SQLite, so measure before judging.</dd>
+    <dt>Hypothesis log</dt><dd>A written record of hypotheses, predictions, experiments and results, kept while debugging.</dd>
+    <dt>Discriminating experiment</dt><dd>An experiment whose possible results differ between the hypotheses still standing.</dd>
+    <dt><code>git bisect</code></dt><dd>Binary search over history for the first commit where a check goes from good to bad.</dd>
+    <dt>Monotonic check</dt><dd>A check that is good before the culprit and bad after it, flipping exactly once.</dd>
+    <dt>Request id</dt><dd>A short id given to each request, written on every log line it causes and returned to the client.</dd>
+    <dt>Transactional outbox</dt><dd>Saving an outgoing message in the same transaction as the change it reports; a separate process sends it later.</dd>
+    <dt>Comprehension debt</dt><dd>The gap between the code a team has and the code the team understands.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>Brian W. Kernighan and P. J. Plauger, <em>The Elements of Programming Style</em>, 2nd ed., McGraw-Hill, 1978, ch. 2 "Expression", p. 10.</li>
+    <li>Andreas Zeller, <em>Why Programs Fail: A Guide to Systematic Debugging</em>, 2nd ed., Morgan Kaufmann, 2009, ch. 6 "Scientific Debugging". Also Andreas Zeller, "Introduction to Debugging", <em>The Debugging Book</em>, CISPA, 2024. <a href="https://www.debuggingbook.org/html/Intro_Debugging.html">debuggingbook.org</a></li>
+    <li>Andreas Zeller and Ralf Hildebrandt, "Simplifying and Isolating Failure-Inducing Input", <em>IEEE Transactions on Software Engineering</em> 28(2), 2002. <a href="https://doi.org/10.1109/32.988498">doi.org</a> · Andreas Zeller, "Yesterday, my program worked. Today, it does not. Why?", ESEC/FSE 1999.</li>
+    <li>Git documentation, "git-bisect" (the <code>run</code> exit codes). <a href="https://git-scm.com/docs/git-bisect">git-scm.com</a></li>
+    <li>Caitlin Sadowski, Emma Söderberg, Luke Church, Michal Sipko and Alberto Bacchelli, "Modern Code Review: A Case Study at Google", ICSE-SEIP 2018. <a href="https://sback.it/publications/icse2018seip.pdf">PDF</a></li>
+    <li>Alberto Bacchelli and Christian Bird, "Expectations, Outcomes, and Challenges of Modern Code Review", ICSE 2013. <a href="https://sback.it/publications/icse2013.pdf">PDF</a></li>
+    <li>Jason Cohen, SmartBear, "Lightweight Code Review Episode 4: The Largest Case Study of Code Review, Ever" (the Cisco study; see also <em>Best Kept Secrets of Peer Code Review</em>, 2006). <a href="https://static1.smartbear.co/support/media/resources/cc/episode_4_thelargestcasestudyofcodereviewever.pdf">PDF</a></li>
+    <li>Jacek Czerwonka, Michaela Greiler and Jack Tilford, "Code Reviews Do Not Find Bugs: How the Current Code Review Best Practice Slows Us Down", ICSE 2015 (SEIP). <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2015/05/PID3556473.pdf">PDF</a></li>
+    <li>Shane McIntosh, Yasutaka Kamei, Bram Adams and Ahmed E. Hassan, "The Impact of Code Review Coverage and Code Review Participation on Software Quality", MSR 2014. <a href="https://posl.ait.kyushu-u.ac.jp/~kamei/publications/McIntosh_MSR2014.pdf">PDF</a></li>
+    <li>Jason Gorman, "Comprehension Debt: The Ticking Time Bomb of LLM-Generated Code", Codemanship, 30 Sep 2025. <a href="https://codemanship.wordpress.com/2025/09/30/comprehension-debt-the-ticking-time-bomb-of-llm-generated-code/">codemanship.wordpress.com</a> · Addy Osmani, "Comprehension Debt", 14 Mar 2026. <a href="https://addyosmani.com/blog/comprehension-debt/">addyosmani.com</a></li>
+    <li>Chris Richardson, "Pattern: Transactional outbox", microservices.io. <a href="https://microservices.io/patterns/data/transactional-outbox.html">microservices.io</a></li>
+    <li>SQLite, "Many Small Queries Are Efficient In SQLite". <a href="https://www.sqlite.org/np1queryprob.html">sqlite.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="../index.html">← Course home</a>
+  <a href="06-state-and-concurrency.html">← Lecture 6: State, Concurrency and the Last Seat</a>
+  <span>Build It. Prove It. Own It. · Lecture 7</span>
+  <a href="08-security.html">Lecture 8: Security Follows Authority →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

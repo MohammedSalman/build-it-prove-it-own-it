@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterHours Festival</title>
+<style>
+  :root {
+    --night: #14112a;
+    --panel: #1f1a3d;
+    --line: #342c63;
+    --text: #f3f0ff;
+    --muted: #b3aad9;
+    --glow: #ffb547;
+    --full: #ff6b8b;
+    --ok: #5fe0b0;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #3a2470 0%, transparent 60%), var(--night);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: clamp(2rem, 6vw, 3.2rem); margin: 0; letter-spacing: -0.02em; }
+  header h1 span { color: var(--glow); }
+  header p { color: var(--muted); margin: 4px 0 24px; }
+  .who { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+  .who label { color: var(--muted); }
+  .who input {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font: inherit; min-width: 0; flex: 1 1 200px; max-width: 320px;
+  }
+  .events { display: grid; gap: 14px; }
+  .event {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center;
+  }
+  .event h2 { margin: 0; font-size: 1.15rem; }
+  .meta { color: var(--muted); font-size: 0.92rem; }
+  .meter { grid-column: 1 / -1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--glow); }
+  .left { font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+  .left.last { color: var(--glow); font-weight: 600; }
+  .left.none { color: var(--full); }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 18px;
+    background: var(--glow); color: #2a1a00; cursor: pointer; grid-row: 1 / span 2; grid-column: 2;
+  }
+  button:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+  button.wait { background: transparent; color: var(--glow); box-shadow: inset 0 0 0 2px var(--glow); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ok); color: #062a1d; padding: 12px 18px; border-radius: 12px;
+    font-weight: 600; max-width: calc(100% - 32px);
+  }
+  #toast.bad { background: var(--full); color: #3a0010; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>After<span>Hours</span> Festival</h1>
+    <p>Three nights of games, music and making. Places are limited.</p>
+  </header>
+
+  <div class="who">
+    <label for="attendee">Your name</label>
+    <input id="attendee" autocomplete="name" placeholder="e.g. Maya Chen">
+  </div>
+
+  <section class="events" id="events" aria-live="polite"></section>
+</main>
+<div id="toast" role="status" hidden></div>
+
+<script>
+const eventsEl = document.getElementById("events");
+const toastEl = document.getElementById("toast");
+
+function when(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function toast(text, bad = false) {
+  toastEl.textContent = text;
+  toastEl.className = bad ? "bad" : "";
+  toastEl.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (toastEl.hidden = true), 3500);
+}
+
+async function load() {
+  const events = await (await fetch("/api/events")).json();
+  eventsEl.replaceChildren(...events.map(render));
+}
+
+function render(ev) {
+  const card = document.createElement("article");
+  card.className = "event";
+  const left = ev.places_left;
+  const waiting = ev.waitlisted > 0 ? ` · ${ev.waitlisted} on the waitlist` : "";
+  const leftText = left <= 0 ? `Full${waiting}` : left === 1 ? "1 place left!" : `${left} places left`;
+  const leftClass = left <= 0 ? "none" : left === 1 ? "last" : "";
+  const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+  card.innerHTML = `
+    <h2></h2>
+    <div class="meta"></div>
+    <div class="left ${leftClass}">${leftText}</div>
+    <div class="meter" aria-hidden="true"><i style="width:${pct}%"></i></div>
+    <button type="button">Reserve</button>`;
+  card.querySelector("h2").textContent = ev.title;
+  card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+  const button = card.querySelector("button");
+  if (left <= 0) {
+    button.textContent = "Join waitlist";
+    button.className = "wait";
+    button.addEventListener("click", () => joinWaitlist(ev));
+  } else {
+    button.addEventListener("click", () => reserve(ev));
+  }
+  return card;
+}
+
+function attendeeName(action) {
+  const input = document.getElementById("attendee");
+  const attendee = input.value.trim();
+  if (!attendee) {
+    toast(`Type your name first, then press ${action}.`, true);
+    input.focus();
+  }
+  return attendee;
+}
+
+async function reserve(ev) {
+  const attendee = attendeeName("Reserve");
+  if (!attendee) return;
+  const res = await fetch(`/api/events/${ev.id}/reservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attendee }),
+  });
+  if (res.status === 201) {
+    const r = await res.json();
+    toast(`You're in! Reservation #${r.id} for ${ev.title}.`);
+  } else if (res.status === 409) {
+    toast("Sorry, that event just filled up. You can join the waitlist instead.", true);
+  } else {
+    toast("Something went wrong. Please try again.", true);
+  }
+  await load();
+}
+
+async function joinWaitlist(ev) {
+  const attendee = attendeeName("Join waitlist");
+  if (!attendee) return;
+  const res = await fetch(`/api/events/${ev.id}/waitlist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attendee }),
+  });
+  if (res.status === 201) {
+    const w = await res.json();
+    toast(`You're on the waitlist for ${ev.title}: number ${w.position} in line.`);
+  } else if (res.status === 200) {
+    const w = await res.json();
+    toast(`You're already on the waitlist for ${ev.title}: number ${w.position} in line.`);
+  } else if (res.status === 409) {
+    toast("Good news: a place is free. Press Reserve to take it.");
+  } else {
+    toast("Something went wrong. Please try again.", true);
+  }
+  await load();
+}
+
+load();
+</script>
+</body>
+</html>

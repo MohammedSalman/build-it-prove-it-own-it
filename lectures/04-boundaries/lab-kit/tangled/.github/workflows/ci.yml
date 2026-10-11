@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      # Behaviour that must never change in Lab 4. The refactor and the rule change keep it green.
+      - run: python -m pytest -q tests/characterization
+      # The 24-hour rule: red on the kit as handed out, green once Part A step 3 is done.
+      - run: python -m pytest -q tests/new_rule

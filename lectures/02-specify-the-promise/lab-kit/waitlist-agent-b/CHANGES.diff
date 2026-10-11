@@ -1,0 +1,420 @@
+commit 0dba92688a590bccdef1fd0116d34a26c7190601
+Author: agent-b <agent-b@example.invalid>
+Date:   Sun Sep 27 22:20:03 2026 +0300
+
+    Add a waitlist for full events
+    
+    People can join the waitlist of an event that is full:
+    POST /api/events/{id}/waitlist {"attendee": name}
+      201 added (with 1-based position), 200 already on it (same position),
+      409 event still has places, 404 no such event, 422 no name.
+    Events now report a "waitlisted" count. On the page, a full event shows
+    "Join waitlist" instead of a disabled Reserve button.
+    
+    Schema change (additive only): new `waitlist` table with
+    UNIQUE(event_id, attendee). Existing tables are untouched; existing
+    databases pick the table up via CREATE TABLE IF NOT EXISTS on startup.
+    
+    The full-check and insert run in one BEGIN IMMEDIATE transaction, so
+    simultaneous joiners get distinct positions. Waitlist entries never count
+    towards capacity, so the promise reservations <= capacity is unaffected.
+    
+    Not included: promotion off the waitlist. The app has no cancellation
+    or capacity change yet, so a place never frees up.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/AGENTS.md b/AGENTS.md
+index cc1bfb6..049e24d 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -13,6 +13,7 @@ Python 3.11+, FastAPI, SQLite, pytest. One app, one database.
+ ## Map
+ - `app/main.py`: HTTP routes
+ - `app/reservations.py`: the reservation rule
++- `app/waitlist.py`: joining the waitlist of a full event (never counts towards capacity)
+ - `app/db.py`: connections, schema, seed data
+ - `app/payments.py`: payment simulation (never charges anything)
+ - `app/static/index.html`: the whole web UI
+diff --git a/README.md b/README.md
+index 8dbe81d..898c7eb 100644
+--- a/README.md
++++ b/README.md
+@@ -68,6 +68,7 @@ To test concurrency inside pytest, use `tests/helpers.py` (see its docstring).
+ app/
+   main.py           HTTP routes
+   reservations.py   the reservation rule
++  waitlist.py       joining the waitlist of a full event
+   db.py             connections, schema, seed data
+   payments.py       payment simulation
+   schema.sql        tables
+diff --git a/app/main.py b/app/main.py
+index d0c74e4..af14349 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -7,11 +7,11 @@ Then open http://127.0.0.1:8000
+ import logging
+ from pathlib import Path
+ 
+-from fastapi import FastAPI, HTTPException
++from fastapi import FastAPI, HTTPException, Response
+ from fastapi.responses import FileResponse
+ from pydantic import BaseModel, Field
+ 
+-from . import db, reservations
++from . import db, reservations, waitlist
+ 
+ STATIC = Path(__file__).with_name("static")
+ 
+@@ -36,7 +36,8 @@ class ReservationRequest(BaseModel):
+ 
+ EVENT_SQL = """
+     SELECT e.id, e.title, e.venue, e.starts_at, e.capacity,
+-           COUNT(r.id) AS reserved
++           COUNT(r.id) AS reserved,
++           (SELECT COUNT(*) FROM waitlist w WHERE w.event_id = e.id) AS waitlisted
+     FROM events e LEFT JOIN reservations r ON r.event_id = e.id
+ """
+ 
+@@ -50,6 +51,7 @@ def _event_json(row) -> dict:
+         "capacity": row["capacity"],
+         "reserved": row["reserved"],
+         "places_left": row["capacity"] - row["reserved"],
++        "waitlisted": row["waitlisted"],
+     }
+ 
+ 
+@@ -102,6 +104,19 @@ def create_app() -> FastAPI:
+         except reservations.SoldOut:
+             raise HTTPException(409, "Sorry, this event is full")
+ 
++    @app.post("/api/events/{event_id}/waitlist", status_code=201)
++    def join_waitlist(event_id: int, body: ReservationRequest, response: Response):
++        """Join the waitlist of a full event. 201 if added, 200 if already on it."""
++        try:
++            entry = waitlist.join(event_id, body.attendee)
++        except reservations.EventNotFound:
++            raise HTTPException(404, "No such event")
++        except waitlist.HasPlaces:
++            raise HTTPException(409, "This event still has places: reserve one instead")
++        if not entry["created"]:
++            response.status_code = 200
++        return entry
++
+     return app
+ 
+ 
+diff --git a/app/schema.sql b/app/schema.sql
+index b7fbe70..dea5893 100644
+--- a/app/schema.sql
++++ b/app/schema.sql
+@@ -12,3 +12,13 @@ CREATE TABLE IF NOT EXISTS reservations (
+     attendee   TEXT    NOT NULL,
+     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+ );
++
++-- People waiting for a place at a full event. Being on the waitlist is not a
++-- reservation: it never counts towards capacity. One entry per name per event.
++CREATE TABLE IF NOT EXISTS waitlist (
++    id         INTEGER PRIMARY KEY,
++    event_id   INTEGER NOT NULL REFERENCES events(id),
++    attendee   TEXT    NOT NULL,
++    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
++    UNIQUE (event_id, attendee)
++);
+diff --git a/app/static/index.html b/app/static/index.html
+index 1f83a93..c28bc93 100644
+--- a/app/static/index.html
++++ b/app/static/index.html
+@@ -51,6 +51,7 @@
+     background: var(--glow); color: #2a1a00; cursor: pointer; grid-row: 1 / span 2; grid-column: 2;
+   }
+   button:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
++  button.wait { background: transparent; color: var(--glow); box-shadow: inset 0 0 0 2px var(--glow); }
+   button:focus-visible, input:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+   #toast {
+     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+@@ -102,7 +103,8 @@ function render(ev) {
+   const card = document.createElement("article");
+   card.className = "event";
+   const left = ev.places_left;
+-  const leftText = left <= 0 ? "Full" : left === 1 ? "1 place left!" : `${left} places left`;
++  const waiting = ev.waitlisted > 0 ? ` · ${ev.waitlisted} on the waitlist` : "";
++  const leftText = left <= 0 ? `Full${waiting}` : left === 1 ? "1 place left!" : `${left} places left`;
+   const leftClass = left <= 0 ? "none" : left === 1 ? "last" : "";
+   const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+   card.innerHTML = `
+@@ -114,18 +116,29 @@ function render(ev) {
+   card.querySelector("h2").textContent = ev.title;
+   card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+   const button = card.querySelector("button");
+-  button.disabled = left <= 0;
+-  button.addEventListener("click", () => reserve(ev, button));
++  if (left <= 0) {
++    button.textContent = "Join waitlist";
++    button.className = "wait";
++    button.addEventListener("click", () => joinWaitlist(ev));
++  } else {
++    button.addEventListener("click", () => reserve(ev));
++  }
+   return card;
+ }
+ 
+-async function reserve(ev, button) {
+-  const attendee = document.getElementById("attendee").value.trim();
++function attendeeName(action) {
++  const input = document.getElementById("attendee");
++  const attendee = input.value.trim();
+   if (!attendee) {
+-    toast("Type your name first, then press Reserve.", true);
+-    document.getElementById("attendee").focus();
+-    return;
++    toast(`Type your name first, then press ${action}.`, true);
++    input.focus();
+   }
++  return attendee;
++}
++
++async function reserve(ev) {
++  const attendee = attendeeName("Reserve");
++  if (!attendee) return;
+   const res = await fetch(`/api/events/${ev.id}/reservations`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+@@ -135,7 +148,29 @@ async function reserve(ev, button) {
+     const r = await res.json();
+     toast(`You're in! Reservation #${r.id} for ${ev.title}.`);
+   } else if (res.status === 409) {
+-    toast("Sorry, that event just filled up.", true);
++    toast("Sorry, that event just filled up. You can join the waitlist instead.", true);
++  } else {
++    toast("Something went wrong. Please try again.", true);
++  }
++  await load();
++}
++
++async function joinWaitlist(ev) {
++  const attendee = attendeeName("Join waitlist");
++  if (!attendee) return;
++  const res = await fetch(`/api/events/${ev.id}/waitlist`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    body: JSON.stringify({ attendee }),
++  });
++  if (res.status === 201) {
++    const w = await res.json();
++    toast(`You're on the waitlist for ${ev.title}: number ${w.position} in line.`);
++  } else if (res.status === 200) {
++    const w = await res.json();
++    toast(`You're already on the waitlist for ${ev.title}: number ${w.position} in line.`);
++  } else if (res.status === 409) {
++    toast("Good news: a place is free. Press Reserve to take it.");
+   } else {
+     toast("Something went wrong. Please try again.", true);
+   }
+diff --git a/app/waitlist.py b/app/waitlist.py
+new file mode 100644
+index 0000000..63ffb6e
+--- /dev/null
++++ b/app/waitlist.py
+@@ -0,0 +1,76 @@
++"""Joining the waitlist for a full event.
++
++A waitlist entry is not a reservation. It never counts towards capacity, so it cannot
++break the promise "confirmed reservations <= capacity".
++"""
++
++import logging
++
++from . import db
++from .reservations import EventNotFound
++
++log = logging.getLogger("afterhours")
++
++
++class HasPlaces(Exception):
++    """The event is not full, so there is nothing to wait for: reserve instead."""
++
++
++def join(event_id: int, attendee: str) -> dict:
++    """Put `attendee` on the waitlist of a full event.
++
++    Returns the entry with the person's 1-based position in the queue, and whether it
++    was newly created. Joining twice under the same name returns the existing entry
++    (same place in the queue) instead of adding a second one.
++
++    Raises EventNotFound, or HasPlaces if the event still has a free place.
++    """
++    conn = db.connect()
++    try:
++        # Check "is it full?" and write the entry in one transaction, so the answer
++        # cannot change between the check and the insert, and two people joining at
++        # once get distinct positions.
++        conn.execute("BEGIN IMMEDIATE")
++        try:
++            event = db.query_one(conn, "SELECT id, capacity FROM events WHERE id = ?", (event_id,))
++            if event is None:
++                raise EventNotFound(event_id)
++
++            taken = db.query_one(
++                conn, "SELECT COUNT(*) AS n FROM reservations WHERE event_id = ?", (event_id,)
++            )["n"]
++            if taken < event["capacity"]:
++                raise HasPlaces(event_id)
++
++            existing = db.query_one(
++                conn, "SELECT id FROM waitlist WHERE event_id = ? AND attendee = ?",
++                (event_id, attendee),
++            )
++            if existing is not None:
++                entry_id, created = existing["id"], False
++            else:
++                cur = conn.execute(
++                    "INSERT INTO waitlist (event_id, attendee) VALUES (?, ?)", (event_id, attendee)
++                )
++                entry_id, created = cur.lastrowid, True
++
++            position = db.query_one(
++                conn, "SELECT COUNT(*) AS n FROM waitlist WHERE event_id = ? AND id <= ?",
++                (event_id, entry_id),
++            )["n"]
++            conn.execute("COMMIT")
++        except BaseException:
++            if conn.in_transaction:
++                conn.execute("ROLLBACK")
++            raise
++        log.info("[%s] %s waitlist #%d at position %d",
++                 attendee, "joined" if created else "already on", entry_id, position)
++        return {
++            "id": entry_id,
++            "event_id": event_id,
++            "attendee": attendee,
++            "position": position,
++            "created": created,
++        }
++    finally:
++        conn.close()
+diff --git a/tests/test_waitlist.py b/tests/test_waitlist.py
+new file mode 100644
+index 0000000..f6f0204
+--- /dev/null
++++ b/tests/test_waitlist.py
+@@ -0,0 +1,118 @@
++from app import reservations, waitlist
++
++from .conftest import event_by_title
++from .helpers import at_the_same_time, hold_everyone_at_payment
++
++ESCAPE_ROOM = "Escape Room: The Locked Lab"   # seeded with 39 of 40 places taken
++WORKSHOP = "Maker Workshop: Solder Your Own Badge"  # seeded full (12 of 12)
++
++
++def join(client, event_id, name):
++    return client.post(f"/api/events/{event_id}/waitlist", json={"attendee": name})
++
++
++def test_events_report_how_many_people_are_waiting(client):
++    events = client.get("/api/events").json()
++    assert all(e["waitlisted"] == 0 for e in events)
++
++
++def test_joining_the_waitlist_of_a_full_event(client):
++    event = event_by_title(client, WORKSHOP)
++    res = join(client, event["id"], "Sam")
++    assert res.status_code == 201
++    assert res.json()["attendee"] == "Sam"
++    assert res.json()["event_id"] == event["id"]
++    assert res.json()["position"] == 1
++    assert client.get(f"/api/events/{event['id']}").json()["waitlisted"] == 1
++
++
++def test_people_queue_in_the_order_they_join(client):
++    event = event_by_title(client, WORKSHOP)
++    positions = [join(client, event["id"], name).json()["position"] for name in ["Sam", "Lee", "Ana"]]
++    assert positions == [1, 2, 3]
++
++
++def test_the_waitlist_does_not_use_up_places(client):
++    event = event_by_title(client, WORKSHOP)
++    join(client, event["id"], "Sam")
++    after = client.get(f"/api/events/{event['id']}").json()
++    assert after["reserved"] == 12
++    assert after["places_left"] == 0
++
++
++def test_joining_twice_keeps_your_place_in_line(client):
++    event = event_by_title(client, WORKSHOP)
++    join(client, event["id"], "Sam")
++    join(client, event["id"], "Lee")
++    again = join(client, event["id"], "Sam")
++    assert again.status_code == 200
++    assert again.json()["position"] == 1
++    assert client.get(f"/api/events/{event['id']}").json()["waitlisted"] == 2
++
++
++def test_you_cannot_wait_for_an_event_that_has_places(client):
++    event = event_by_title(client, ESCAPE_ROOM)
++    res = join(client, event["id"], "Sam")
++    assert res.status_code == 409
++    assert client.get(f"/api/events/{event['id']}").json()["waitlisted"] == 0
++
++
++def test_whoever_misses_the_last_place_can_join_the_waitlist(client):
++    event = event_by_title(client, ESCAPE_ROOM)
++    client.post(f"/api/events/{event['id']}/reservations", json={"attendee": "Maya"})
++    turned_away = client.post(f"/api/events/{event['id']}/reservations", json={"attendee": "Sam"})
++    assert turned_away.status_code == 409
++    assert join(client, event["id"], "Sam").status_code == 201
++
++
++def test_waitlists_are_per_event(client):
++    workshop = event_by_title(client, WORKSHOP)
++    escape = event_by_title(client, ESCAPE_ROOM)
++    client.post(f"/api/events/{escape['id']}/reservations", json={"attendee": "Maya"})
++    join(client, workshop["id"], "Sam")
++    assert join(client, escape["id"], "Lee").json()["position"] == 1
++
++
++def test_waitlist_for_unknown_event_is_404(client):
++    assert join(client, 9999, "Sam").status_code == 404
++
++
++def test_waitlist_needs_a_name(client):
++    event = event_by_title(client, WORKSHOP)
++    assert join(client, event["id"], "").status_code == 422
++
++
++def test_people_joining_at_once_get_different_places_in_line(client):
++    event = event_by_title(client, WORKSHOP)
++    names = ["Maya", "Sam", "Lee", "Ana"]
++
++    outcomes = at_the_same_time(lambda name: waitlist.join(event["id"], name), names)
++
++    assert all(isinstance(r, dict) for r in outcomes.values()), outcomes
++    assert sorted(r["position"] for r in outcomes.values()) == [1, 2, 3, 4]
++    assert client.get(f"/api/events/{event['id']}").json()["waitlisted"] == 4
++
++
++def test_the_same_person_joining_twice_at_once_is_listed_once(client):
++    event = event_by_title(client, WORKSHOP)
++
++    outcomes = at_the_same_time(lambda _: waitlist.join(event["id"], "Sam"), ["tab-1", "tab-2"])
++
++    assert all(isinstance(r, dict) for r in outcomes.values()), outcomes
++    assert sorted(r["created"] for r in outcomes.values()) == [False, True]
++    assert {r["position"] for r in outcomes.values()} == {1}
++    assert client.get(f"/api/events/{event['id']}").json()["waitlisted"] == 1
++
++
++def test_last_place_race_then_waitlist_keeps_the_promise(client, monkeypatch):
++    event = event_by_title(client, ESCAPE_ROOM)
++    hold_everyone_at_payment(monkeypatch, people=2)
++
++    outcomes = at_the_same_time(lambda name: reservations.reserve(event["id"], name), ["Maya", "Sam"])
++    losers = [name for name, r in outcomes.items() if isinstance(r, reservations.SoldOut)]
++    assert len(losers) == 1, outcomes
++
++    assert join(client, event["id"], losers[0]).status_code == 201
++    after = client.get(f"/api/events/{event['id']}").json()
++    assert after["reserved"] == after["capacity"] == 40
++    assert after["waitlisted"] == 1

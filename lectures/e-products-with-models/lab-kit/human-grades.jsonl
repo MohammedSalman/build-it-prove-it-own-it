@@ -1,0 +1,20 @@
+{"case": "c01", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c02", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c03", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c04", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c05", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c06", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c07", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": "A clear 'no good match' is the right answer here; GRADING.md says J1 passes."}
+{"case": "c08", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c09", "rep": 1, "J1": true, "J2": false, "grader": "course team", "note": "'Free' is not in the event facts."}
+{"case": "c10", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c11", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c12", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c13", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c14", "rep": 1, "J1": true, "J2": false, "grader": "course team", "note": "Stargazing starts at 21:00, not 20:30."}
+{"case": "c15", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c16", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c17", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c18", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}
+{"case": "c19", "rep": 1, "J1": true, "J2": false, "grader": "course team", "note": "'Never crowded' is not supported: 112 of 150 places are booked."}
+{"case": "c20", "rep": 1, "J1": true, "J2": true, "grader": "course team", "note": ""}

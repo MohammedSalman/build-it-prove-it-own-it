@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Many Hands, One System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 10 · Lecture 10 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 10 · Parallel work, with people and agents</p>
+  <h1 id="page-title">Many Hands, One System</h1>
+  <p class="lede">Two teammates each handed a task to a coding agent. Both branches passed every test, git merged them without a single conflict, and the festival programme moved every event two hours earlier. This lecture is about why more hands, human or agent, need explicit agreements where their work meets, and how to split work so those meeting points are few and guarded.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~30 minutes of reading after class</span>
+    <span class="fact">Loop: Delegate</span>
+    <span class="fact">Kit: one repository, two branches, one bundle</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Explain how two green branches can merge without a conflict and still break the system.</li>
+      <li>Count possible communication channels with <em>n</em>(<em>n</em> − 1)/2, and say what that number does and does not measure.</li>
+      <li>State Conway's law in Conway's own words, and predict where a split of the work will put the system's interfaces.</li>
+      <li>Split work by dependency, find the critical path, and give parallel agents their own git worktrees.</li>
+      <li>Write an integration contract with examples, test both sides of a boundary against it, and run CI on the merged result.</li>
+      <li>Choose an orchestration pattern for agents, and say when not to parallelise at all.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>Two green branches, one red main</span></a></li>
+    <li><a href="#brooks"><span class="t">0:15</span><span>Brooks's law and communication paths</span></a></li>
+    <li><a href="#conway"><span class="t">0:30</span><span>Conway's law, with agents</span></a></li>
+    <li><a href="#decompose"><span class="t">0:45</span><span>Decompose by dependency</span></a></li>
+    <li><a href="#contracts"><span class="t">1:00</span><span>Contracts first</span></a></li>
+    <li><a href="#orchestrate"><span class="t">1:15</span><span>Orchestration patterns</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#mmm"><span class="t">R1</span><span>The Mythical Man-Month in context</span></a></li>
+    <li><a href="#semantic"><span class="t">R2</span><span>Semantic conflicts</span></a></li>
+    <li><a href="#queues"><span class="t">R3</span><span>Merge queues</span></a></li>
+    <li><a href="#which"><span class="t">R4</span><span>Which time was right?</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>Two green branches, one red main</h2>
+  </div>
+  <p>It is Tuesday, three days before the festival. Priya, this week's product lead, splits the remaining work into two task cards so that two teammates can work at the same time. Ana takes one and Ben the other. Each hands the card to a coding agent working in its own folder of the repository (a git <em>worktree</em>; more at 0:45). Here are the two cards, shortened.</p>
+
+  <div class="contract">
+      <span class="cardtitle">Task card · Ana + agent · feature/utc-storage</span>
+      <dl>
+        <dt>Goal</dt><dd>Store every start time as a UTC instant, so it compares cleanly with the server's clock and exports to calendars.</dd>
+        <dt>Context</dt><dd><code>starts_at</code> holds festival local time with no offset. The closing rule converts it by hand. Servers run in UTC.</dd>
+        <dt>Limits</dt><dd>Organisers keep typing festival time, as on the poster. Don't change the page.</dd>
+        <dt>Deliver</dt><dd>Storage, seed data and the API in UTC. Every reader of <code>starts_at</code> updated. Tests.</dd>
+        <dt>Stop when</dt><dd>All tests pass, including the closing rule's.</dd>
+      </dl>
+  </div>
+  <div class="contract">
+      <span class="cardtitle">Task card · Ben + agent · feature/local-display</span>
+      <dl>
+        <dt>Goal</dt><dd>The programme grouped by night, every start in festival time on a 24-hour clock, and a <em>Started</em> mark.</dd>
+        <dt>Context</dt><dd>The page formats times in the browser today. Start times: see <code>app/schema.sql</code>. <em>Started</em> must agree with the closing rule.</dd>
+        <dt>Limits</dt><dd>Don't change how events are stored.</dd>
+        <dt>Deliver</dt><dd><code>GET /api/programme</code>; the page uses it; tests.</dd>
+        <dt>Stop when</dt><dd>All tests pass.</dd>
+      </dl>
+  </div>
+  <p>Priya's note on the plan says: <q>They touch different parts of the code (storage and the page), so they should merge cleanly.</q> About git, she is right.</p>
+  <p>Both agents finish. Both branches start from the same commit on <code>main</code>. Ana's branch passes 17 tests and Ben's passes 14. Git merges the two without a single conflict, and the merged build passes all 21 tests. Every check is green.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Git graph: main with three commits, then two branches from the same commit. feature/utc-storage by Ana and an agent passes 17 tests; feature/local-display by Ben and an agent passes 14. They merge into integration with no conflicts and 21 tests passing. The merged programme at Friday 19:00 lists the escape room at 18:00 and marks it Started, although the poster says 20:00; every event is two hours early.">
+        <defs>
+          <filter id="w10f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f1-r)">
+          <path d="M71,210 H119 M141,210 H189" class="s"/>
+          <path d="M209,202 C228,160 232,110 249,110" class="s"/>
+          <path d="M209,218 C228,260 232,310 249,310" class="s"/>
+          <path d="M271,110 H319 M271,310 H319" class="s"/>
+          <path d="M341,113 C440,124 520,196 566,206" class="s"/>
+          <path d="M341,307 C440,296 520,224 566,214" class="s"/>
+          <circle cx="60" cy="210" r="11" class="s f-card"/>
+          <circle cx="130" cy="210" r="11" class="s f-card"/>
+          <circle cx="200" cy="210" r="11" class="s f-card"/>
+          <circle cx="260" cy="110" r="11" class="s f-pen"/>
+          <circle cx="330" cy="110" r="11" class="s f-pen"/>
+          <circle cx="260" cy="310" r="11" class="s f-pen"/>
+          <circle cx="330" cy="310" r="11" class="s f-pen"/>
+          <circle cx="580" cy="210" r="14" class="s s-thick f-card"/>
+          <rect x="410" y="62" width="118" height="30" rx="15" class="s s-green f-green"/>
+          <rect x="410" y="328" width="118" height="30" rx="15" class="s s-green f-green"/>
+          <path d="M598,210 H644" class="s" marker-end="url(#w10f1-a)"/>
+          <rect x="650" y="30" width="290" height="340" rx="14" class="s f-card"/>
+          <rect x="852" y="146" width="74" height="26" rx="13" class="s s-red f-red"/>
+          <rect x="688" y="182" width="236" height="32" rx="3" class="s s-thin f-mark"/>
+          <rect x="668" y="306" width="256" height="46" rx="8" class="s s-red s-thick f-red"/>
+        </g>
+        <text x="130" y="246" text-anchor="middle" class="t-sm t-2">main</text>
+        <text x="236" y="62" class="t-sm t-2">Ana + agent</text>
+        <text x="236" y="84" class="t-mono">feature/utc-storage</text>
+        <text x="469" y="82" text-anchor="middle" class="t-sm t-green">✓ 17 passed</text>
+        <text x="236" y="346" class="t-mono">feature/local-display</text>
+        <text x="236" y="368" class="t-sm t-2">Ben + agent</text>
+        <text x="469" y="348" text-anchor="middle" class="t-sm t-green">✓ 14 passed</text>
+        <text x="580" y="174" text-anchor="middle" class="t-mono">integration</text>
+        <text x="580" y="250" text-anchor="middle" class="t-sm t-green">no conflicts</text>
+        <text x="580" y="270" text-anchor="middle" class="t-sm t-green">✓ 21 passed</text>
+        <text x="795" y="60" text-anchor="middle" class="t-sm t-2">the merged programme</text>
+        <text x="795" y="80" text-anchor="middle" class="t-sm t-2">Friday, 19:00 festival time</text>
+        <text x="670" y="122" class="t-lg">Fri 9 Oct</text>
+        <text x="670" y="166" class="t-lg t-red">18:00</text>
+        <text x="740" y="165" class="t-sm">Escape Room</text>
+        <text x="889" y="164" text-anchor="middle" class="t-sm t-red">Started</text>
+        <text x="806" y="203" text-anchor="middle" class="t-sm t-mark">poster: 20:00 · 1 place left</text>
+        <text x="670" y="252" class="t-lg t-red">19:30</text>
+        <text x="740" y="251" class="t-sm">Silent Disco</text>
+        <text x="740" y="272" class="t-sm t-2">poster: 21:30</text>
+        <text x="796" y="335" text-anchor="middle" class="t-red">every event two hours early</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.1</b> Two green branches, one red main, drawn from the lab kit. Each branch passes its own tests, git merges them without a conflict, and the merged build passes all 21 tests. The programme on the right is what the kit's <code>scripts/show_programme.py</code> prints for the merged build at Friday 19:00 festival time. CI stays green; the festival is wrong.</figcaption>
+  </figure>
+
+  <p>On Friday at 19:00, Maya opens the programme. The escape room starts at 20:00 and has one place left, but the programme lists it at 18:00 and marks it <em>Started</em>, so the page greys out its <em>Reserve</em> button. Every other event is listed two hours early too. Maya closes the app, and the last place stays empty.</p>
+
+  <div class="callout case">
+    <span class="label">About this bug</span>
+    <p>We planted this conflict on purpose and wrote both branches ourselves, in the way agent work often looks. Ana, Ben and Priya are fictional. The example says nothing about any particular model or tool. The pattern itself is common: two parts of a system disagree about what one shared value means, and each part's tests encode its own belief. Week 4's Mars Climate Orbiter had the same shape, with units instead of time zones.</p>
+  </div>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (5 minutes, no laptop, pairs)</span>
+    <p>Trace one value by hand. The organiser types the escape room's start as printed on the poster, <code>2026-10-09T20:00</code>. Follow it through the merged code. Festival time is UTC+2.</p>
+<pre><code># Ana's branch, app/festival.py: this WRITES starts_at
+def to_utc(text):
+    moment = datetime.fromisoformat(text)             # 20:00, no zone attached
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=FESTIVAL_TZ)   # 20:00 at UTC+2
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+# Ben's branch, app/programme.py: this READS starts_at
+def festival_start(starts_at):
+    # starts_at is stored as festival local time (see app/schema.sql)
+    return datetime.fromisoformat(starts_at).replace(tzinfo=FESTIVAL_TZ)</code></pre>
+    <p>Two Python facts you need. <code>datetime.fromisoformat("…Z")</code> gives a time in UTC. <code>.replace(tzinfo=…)</code> swaps the zone label and keeps the clock reading, while <code>.astimezone(…)</code> keeps the instant and changes the clock reading.</p>
+    <ol>
+      <li>What string does Ana's code store?</li>
+      <li>What does Ben's code turn it into, and what hour does the programme print?</li>
+      <li>At 19:00 festival time, does the programme say <em>Started</em>? Does the server, whose closing rule Ana updated to read UTC, still accept a booking?</li>
+      <li>Which branch is wrong?</li>
+    </ol>
+  </div>
+
+  <details class="reveal">
+    <summary>Answers: one value, two meanings (open after the drill)</summary>
+    <div class="inner">
+      <ol>
+        <li>Ana stores <code>2026-10-09T18:00:00Z</code>. 20:00 at UTC+2 is 18:00 in UTC.</li>
+        <li>Ben's code reads 18:00 UTC, keeps the reading <em>18:00</em>, and relabels it as festival time. That instant is 16:00 UTC, two hours before the real start. The programme prints <code>Fri 9 Oct · 18:00</code>.</li>
+        <li>At 19:00 the programme compares 19:00 with its wrong 18:00 and says <em>Started</em>. The server compares 17:00 UTC with 18:00 UTC and accepts the booking. The page and the server now disagree about when the event starts.</li>
+        <li>Neither, on its own. Ben's comment was true when he branched: on <code>main</code>, <code>starts_at</code> held festival time, and his line copies the closing rule's conversion exactly. Ana updated every reader of <code>starts_at</code> that existed on <code>main</code>, the closing rule included. Ben's reader did not exist yet. It was being written at the same time, in another folder.</li>
+      </ol>
+
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 372" role="img" aria-label="One value, two meanings. The poster's 20:00 goes through Ana's writer and is stored as 2026-10-09T18:00:00Z. Ben's reader, as merged, uses replace, keeps 18:00 and relabels it as festival time, so the programme shows 18:00. A reader that uses astimezone keeps the instant and shows 20:00. On a festival-time axis from 17:00 to 21:00, the merged page thinks the event starts at 18:00 while the server knows it starts at 20:00; between them, at the demo clock's 19:00, the page says Started and the server still takes bookings.">
+            <defs>
+              <filter id="w10f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+              <marker id="w10f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+              <pattern id="w10f2-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-red"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-red s-thin"/></pattern>
+            </defs>
+            <g filter="url(#w10f2-r)">
+              <rect x="20" y="40" width="150" height="100" rx="4" class="s f-mark"/>
+              <path d="M172,90 H226" class="s" marker-end="url(#w10f2-a)"/>
+              <rect x="230" y="40" width="190" height="100" rx="10" class="s f-card"/>
+              <path d="M422,90 H456" class="s" marker-end="url(#w10f2-a)"/>
+              <path d="M460,52 V128 A90,14 0 0 0 640,128 V52" class="s f-card"/>
+              <ellipse cx="550" cy="52" rx="90" ry="14" class="s f-card"/>
+              <path d="M642,90 H676" class="s" marker-end="url(#w10f2-a)"/>
+              <path d="M550,144 V250 H676" class="s" marker-end="url(#w10f2-a)"/>
+              <rect x="680" y="40" width="260" height="100" rx="10" class="s s-red f-red"/>
+              <rect x="680" y="200" width="260" height="100" rx="10" class="s s-green f-green"/>
+              <rect x="180" y="262" width="240" height="30" style="fill:url(#w10f2-h)"/>
+              <path d="M60,292 H540" class="s s-thin"/>
+              <path d="M60,286 V298 M180,286 V298 M300,286 V298 M420,286 V298 M540,286 V298" class="s s-thin"/>
+              <path d="M180,236 V292" class="s s-red s-thick"/>
+              <path d="M420,236 V292" class="s s-green s-thick"/>
+              <path d="M300,228 V292" class="s s-pen s-dash"/>
+            </g>
+            <text x="95" y="68" text-anchor="middle" class="t-sm t-mark">the poster</text>
+            <text x="95" y="98" text-anchor="middle" class="t-lg t-mark">Fri 20:00</text>
+            <text x="95" y="124" text-anchor="middle" class="t-mono t-mark">…T20:00</text>
+            <text x="325" y="66" text-anchor="middle" class="t-sm t-2">Ana's writer</text>
+            <text x="325" y="90" text-anchor="middle" class="t-mono">.astimezone(UTC)</text>
+            <text x="325" y="116" text-anchor="middle" class="t-sm">20:00 at UTC+2 = 18:00 UTC</text>
+            <text x="550" y="92" text-anchor="middle" class="t-sm t-2">starts_at</text>
+            <text x="550" y="116" text-anchor="middle" class="t-mono">2026-10-09T18:00:00Z</text>
+            <text x="810" y="66" text-anchor="middle" class="t-sm t-red">Ben's reader, as merged</text>
+            <text x="810" y="90" text-anchor="middle" class="t-mono t-red">.replace(tzinfo=UTC+2)</text>
+            <text x="810" y="116" text-anchor="middle" class="t-sm t-red">keeps 18:00, swaps the label</text>
+            <text x="810" y="166" text-anchor="middle" class="t-red">shown: Fri 9 Oct · 18:00</text>
+            <text x="810" y="226" text-anchor="middle" class="t-sm t-green">a reader that converts</text>
+            <text x="810" y="250" text-anchor="middle" class="t-mono t-green">.astimezone(UTC+2)</text>
+            <text x="810" y="276" text-anchor="middle" class="t-sm t-green">same instant, new clock</text>
+            <text x="810" y="326" text-anchor="middle" class="t-green">shown: Fri 9 Oct · 20:00</text>
+            <text x="180" y="228" text-anchor="middle" class="t-sm t-red">page: starts</text>
+            <text x="420" y="228" text-anchor="middle" class="t-sm t-green">server: starts</text>
+            <text x="300" y="218" text-anchor="middle" class="t-sm t-pen">now (demo)</text>
+            <text x="60" y="312" text-anchor="middle" class="t-mono t-2">17:00</text>
+            <text x="180" y="312" text-anchor="middle" class="t-mono t-2">18:00</text>
+            <text x="300" y="312" text-anchor="middle" class="t-mono t-2">19:00</text>
+            <text x="420" y="312" text-anchor="middle" class="t-mono t-2">20:00</text>
+            <text x="540" y="312" text-anchor="middle" class="t-mono t-2">21:00</text>
+            <text x="300" y="338" text-anchor="middle" class="t-sm t-red">18:00 to 20:00: the page says Started, the server still takes bookings</text>
+            <text x="300" y="362" text-anchor="middle" class="t-sm t-2">festival time on Friday, to scale</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 10.2</b> One value, two meanings. Ana's writer stores the right instant. Ben's reader, as merged, keeps the reading <em>18:00</em> and relabels it, so the programme shows 18:00. A reader that converts with <code>astimezone</code> would show 20:00. The strip below is to scale in festival time: the merged page thinks the escape room starts at 18:00, the server knows it starts at 20:00, and from 18:00 to 20:00 the page says <em>Started</em> while the server still takes bookings.</figcaption>
+      </figure>
+    </div>
+  </details>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Git merges lines of text. Nothing merged the meaning of <code>starts_at</code>.</strong> When two changes are right alone and wrong together, the bug lives in the agreement between them. Here there was no written agreement, only a comment in <code>schema.sql</code> that one branch changed and the other believed.</p>
+  </div>
+
+  <p>Why did every test stay green? Each branch's tests encode that branch's belief. Ben's unit tests feed his code strings he typed himself, in the format he expected (<code>"2026-10-09T20:00"</code>). His one test through the API checks the order of events and a status on Saturday afternoon, hours away from any start time. Ana's tests check what is stored and served. No test crossed the boundary from <em>what the organiser types</em> to <em>what the programme shows</em>. That test is an <strong>integration test</strong>. On Ben's branch alone it passes. It can catch this bug only where both changes exist, on the merged build. You write it in the lab.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 180" role="img" aria-label="The engineering loop drawn as a row: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, and back to Understand. Delegate is highlighted as this week. From Delegate, three lanes of parallel work fan out and meet again at one integration point before Inspect.">
+        <defs>
+          <filter id="w10f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w10f3-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w10f3-r)">
+          <rect x="10" y="42" width="98" height="48" rx="10" class="s f-card"/>
+          <rect x="122" y="42" width="98" height="48" rx="10" class="s f-card"/>
+          <rect x="234" y="42" width="98" height="48" rx="10" class="s s-thick f-mark"/>
+          <rect x="542" y="42" width="92" height="48" rx="10" class="s f-card"/>
+          <rect x="646" y="42" width="92" height="48" rx="10" class="s f-card"/>
+          <rect x="750" y="42" width="92" height="48" rx="10" class="s f-card"/>
+          <rect x="854" y="42" width="96" height="48" rx="10" class="s f-card"/>
+          <path d="M110,66 H118" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M222,66 H230" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M334,66 C350,66 352,36 372,36 H440 C462,36 466,60 474,64" class="s s-pen"/>
+          <path d="M334,66 H474" class="s s-pen"/>
+          <path d="M334,66 C350,66 352,96 372,96 H440 C462,96 466,72 474,68" class="s s-pen"/>
+          <path d="M494,46 L514,66 L494,86 L474,66 Z" class="s s-thick f-card"/>
+          <path d="M516,66 H538" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M636,66 H642" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M740,66 H746" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M844,66 H850" class="s" marker-end="url(#w10f3-a)"/>
+          <path d="M902,92 V146 H59 V96" class="s s-thin s-dash s-2" marker-end="url(#w10f3-a)"/>
+        </g>
+        <text x="59" y="72" text-anchor="middle">Understand</text>
+        <text x="171" y="72" text-anchor="middle">Specify</text>
+        <text x="283" y="72" text-anchor="middle" class="t-mark"><tspan font-weight="700">Delegate</tspan></text>
+        <text x="588" y="72" text-anchor="middle">Inspect</text>
+        <text x="692" y="72" text-anchor="middle">Verify</text>
+        <text x="796" y="72" text-anchor="middle">Release</text>
+        <text x="902" y="72" text-anchor="middle">Observe</text>
+        <text x="59" y="28" text-anchor="middle" class="t-sm t-2">week 9</text>
+        <text x="283" y="28" text-anchor="middle" class="t-sm t-pen">this week</text>
+        <text x="902" y="28" text-anchor="middle" class="t-sm t-2">week 11</text>
+        <text x="404" y="28" text-anchor="middle" class="t-sm t-pen">many hands</text>
+        <text x="494" y="116" text-anchor="middle" class="t-sm">integrate</text>
+        <text x="480" y="170" text-anchor="middle" class="t-sm t-2">and back to Understand</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.3</b> Where this week sits on the engineering loop from Lecture 1. Week 3 delegated one task to one agent. This week the <em>Delegate</em> step fans out into parallel lanes, and the lanes have to meet again at one integration point before anyone can inspect or verify the whole system.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 2. BROOKS ============ -->
+<section class="block" id="brooks">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:30</span>
+    <h2>Brooks's law and communication paths</h2>
+  </div>
+  <p>When a project falls behind, the instinctive fix is more hands. Today that can mean a few more agents, started in a minute. The classic warning about this instinct is more than fifty years old. In 1964 Fred Brooks became manager of IBM's Operating System/360, a project that at its peak had over 1000 people working on it. In 1975 he drew the lessons in <em>The Mythical Man-Month</em>. (The book's language is of its time; its argument is about people and agents alike.)</p>
+  <p>Its second chapter attacks the idea that people and months can be traded one for one. <q>Men and months are interchangeable commodities only when a task can be partitioned among many workers with no communication among them</q>, like reaping wheat. When steps must happen in order, extra hands do nothing: <q>The bearing of a child takes nine months, no matter how many women are assigned.</q></p>
+  <p>Then he counted the cost of talking. New workers must be trained: <q>Each worker must be trained in the technology, the goals of the effort, the overall strategy, and the plan of work.</q> And coordination grows faster than the team: <q>Intercommunication is worse. If each part of the task must be separately coordinated with each other part, the effort increases as n(n-1)/2. Three workers require three times as much pairwise intercommunication as two; four require six times as much as two.</q> From this he drew his famous law, and labelled it himself: <q>Oversimplifying outrageously, we state Brooks's Law: Adding manpower to a late software project makes it later.</q></p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 420" role="img" aria-label="Left: every pair connected among 3, 4 and 6 people gives 3, 6 and 15 pairs; 6 people who all talk through one hub need only 5 channels. Right, drawn to scale: bars of possible pairs n times n minus 1 over 2 for n from 2 to 12, rising from 1 to 66; a green line for one hub, n minus 1, rising only from 1 to 11.">
+        <defs>
+          <filter id="w10f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w10f4-r)">
+          <path d="M95.0,48.0 L138.3,123.0 M95.0,48.0 L51.7,123.0 M138.3,123.0 L51.7,123.0" class="s s-thin"/>
+          <path d="M325.4,62.6 L325.4,133.4 M325.4,62.6 L254.6,133.4 M325.4,62.6 L254.6,62.6 M325.4,133.4 L254.6,133.4 M325.4,133.4 L254.6,62.6 M254.6,133.4 L254.6,62.6" class="s s-thin"/>
+          <path d="M95.0,226.0 L143.5,254.0 M95.0,226.0 L143.5,310.0 M95.0,226.0 L95.0,338.0 M95.0,226.0 L46.5,310.0 M95.0,226.0 L46.5,254.0 M143.5,254.0 L143.5,310.0 M143.5,254.0 L95.0,338.0 M143.5,254.0 L46.5,310.0 M143.5,254.0 L46.5,254.0 M143.5,310.0 L95.0,338.0 M143.5,310.0 L46.5,310.0 M143.5,310.0 L46.5,254.0 M95.0,338.0 L46.5,310.0 M95.0,338.0 L46.5,254.0 M46.5,310.0 L46.5,254.0" class="s s-thin"/>
+          <path d="M290,282 L290.0,226.0 M290,282 L343.3,264.7 M290,282 L322.9,327.3 M290,282 L257.1,327.3 M290,282 L236.7,264.7" class="s s-thin s-green"/>
+          <circle cx="95.0" cy="48.0" r="8" class="s f-card"/><circle cx="138.3" cy="123.0" r="8" class="s f-card"/><circle cx="51.7" cy="123.0" r="8" class="s f-card"/>
+          <circle cx="325.4" cy="62.6" r="8" class="s f-card"/><circle cx="325.4" cy="133.4" r="8" class="s f-card"/><circle cx="254.6" cy="133.4" r="8" class="s f-card"/><circle cx="254.6" cy="62.6" r="8" class="s f-card"/>
+          <circle cx="95.0" cy="226.0" r="8" class="s f-card"/><circle cx="143.5" cy="254.0" r="8" class="s f-card"/><circle cx="143.5" cy="310.0" r="8" class="s f-card"/><circle cx="95.0" cy="338.0" r="8" class="s f-card"/><circle cx="46.5" cy="310.0" r="8" class="s f-card"/><circle cx="46.5" cy="254.0" r="8" class="s f-card"/>
+          <circle cx="290.0" cy="226.0" r="8" class="s f-card"/><circle cx="343.3" cy="264.7" r="8" class="s f-card"/><circle cx="322.9" cy="327.3" r="8" class="s f-card"/><circle cx="257.1" cy="327.3" r="8" class="s f-card"/><circle cx="236.7" cy="264.7" r="8" class="s f-card"/><circle cx="290" cy="282" r="11" class="s f-mark"/>
+          <rect x="509" y="356" width="22" height="4" class="s s-thin s-pen f-pen"/>
+          <rect x="545" y="348" width="22" height="12" class="s s-thin s-pen f-pen"/>
+          <rect x="581" y="336" width="22" height="24" class="s s-thin s-pen f-pen"/>
+          <rect x="617" y="320" width="22" height="40" class="s s-thin s-pen f-pen"/>
+          <rect x="653" y="300" width="22" height="60" class="s s-thin s-pen f-pen"/>
+          <rect x="689" y="276" width="22" height="84" class="s s-thin s-pen f-pen"/>
+          <rect x="725" y="248" width="22" height="112" class="s s-thin s-pen f-pen"/>
+          <rect x="761" y="216" width="22" height="144" class="s s-thin s-pen f-pen"/>
+          <rect x="797" y="180" width="22" height="180" class="s s-thin s-pen f-pen"/>
+          <rect x="833" y="140" width="22" height="220" class="s s-thin s-pen f-pen"/>
+          <rect x="869" y="96" width="22" height="264" class="s s-thin s-pen f-pen"/>
+          <path d="M500,360 H902" class="s s-thin"/>
+          <path d="M500,360 V86" class="s s-thin"/>
+          <path d="M496,360 H502 M496,280 H502 M496,200 H502 M496,120 H502" class="s s-thin"/>
+          <path d="M520,356 L556,352 L592,348 L628,344 L664,340 L700,336 L736,332 L772,328 L808,324 L844,320 L880,316" class="s s-green"/>
+          <rect x="522" y="98" width="20" height="14" class="s s-thin s-pen f-pen"/>
+          <path d="M522,132 H542" class="s s-green"/>
+        </g>
+        <circle cx="520" cy="356" r="3.2" class="f-greenink"/><circle cx="556" cy="352" r="3.2" class="f-greenink"/><circle cx="592" cy="348" r="3.2" class="f-greenink"/><circle cx="628" cy="344" r="3.2" class="f-greenink"/><circle cx="664" cy="340" r="3.2" class="f-greenink"/><circle cx="700" cy="336" r="3.2" class="f-greenink"/><circle cx="736" cy="332" r="3.2" class="f-greenink"/><circle cx="772" cy="328" r="3.2" class="f-greenink"/><circle cx="808" cy="324" r="3.2" class="f-greenink"/><circle cx="844" cy="320" r="3.2" class="f-greenink"/><circle cx="880" cy="316" r="3.2" class="f-greenink"/>
+        <circle cx="532" cy="132" r="3.2" class="f-greenink"/>
+        <text x="190" y="22" text-anchor="middle" class="t-sm t-2">who could talk to whom</text>
+        <text x="95" y="156" text-anchor="middle" class="t-sm">3 people: 3 pairs</text>
+        <text x="290" y="162" text-anchor="middle" class="t-sm">4 people: 6 pairs</text>
+        <text x="95" y="372" text-anchor="middle" class="t-sm">6 people: 15 pairs</text>
+        <text x="290" y="372" text-anchor="middle" class="t-sm t-green">6, one hub: 5 channels</text>
+        <text x="550" y="110" class="t-sm t-pen">possible pairs, n(n − 1)/2</text>
+        <text x="550" y="137" class="t-sm t-green">everyone talks through one hub, n − 1</text>
+        <text x="520" y="350" text-anchor="middle" class="t-mono t-pen">1</text>
+        <text x="556" y="342" text-anchor="middle" class="t-mono t-pen">3</text>
+        <text x="592" y="330" text-anchor="middle" class="t-mono t-pen">6</text>
+        <text x="628" y="314" text-anchor="middle" class="t-mono t-pen">10</text>
+        <text x="664" y="294" text-anchor="middle" class="t-mono t-pen">15</text>
+        <text x="700" y="270" text-anchor="middle" class="t-mono t-pen">21</text>
+        <text x="736" y="242" text-anchor="middle" class="t-mono t-pen">28</text>
+        <text x="772" y="210" text-anchor="middle" class="t-mono t-pen">36</text>
+        <text x="808" y="174" text-anchor="middle" class="t-mono t-pen">45</text>
+        <text x="844" y="134" text-anchor="middle" class="t-mono t-pen">55</text>
+        <text x="880" y="90" text-anchor="middle" class="t-mono t-pen">66</text>
+        <text x="520" y="380" text-anchor="middle" class="t-mono t-2">2</text>
+        <text x="556" y="380" text-anchor="middle" class="t-mono t-2">3</text>
+        <text x="592" y="380" text-anchor="middle" class="t-mono t-2">4</text>
+        <text x="628" y="380" text-anchor="middle" class="t-mono t-2">5</text>
+        <text x="664" y="380" text-anchor="middle" class="t-mono t-2">6</text>
+        <text x="700" y="380" text-anchor="middle" class="t-mono t-2">7</text>
+        <text x="736" y="380" text-anchor="middle" class="t-mono t-2">8</text>
+        <text x="772" y="380" text-anchor="middle" class="t-mono t-2">9</text>
+        <text x="808" y="380" text-anchor="middle" class="t-mono t-2">10</text>
+        <text x="844" y="380" text-anchor="middle" class="t-mono t-2">11</text>
+        <text x="880" y="380" text-anchor="middle" class="t-mono t-2">12</text>
+        <text x="492" y="364" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="492" y="284" text-anchor="end" class="t-mono t-2">20</text>
+        <text x="492" y="204" text-anchor="end" class="t-mono t-2">40</text>
+        <text x="492" y="124" text-anchor="end" class="t-mono t-2">60</text>
+        <text x="700" y="406" text-anchor="middle" class="t-sm t-2">people or agents working together (n)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.4</b> Possible communication channels. Left: every pair among 3, 4 and 6 people, and 6 people who all talk through one hub. Right, drawn to scale: <em>n</em>(<em>n</em> − 1)/2 possible pairs grows with the square of the team, while a single hub needs only <em>n</em> − 1 channels (and becomes a bottleneck). The bars count who <em>could</em> talk. They say nothing about what talking costs.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Try it (2 minutes, pairs)</span>
+    <p>Priya's team is four people, and this week two of them each ran one agent: six contributors. How many possible pairs is that? Now look back at the hook. Which decision had to be shared between the two lanes of work, and was it ever agreed?</p>
+  </div>
+
+  <h3>What the formula counts, and what it doesn't</h3>
+  <p><em>n</em>(<em>n</em> − 1)/2 is the number of pairs among <em>n</em> contributors: each can pair with <em>n</em> − 1 others, and that counts every pair twice. It is a count of <strong>possible</strong> channels. It is not a measured cost, for three reasons.</p>
+  <ul>
+    <li><strong>Most pairs never need to talk.</strong> The cost comes from the pairs whose work shares a decision. In the hook, six contributors make 15 possible pairs, but what mattered was one decision shared by two lanes (Ana with her agent, Ben with his): the meaning of <code>starts_at</code>. Nobody in either lane talked to the other lane about it.</li>
+    <li><strong>Structure changes the count.</strong> If everyone talks through one hub (a lead, a planner), there are only <em>n</em> − 1 channels, but the hub becomes the bottleneck. A written contract that everyone reads replaces many pairwise conversations with one document.</li>
+    <li><strong>Channels differ in price.</strong> A two-minute question before work starts is cheap. The same misunderstanding found after the merge costs a debugging session, and on Friday it costs a festival guest.</li>
+  </ul>
+  <p>Brooks knew his law was rough; he said so in the sentence that states it. Twenty years later he reviewed studies of it (reading R1). Treat it as a warning about a common instinct, not as a formula for your schedule.</p>
+
+  <h3>Does any of this apply to agents?</h3>
+  <p>That is a question to examine, not a law to apply. Here is how each of Brooks's costs might look when the extra hands are agents, and how you could check it for your own team.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Brooks's cost</th><th>What it might look like with agents</th><th>How you could check</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Training</strong>: every newcomer learns the goals and the plan</td><td>An agent session starts with none of the team's conversations. It learns only what it is given to read (Week 3: context is the scarce resource). Starting is fast, but the ramp-up repeats every session.</td><td>Read what each agent was given. Could it have known the decision it needed? Ben's agent could not know about UTC.</td></tr>
+        <tr><td><strong>Repartitioning</strong>: splitting the work costs time</td><td>Someone writes the task cards: you, or a planner agent. A split along the wrong line creates hidden shared decisions.</td><td>Draw the dependency graph before splitting (0:45).</td></tr>
+        <tr><td><strong>Intercommunication</strong>: pairs must coordinate</td><td>Agents in separate worktrees don't talk to each other at all unless you build a channel: a contract file, a shared task card, a review. A missing channel is silent.</td><td>For each pair of tasks: do they share a decision? Is it written down where both will read it?</td></tr>
+        <tr><td><strong>System testing</strong>: more pieces to fit together and check</td><td>Four agents make four diffs that must fit together, and people still have to read them (Lecture 1, R4: verification is the narrow part).</td><td>Count the diffs your team really reviews per day. That, not the number of agents, may set your speed.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>One data point, with its limits. In June 2025 Anthropic described its own multi-agent research system: a lead agent that starts parallel subagents. On its internal research evaluation, a Claude Opus 4 lead agent with Claude Sonnet 4 subagents outperformed a single Claude Opus 4 agent by 90.2%, and <q>multi-agent systems use about 15× more tokens than chats</q>. The same post warns that <q>most coding tasks involve fewer truly parallelizable tasks than research</q>. That is one company's evaluation of its own system on research questions. It is a reason to measure parallel agents on your own work, not evidence about your team.</p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong><em>n</em>(<em>n</em> − 1)/2 counts who could talk. The cost comes from who must agree.</strong> Split the work so that few pairs must agree, and write down what they agree on.</p>
+  </div>
+</section>
+
+<!-- ============ 3. CONWAY ============ -->
+<section class="block" id="conway">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>Conway's law, with agents</h2>
+  </div>
+  <p>In Week 4 you met Melvin Conway's observation from 1968. Here it is again, in his words: <q>organizations which design systems (in the broad sense used here) are constrained to produce designs which are copies of the communication structures of these organizations.</q> Fred Brooks named it Conway's law in <em>The Mythical Man-Month</em>. The same paper counts communication paths seven years before Brooks did: <q>the number of possible communication paths in an organization is approximately half the square of the number of people in the organization.</q></p>
+  <p>Two more sentences from that paper matter this week. The first is about the moment you split the work: <q>the very act of organizing a design team means that certain design decisions have already been made, explicitly or otherwise.</q> The second is Conway's advice: <q>a design effort should be organized according to the need for communication.</q></p>
+  <p>Now read the hook with Conway's eyes. Priya's two task cards were an organisation chart: one lane for storage, one lane for the page, and no line between them. The code copied it. Ana's module writes <code>starts_at</code>, Ben's module reads it, and the one thing both depend on sat in the gap between the lanes, with no owner.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Left, how the work was split: Priya writes two task cards; Ana with an agent takes the storage lane and Ben with an agent the page lane; there is no channel between them, and the only text both read is main's comment that starts_at is festival local time. Right, what the code became: festival.py and db.py write starts_at in UTC, programme.py reads it as festival time, and the field between them has no owner. Both sides' tests are green; the bug lives in the gap between the lanes.">
+        <defs>
+          <filter id="w10f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f5-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w10f5-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w10f5-r)">
+          <rect x="120" y="44" width="180" height="50" rx="10" class="s f-card"/>
+          <path d="M170,96 L112,144" class="s" marker-end="url(#w10f5-a)"/>
+          <path d="M250,96 L308,144" class="s" marker-end="url(#w10f5-a)"/>
+          <rect x="30" y="150" width="150" height="80" rx="10" class="s f-pen"/>
+          <rect x="240" y="150" width="150" height="80" rx="10" class="s f-pen"/>
+          <path d="M184,190 H236" class="s s-red s-dash"/>
+          <path d="M202,181 l16,18 M218,181 l-16,18" class="s s-red s-thick"/>
+          <rect x="30" y="290" width="360" height="60" rx="4" class="s s-dash f-paper"/>
+          <path d="M105,288 V236 M315,288 V236" class="s s-thin s-2" marker-end="url(#w10f5-a)"/>
+          <path d="M410,190 H466" class="s s-pen s-thick" marker-end="url(#w10f5-p)"/>
+          <rect x="490" y="150" width="150" height="80" rx="10" class="s f-card"/>
+          <path d="M642,190 H671" class="s" marker-end="url(#w10f5-a)"/>
+          <rect x="675" y="160" width="110" height="60" rx="6" class="s s-red s-thick f-red"/>
+          <path d="M787,190 H816" class="s" marker-end="url(#w10f5-a)"/>
+          <rect x="820" y="150" width="130" height="80" rx="10" class="s f-card"/>
+          <rect x="640" y="276" width="180" height="52" rx="3" class="s s-thin f-mark"/>
+        </g>
+        <text x="210" y="26" text-anchor="middle" class="t-sm t-2">how the work was split</text>
+        <text x="210" y="66" text-anchor="middle">Priya</text>
+        <text x="210" y="85" text-anchor="middle" class="t-sm t-2">two task cards</text>
+        <text x="105" y="184" text-anchor="middle">Ana + agent</text>
+        <text x="105" y="206" text-anchor="middle" class="t-sm t-2">storage lane</text>
+        <text x="315" y="184" text-anchor="middle">Ben + agent</text>
+        <text x="315" y="206" text-anchor="middle" class="t-sm t-2">page lane</text>
+        <text x="210" y="256" text-anchor="middle" class="t-sm t-red">no channel</text>
+        <text x="210" y="313" text-anchor="middle" class="t-sm t-2">on main when both branched:</text>
+        <text x="210" y="336" text-anchor="middle" class="t-mono">starts_at: festival local time</text>
+        <text x="438" y="170" text-anchor="middle" class="t-sm t-pen">Conway:</text>
+        <text x="438" y="216" text-anchor="middle" class="t-sm t-pen">copied</text>
+        <text x="720" y="26" text-anchor="middle" class="t-sm t-2">what the code became</text>
+        <text x="565" y="178" text-anchor="middle" class="t-mono">festival.py</text>
+        <text x="565" y="197" text-anchor="middle" class="t-mono">db.py</text>
+        <text x="565" y="219" text-anchor="middle" class="t-sm t-2">writes it</text>
+        <text x="730" y="195" text-anchor="middle" class="t-mono">starts_at</text>
+        <text x="885" y="184" text-anchor="middle" class="t-mono">programme.py</text>
+        <text x="885" y="208" text-anchor="middle" class="t-sm t-2">reads it</text>
+        <text x="652" y="140" text-anchor="middle" class="t-sm">as UTC</text>
+        <text x="806" y="140" text-anchor="middle" class="t-sm">as festival time</text>
+        <text x="730" y="246" text-anchor="middle" class="t-sm t-red">owner: nobody</text>
+        <text x="565" y="258" text-anchor="middle" class="t-sm t-green">✓ 17 tests</text>
+        <text x="885" y="258" text-anchor="middle" class="t-sm t-green">✓ 14 tests</text>
+        <text x="730" y="298" text-anchor="middle" class="t-sm t-mark">the bug lives in the</text>
+        <text x="730" y="317" text-anchor="middle" class="t-sm t-mark">gap between the lanes</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.5</b> Conway's law in one week. The plan split the work into two lanes with no channel between them; the only text both lanes shared was a comment on <code>main</code>. The code copied the plan: one module writes <code>starts_at</code>, another reads it, and the field between them has no owner. Both sides' tests were green.</figcaption>
+  </figure>
+
+  <p>With agents, this gets sharper. People who share a room overhear each other. Agents in separate worktrees share nothing except the repository and what you wrote for them, so the plan you write <em>is</em> the communication structure. Two consequences:</p>
+  <ul>
+    <li><strong>Split along the boundaries you want the system to have.</strong> Priya split by layer (storage, page), and one field ran through both layers while Ana's task changed its meaning. Deciding that meaning first, and naming its owner, would have put the agreement on paper before anyone coded.</li>
+    <li><strong>Wherever two lanes meet, put the meeting in writing</strong>: an owner, a contract, a test on each side. That is 1:00.</li>
+  </ul>
+  <p>Is Conway's law true? It is an observation, not a theorem. Conway recalls that the <em>Harvard Business Review</em> rejected his paper <q>on the grounds that I had not proved my thesis.</q> Later research found support for a version of it. In a 2012 study of matched pairs of products, MacCormack, Baldwin and Rusnak report that <q>the product developed by the loosely coupled organization is significantly more modular than the product from the tightly coupled organization</q>, in every pair they examined. That is strong evidence for a tendency in their sample of products. We know of no such measurement for teams of agents; you now have one small example of your own.</p>
+
+  <div class="callout try">
+    <span class="label">Try it (3 minutes, pairs)</span>
+    <p>Think of your team's product. Name two parts of the code that two different people, or agents, will change in the next two weeks. Where do those parts meet: a field, an endpoint, a rule? Who owns that meeting point? If the answer is "nobody", write one sentence that would fix its meaning.</p>
+  </div>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>The plan is the org chart.</strong> When you split work between agents, you are designing the system's interfaces, whether or not you mean to.</p>
+  </div>
+</section>
+
+<!-- ============ 4. DECOMPOSE ============ -->
+<section class="block" id="decompose">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:00</span>
+    <h2>Decompose by dependency</h2>
+  </div>
+  <p>Two tasks can safely run in parallel only if neither needs a decision the other one makes. Touching different code is not enough: Ana and Ben changed different files, and different lines of the one file they both edited (<code>app/main.py</code>), yet one decision, what <code>starts_at</code> means, ran through both. So before you split work between people or agents, draw what depends on what. Three rules of thumb:</p>
+  <ol>
+    <li><strong>Shared decisions first.</strong> Decide, and write down, anything two tasks both depend on before either starts. Then each task depends on the decision, not on the other task.</li>
+    <li><strong>The critical path sets the pace.</strong> The longest chain of tasks that must happen one after another is the earliest you can finish, however many hands you add. Brooks's nine months is a critical path of one step.</li>
+    <li><strong>Keep hot spots in one lane.</strong> Two tasks that change the same function or the same data are one task, or two tasks in a row.</li>
+  </ol>
+
+  <div class="callout try">
+    <span class="label">In pairs (8 minutes)</span>
+    <p>Next week's feature is QR tickets at the door. Here are the tasks, with made-up hours, and what each one needs finished first.</p>
+    <div class="tablewrap">
+      <table class="grid">
+        <thead><tr><th>Task</th><th>Hours</th><th>Needs first</th></tr></thead>
+        <tbody>
+          <tr><td>T1 Issue a ticket code for each booking</td><td>3</td><td>nothing</td></tr>
+          <tr><td>T2 Show the QR code on <em>My bookings</em></td><td>2</td><td>T1</td></tr>
+          <tr><td>T3 Check-in rule: once per ticket, only in the door window</td><td>3</td><td>T1</td></tr>
+          <tr><td>T4 Door scanner page</td><td>4</td><td>T3</td></tr>
+          <tr><td>T5 Live count of people inside, for organisers</td><td>2</td><td>T3</td></tr>
+          <tr><td>T6 End-to-end test: book, scan, counted</td><td>2</td><td>T2, T4, T5</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ol>
+      <li>Draw the dependency graph. Which chain is the critical path, and how long is it?</li>
+      <li>One person or agent needs 16 hours. How long with two? With four?</li>
+      <li>Add task <strong>C</strong>, 1 hour: agree a contract for what a ticket code holds and what the check-in API takes and returns, with examples. Now T1 to T5 can each build against the contract (the scanner calls a stub until T3 exists). Redraw. What is the critical path now? How long with two workers, and with four?</li>
+      <li>What did the contract <em>not</em> remove?</li>
+    </ol>
+  </div>
+
+  <details class="reveal">
+    <summary>Debrief: what can overlap (open after the pairs work)</summary>
+    <div class="inner">
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Two dependency graphs. Without a contract: T1 ticket code leads to T2 QR page and T3 check-in rule; T3 leads to T4 scanner and T5 live count; T2, T4 and T5 lead to T6 end-to-end test. The critical path T1, T3, T4, T6 is 12 hours of 16. With the contract first: C, one hour, leads to all of T1 to T5 in parallel, which all lead to T6. The critical path C, T4, T6 is 7 hours of 17.">
+            <defs>
+              <filter id="w10f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+              <marker id="w10f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+              <marker id="w10f6-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+            </defs>
+            <g filter="url(#w10f6-r)">
+              <rect x="20" y="88" width="150" height="44" rx="8" class="s s-red f-card"/>
+              <rect x="240" y="30" width="150" height="44" rx="8" class="s f-card"/>
+              <rect x="240" y="88" width="150" height="44" rx="8" class="s s-red f-card"/>
+              <rect x="460" y="88" width="150" height="44" rx="8" class="s s-red f-card"/>
+              <rect x="460" y="146" width="150" height="44" rx="8" class="s f-card"/>
+              <rect x="680" y="88" width="150" height="44" rx="8" class="s s-red f-card"/>
+              <path d="M170,110 H236" class="s s-red s-thick" marker-end="url(#w10f6-ar)"/>
+              <path d="M170,100 L236,56" class="s" marker-end="url(#w10f6-a)"/>
+              <path d="M390,110 H456" class="s s-red s-thick" marker-end="url(#w10f6-ar)"/>
+              <path d="M390,120 L456,164" class="s" marker-end="url(#w10f6-a)"/>
+              <path d="M610,110 H676" class="s s-red s-thick" marker-end="url(#w10f6-ar)"/>
+              <path d="M390,52 H630 L678,96" class="s" marker-end="url(#w10f6-a)"/>
+              <path d="M610,168 L678,124" class="s" marker-end="url(#w10f6-a)"/>
+              <path d="M20,206 H940" class="s s-thin s-dash s-2"/>
+              <rect x="20" y="288" width="130" height="44" rx="8" class="s s-red f-mark"/>
+              <rect x="260" y="226" width="150" height="28" rx="6" class="s f-card"/>
+              <rect x="260" y="261" width="150" height="28" rx="6" class="s f-card"/>
+              <rect x="260" y="296" width="150" height="28" rx="6" class="s s-red f-card"/>
+              <rect x="260" y="331" width="150" height="28" rx="6" class="s f-card"/>
+              <rect x="260" y="366" width="150" height="28" rx="6" class="s f-card"/>
+              <rect x="680" y="288" width="150" height="44" rx="8" class="s s-red f-card"/>
+              <path d="M150,300 L256,242 M150,305 L256,275 M150,315 L256,345 M150,320 L256,378" class="s s-thin"/>
+              <path d="M150,310 H256" class="s s-red s-thick" marker-end="url(#w10f6-ar)"/>
+              <path d="M410,240 L676,300 M410,275 L676,305 M410,345 L676,315 M410,380 L676,320" class="s s-thin"/>
+              <path d="M410,310 H676" class="s s-red s-thick" marker-end="url(#w10f6-ar)"/>
+            </g>
+            <text x="20" y="20" class="t-sm t-2">without a contract</text>
+            <text x="95" y="115" text-anchor="middle" class="t-sm">T1 ticket code · 3 h</text>
+            <text x="315" y="57" text-anchor="middle" class="t-sm">T2 QR page · 2 h</text>
+            <text x="315" y="115" text-anchor="middle" class="t-sm">T3 check-in rule · 3 h</text>
+            <text x="535" y="115" text-anchor="middle" class="t-sm">T4 scanner · 4 h</text>
+            <text x="535" y="173" text-anchor="middle" class="t-sm">T5 live count · 2 h</text>
+            <text x="755" y="115" text-anchor="middle" class="t-sm">T6 end-to-end · 2 h</text>
+            <text x="850" y="96" class="t-sm t-red">critical path</text>
+            <text x="850" y="122" class="t-lg t-red">12 h</text>
+            <text x="850" y="146" class="t-sm t-2">of 16 h work</text>
+            <text x="20" y="228" class="t-sm t-2">with the contract first</text>
+            <text x="85" y="315" text-anchor="middle" class="t-sm t-mark">C contract · 1 h</text>
+            <text x="335" y="245" text-anchor="middle" class="t-sm">T1 ticket code · 3 h</text>
+            <text x="335" y="280" text-anchor="middle" class="t-sm">T2 QR page · 2 h</text>
+            <text x="335" y="315" text-anchor="middle" class="t-sm">T4 scanner · 4 h</text>
+            <text x="335" y="350" text-anchor="middle" class="t-sm">T3 check-in rule · 3 h</text>
+            <text x="335" y="385" text-anchor="middle" class="t-sm">T5 live count · 2 h</text>
+            <text x="755" y="315" text-anchor="middle" class="t-sm">T6 end-to-end · 2 h</text>
+            <text x="850" y="296" class="t-sm t-red">critical path</text>
+            <text x="850" y="322" class="t-lg t-red">7 h</text>
+            <text x="850" y="346" class="t-sm t-2">of 17 h work</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 10.6</b> The same work, split two ways. Red boxes and thick red arrows are the critical path. Without a contract, each task waits for real code from the one before it, and the chain T1 → T3 → T4 → T6 is 12 hours long. With one hour spent on the contract first, five tasks can run side by side and the chain shrinks to 7 hours. Hours are made up.</figcaption>
+      </figure>
+
+      <figure class="sketch">
+        <div class="canvas">
+          <svg class="sk min" viewBox="0 0 900 360" role="img" aria-label="Line chart, to scale, of hours until done against the number of workers from 1 to 5. Without a contract: 16, 12, 12, 12, 12 hours; the line flattens at the 12-hour critical path from two workers on. With the contract first: 17, 10, 8, 7, 7 hours; it flattens at the 7-hour critical path from four workers on.">
+            <defs>
+              <filter id="w10f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="1.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+            </defs>
+            <g filter="url(#w10f7-r)">
+              <path d="M100,310 H840" class="s s-thin"/>
+              <path d="M100,310 V50" class="s s-thin"/>
+              <path d="M94,310 H100 M94,254 H100 M94,198 H100 M94,142 H100 M94,86 H100" class="s s-thin"/>
+              <path d="M120,316 V310 M295,316 V310 M470,316 V310 M645,316 V310 M820,316 V310" class="s s-thin"/>
+              <path d="M100,142 H840" class="s s-thin s-dash s-red"/>
+              <path d="M100,212 H840" class="s s-thin s-dash s-pen"/>
+              <path d="M120,86 L295,142 L470,142 L645,142 L820,142" class="s s-red s-thick"/>
+              <path d="M120,72 L295,170 L470,198 L645,212 L820,212" class="s s-pen s-thick"/>
+              <path d="M600,40 H630" class="s s-red s-thick"/>
+              <path d="M600,64 H630" class="s s-pen s-thick"/>
+            </g>
+            <circle cx="120" cy="86" r="5" class="f-redink"/><circle cx="295" cy="142" r="5" class="f-redink"/><circle cx="470" cy="142" r="5" class="f-redink"/><circle cx="645" cy="142" r="5" class="f-redink"/><circle cx="820" cy="142" r="5" class="f-redink"/>
+            <circle cx="120" cy="72" r="5" class="f-penink"/><circle cx="295" cy="170" r="5" class="f-penink"/><circle cx="470" cy="198" r="5" class="f-penink"/><circle cx="645" cy="212" r="5" class="f-penink"/><circle cx="820" cy="212" r="5" class="f-penink"/>
+            <text x="640" y="45" class="t-sm t-red">without a contract</text>
+            <text x="640" y="69" class="t-sm t-pen">with the contract first</text>
+            <text x="134" y="112" class="t-mono t-red">16</text>
+            <text x="138" y="66" class="t-mono t-pen">17</text>
+            <text x="295" y="132" text-anchor="middle" class="t-mono t-red">12</text>
+            <text x="295" y="192" text-anchor="middle" class="t-mono t-pen">10</text>
+            <text x="470" y="186" text-anchor="middle" class="t-mono t-pen">8</text>
+            <text x="645" y="234" text-anchor="middle" class="t-mono t-pen">7</text>
+            <text x="820" y="234" text-anchor="middle" class="t-mono t-pen">7</text>
+            <text x="836" y="134" text-anchor="end" class="t-sm t-red">critical path 12 h</text>
+            <text x="836" y="254" text-anchor="end" class="t-sm t-pen">critical path 7 h</text>
+            <text x="90" y="314" text-anchor="end" class="t-mono t-2">0</text>
+            <text x="90" y="258" text-anchor="end" class="t-mono t-2">4</text>
+            <text x="90" y="202" text-anchor="end" class="t-mono t-2">8</text>
+            <text x="90" y="146" text-anchor="end" class="t-mono t-2">12</text>
+            <text x="90" y="90" text-anchor="end" class="t-mono t-2">16</text>
+            <text x="120" y="334" text-anchor="middle" class="t-mono t-2">1</text>
+            <text x="295" y="334" text-anchor="middle" class="t-mono t-2">2</text>
+            <text x="470" y="334" text-anchor="middle" class="t-mono t-2">3</text>
+            <text x="645" y="334" text-anchor="middle" class="t-mono t-2">4</text>
+            <text x="820" y="334" text-anchor="middle" class="t-mono t-2">5</text>
+            <text x="470" y="354" text-anchor="middle" class="t-sm t-2">workers, people or agents (a model: all equally fast; talking and merging cost nothing)</text>
+            <text x="100" y="36" class="t-sm t-2">hours until done</text>
+          </svg>
+        </div>
+        <figcaption><b>Fig 10.7</b> Hours until done against the number of workers, drawn to scale from <code>tools/schedule.py</code> in the lab kit, which tries every schedule. Each line flattens at its critical path. It is a best case: the model charges nothing for talking or merging, which real teams pay for (reading R1).</figcaption>
+      </figure>
+
+      <ol>
+        <li>The critical path without a contract is T1 → T3 → T4 → T6: 3 + 3 + 4 + 2 = 12 hours.</li>
+        <li>16 hours with one worker, 12 with two, and still 12 with four. A second worker helps; a third and fourth only wait.</li>
+        <li>With C first, 17 hours of work, and the critical path is C → T4 → T6 = 7 hours. Two workers finish in 10 hours, three in 8, four in 7. The contract costs an hour and makes the graph <em>wide</em>, and a wide graph is what extra hands need.</li>
+        <li>It did not remove T6, the task that joins everything, or the risk that someone builds against the contract wrongly. The contract moves the integration risk into one known place and gives it tests. That is the next section.</li>
+      </ol>
+    </div>
+  </details>
+
+  <h3>Worktrees: one place to work per worker</h3>
+  <p>Once tasks are independent, each worker needs its own place to work. For agents on one machine, that place is a git <strong>worktree</strong>. Git's documentation: <q>A git repository can support multiple working trees, allowing you to check out more than one branch at a time.</q> Each worktree is a folder with its own branch and its own files, and all of them share one history. Coding-agent tools build on this; Claude Code's documentation, for example, describes running each session in its own worktree so that <q>edits in one session never touch files in another</q>.</p>
+<pre><code>git worktree add ../ah-utc feature/utc-storage        # a folder for Ana's agent
+git worktree add ../ah-display feature/local-display  # a folder for Ben's agent
+git worktree add -b integration ../ah-merge main      # where the two meet
+git worktree list</code></pre>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 380" role="img" aria-label="One repository history on the left, connected to four working folders: afterhours on main, ah-utc on feature/utc-storage for Ana's agent, ah-display on feature/local-display for Ben's agent, and ah-merge on integration, where the two branches are merged and the tests run on the merged result. Notes on the right: each folder has its own files, branch and database file; all share the history and the machine, so ports must be assigned; decisions are not separated at all.">
+        <defs>
+          <filter id="w10f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f8-r)">
+          <path d="M40,152 V246 A90,16 0 0 0 220,246 V152" class="s f-card"/>
+          <ellipse cx="130" cy="152" rx="90" ry="16" class="s f-card"/>
+          <path d="M222,190 C270,190 280,60 326,60 M222,198 C270,198 280,140 326,140 M222,206 C270,206 280,220 326,220 M222,214 C270,214 280,310 326,310" class="s s-thin s-2"/>
+          <path d="M330,30 H392 L402,40 H640 V90 H330 Z" class="s f-card"/>
+          <path d="M330,110 H392 L402,120 H640 V170 H330 Z" class="s f-pen"/>
+          <path d="M330,190 H392 L402,200 H640 V250 H330 Z" class="s f-pen"/>
+          <path d="M330,280 H392 L402,290 H640 V340 H330 Z" class="s s-thick f-mark"/>
+          <path d="M642,142 C700,142 704,300 646,306" class="s" marker-end="url(#w10f8-a)"/>
+          <path d="M642,224 C680,224 684,296 646,312" class="s" marker-end="url(#w10f8-a)"/>
+        </g>
+        <text x="130" y="200" text-anchor="middle">one history</text>
+        <text x="130" y="222" text-anchor="middle" class="t-sm t-2">commits, branches</text>
+        <text x="130" y="286" text-anchor="middle" class="t-mono t-2">afterhours/.git</text>
+        <text x="345" y="64" class="t-mono">afterhours/</text>
+        <text x="470" y="64" class="t-sm t-2">main</text>
+        <text x="345" y="144" class="t-mono">ah-utc/</text>
+        <text x="425" y="144" class="t-sm t-2">feature/utc-storage</text>
+        <text x="345" y="162" class="t-sm">Ana's agent</text>
+        <text x="345" y="224" class="t-mono">ah-display/</text>
+        <text x="455" y="224" class="t-sm t-2">feature/local-display</text>
+        <text x="345" y="242" class="t-sm">Ben's agent</text>
+        <text x="345" y="314" class="t-mono t-mark">ah-merge/</text>
+        <text x="440" y="314" class="t-sm t-mark">integration</text>
+        <text x="345" y="332" class="t-sm t-mark">tests run on the merged result</text>
+        <text x="708" y="232" class="t-sm">git merge</text>
+        <text x="760" y="62" class="t-sm t-green">separate per folder:</text>
+        <text x="760" y="84" class="t-sm">files, branch,</text>
+        <text x="760" y="104" class="t-sm">afterhours.db</text>
+        <text x="760" y="146" class="t-sm t-pen">shared by all:</text>
+        <text x="760" y="168" class="t-sm">the history, the machine</text>
+        <text x="760" y="188" class="t-sm">(ports: you assign them)</text>
+        <text x="760" y="286" class="t-sm t-red">not separated at all:</text>
+        <text x="760" y="308" class="t-sm t-red">decisions</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.8</b> Worktrees: one repository, several working folders. Each agent works in its own folder, on its own branch, with its own database file, so their edits to the working files never collide. Ports are shared by the whole machine, so you give each folder its own. All the folders share one history, and the branches meet in one place, where the tests run on the merged result. Worktrees separate files. They do not separate decisions.</figcaption>
+  </figure>
+
+  <p>What worktrees isolate, and what they don't:</p>
+  <ul>
+    <li><strong>Separate:</strong> the files, the checked-out branch, and untracked files such as each folder's <code>afterhours.db</code>. Git refuses to check out one branch in two worktrees at once.</li>
+    <li><strong>Shared:</strong> the history (a commit made in one folder is visible from all of them) and the machine: ports, CPU, anything outside the folder. That is why parallel agents on one machine each need their own scratch folder and their own range of ports.</li>
+    <li><strong>Not separated at all:</strong> decisions. Worktrees kept Ana's and Ben's working files apart while they worked; they do not prevent conflicts when the branches merge. This merge was clean only because the two changes happened not to touch the same lines, and nothing in git, or in the worktrees, knew that both depended on what <code>starts_at</code> means.</li>
+  </ul>
+</section>
+
+<!-- ============ 5. CONTRACTS ============ -->
+<section class="block" id="contracts">
+  <div class="sechead">
+    <span class="clock">1:00 – 1:15</span>
+    <h2>Contracts first</h2>
+  </div>
+  <p>An <strong>integration contract</strong> is a short, owned document that fixes what a shared thing means, with examples that the tests on both sides use. The shared thing can be a database field, an API response, a file format, or a rule. For AfterHours's start times it needs five parts:</p>
+  <ul>
+    <li><strong>Representation.</strong> Field name, type, format, unit, time zone. Here: a UTC instant, written <code>2026-10-09T18:00:00Z</code>.</li>
+    <li><strong>One place converts.</strong> One module, or one shared type, does every conversion. Nobody else converts, so nobody else can convert differently.</li>
+    <li><strong>Examples.</strong> A few rows of input and expected output, including an awkward one: here, an event after midnight, whose UTC date is the day before.</li>
+    <li><strong>Strict readers.</strong> A stored or served value that breaks the rule raises an error. Nothing guesses which zone was meant. (Input is different: the organiser's offset-free <code>20:00</code> is accepted at exactly one boundary, where it is defined to mean festival time.) Had Ben's reader refused any value that didn't look the way he expected, the merged build would have failed loudly, in his own tests, instead of printing the wrong hour quietly.</li>
+    <li><strong>An owner and a way to change it.</strong> One named person. Changes go through a pull request that both sides review, and code that breaks the examples does not merge.</li>
+  </ul>
+
+  <div class="callout try">
+    <span class="label">Together (5 minutes)</span>
+    <p>Write the start-time contract on the board. Keep both teammates' goals: storage in UTC (Ana's) and festival time on the page (Ben's). Five rules, and three example rows with <em>typed by the organiser</em>, <em>stored and served</em>, and <em>shown</em>. One example must start after midnight.</p>
+  </div>
+  <details class="reveal">
+    <summary>A reference contract (open after the class version)</summary>
+    <div class="inner">
+      <div class="contract">
+        <span class="cardtitle">Contract · event start times · v1 · owner: Priya</span>
+        <dl>
+          <dt>Stored</dt><dd><code>starts_at</code> in the database and the API is a UTC instant: <code>YYYY-MM-DDTHH:MM:SSZ</code>.</dd>
+          <dt>Typed</dt><dd><code>POST /api/events</code> takes festival time with no offset, as on the poster. Text with an offset is converted from it.</dd>
+          <dt>Shown</dt><dd>Festival time (UTC+2 for 9 to 11 October 2026), 24-hour clock: <code>Fri 9 Oct · 20:00</code>.</dd>
+          <dt>Converts</dt><dd>Only <code>app/festival.py</code>. Nothing reads the computer's time zone; "now" comes only from <code>clock.now()</code>.</dd>
+          <dt>Strict</dt><dd>A <em>stored or served</em> start time with no offset raises an error. Offset-free text is accepted only at the input boundary, <code>festival.to_utc()</code>, where it means festival time.</dd>
+          <dt>Changes</dt><dd>By pull request, reviewed by Ana and Ben.</dd>
+        </dl>
+      </div>
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>Typed by the organiser</th><th>Stored and served</th><th>Night</th><th>Shown</th></tr></thead>
+          <tbody>
+            <tr><td><code>2026-10-09T20:00</code></td><td><code>2026-10-09T18:00:00Z</code></td><td>Fri 9 Oct</td><td>Fri 9 Oct · 20:00</td></tr>
+            <tr><td><code>2026-10-10T01:00</code></td><td><code>2026-10-09T23:00:00Z</code></td><td>Sat 10 Oct</td><td>Sat 10 Oct · 01:00</td></tr>
+            <tr><td><code>2026-10-11T00:00</code></td><td><code>2026-10-10T22:00:00Z</code></td><td>Sun 11 Oct</td><td>Sun 11 Oct · 00:00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The full version, with its checks and what it leaves out, is <code>docs/contracts/start-times.md</code> in the lab's solution. The 01:00 row is the one that catches the most: in UTC it falls on Friday, so any code that reads the stored date without converting puts the event on the wrong night.</p>
+    </div>
+  </details>
+
+  <h3>Test both sides against the same rows</h3>
+  <p>A contract that nothing checks decays into a comment, like the one in <code>schema.sql</code>. So each side of the boundary gets a <strong>contract test</strong> that reads the contract's examples:</p>
+  <ul>
+    <li><strong>Producer test</strong> (Ana's side): for each row, <code>POST</code> the typed time; the API must store and serve exactly the row's UTC text.</li>
+    <li><strong>Consumer test</strong> (Ben's side): for each row, feed the programme the row's served text; it must show exactly the row's label. Not strings typed from memory: the contract's rows.</li>
+  </ul>
+  <p>The difference from Ben's original tests is where the test data comes from. His tests fed his code what <em>he</em> believed <code>starts_at</code> looked like. A consumer test feeds it what the contract says, and the producer test checks that the producer really emits that. If either side drifts, one of them fails.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="The contract card in the middle holds the example rows. The same rows feed the producer test on Ana's side, typed time to stored and served UTC, which passes, and the consumer test on Ben's side, served UTC to the programme label, which fails on the merged build before the repair and passes after it. Below, CI on the merged result runs the producer tests, the consumer tests and the integration test from typed to shown.">
+        <defs>
+          <filter id="w10f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f9-r)">
+          <rect x="330" y="24" width="300" height="190" rx="4" class="s f-card"/>
+          <path d="M330,62 H630" class="s s-thin s-red"/>
+          <path d="M346,104 H614 M346,136 H614 M346,168 H614" class="s s-thin s-2"/>
+          <rect x="24" y="64" width="250" height="120" rx="10" class="s f-card"/>
+          <rect x="686" y="64" width="250" height="120" rx="10" class="s f-card"/>
+          <path d="M328,120 H278" class="s" marker-end="url(#w10f9-a)"/>
+          <path d="M632,120 H682" class="s" marker-end="url(#w10f9-a)"/>
+          <rect x="150" y="270" width="660" height="100" rx="10" class="s s-thick f-mark"/>
+          <path d="M149,186 V266" class="s" marker-end="url(#w10f9-a)"/>
+          <path d="M811,186 V266" class="s" marker-end="url(#w10f9-a)"/>
+          <path d="M480,216 V266" class="s s-dash" marker-end="url(#w10f9-a)"/>
+        </g>
+        <text x="480" y="50" text-anchor="middle" class="t-sm t-red">contract: start times v1 · owner Priya</text>
+        <text x="350" y="88" class="t-sm t-2">typed</text>
+        <text x="440" y="88" class="t-sm t-2">stored (UTC)</text>
+        <text x="614" y="88" text-anchor="end" class="t-sm t-2">shown</text>
+        <text x="350" y="124" class="t-mono">Fri 20:00</text>
+        <text x="440" y="124" class="t-mono">Fri 18:00Z</text>
+        <text x="614" y="124" text-anchor="end" class="t-mono">Fri 20:00</text>
+        <text x="350" y="156" class="t-mono">Sat 01:00</text>
+        <text x="440" y="156" class="t-mono t-red">Fri 23:00Z</text>
+        <text x="614" y="156" text-anchor="end" class="t-mono">Sat 01:00</text>
+        <text x="350" y="188" class="t-mono">Sun 00:00</text>
+        <text x="440" y="188" class="t-mono t-red">Sat 22:00Z</text>
+        <text x="614" y="188" text-anchor="end" class="t-mono">Sun 00:00</text>
+        <text x="149" y="92" text-anchor="middle">Ana's side: producer</text>
+        <text x="149" y="116" text-anchor="middle" class="t-sm t-2">typed → stored, served</text>
+        <text x="149" y="148" text-anchor="middle" class="t-sm t-green">producer tests ✓</text>
+        <text x="149" y="168" text-anchor="middle" class="t-sm t-2">(on the merge, too)</text>
+        <text x="811" y="92" text-anchor="middle">Ben's side: consumer</text>
+        <text x="811" y="116" text-anchor="middle" class="t-sm t-2">served → shown</text>
+        <text x="811" y="148" text-anchor="middle" class="t-sm t-red">before the repair ✗</text>
+        <text x="811" y="168" text-anchor="middle" class="t-sm t-green">after the repair ✓</text>
+        <text x="303" y="110" text-anchor="middle" class="t-sm t-2">same</text>
+        <text x="657" y="110" text-anchor="middle" class="t-sm t-2">rows</text>
+        <text x="480" y="300" text-anchor="middle" class="t-mark">CI on the merged result, up to date with main</text>
+        <text x="480" y="326" text-anchor="middle" class="t-sm t-mark">producer tests · consumer tests</text>
+        <text x="480" y="348" text-anchor="middle" class="t-sm t-mark">integration test: typed → shown</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.9</b> Contract tests on both sides of one boundary, drawn from the lab's reference solution. The same example rows feed a producer test on Ana's side and a consumer test on Ben's side. On the merged build before the repair, the producer tests pass and the consumer tests fail, which says <em>which</em> side broke the contract. The integration test, typed to shown, still runs too: it catches what the contract forgot.</figcaption>
+  </figure>
+
+  <p>That is something the integration test alone could not tell you. The integration test says "the system is wrong"; the contract tests say "Ben's side reads the field wrongly". The repair is then small, and it follows the contract: a <code>to_festival</code> function in <code>app/festival.py</code>, the one place that converts, which reads the text strictly as UTC and converts it with <code>astimezone</code>; and one line in <code>app/programme.py</code> that calls it. Run the whole suite after that change, and three of Ben's own tests fail. They were written against his old belief about the format, so they get updated to use the contract's rows, keeping their boundary check. Then everything passes.</p>
+
+  <h3>CI on the merged result</h3>
+  <p>Contract tests catch a side that drifts from the contract. The integration test catches what the contract forgot. Both only help if they run where the changes meet. On GitHub, a workflow triggered by a pull request checks out, by default, a test merge of the branch into its base. GitHub's documentation puts it plainly: <q>Your CI tests run against the merged result, not just the head branch alone</q>. (A workflow can be written to check out the branch itself instead, so look at what yours does.) And that merge is made with <code>main</code> as it was when the checks ran. Ben's checks ran before Ana's branch landed, so they tested a <code>main</code> without UTC storage, and they stayed green after <code>main</code> changed.</p>
+  <p>Two repository settings close that gap. <em>Require branches to be up to date before merging</em> makes a branch re-test on the latest <code>main</code> before it may merge. A <em>merge queue</em> does the same for you, one change after another (reading R3). Neither helps if no test crosses the boundary: re-run on top of Ana's change, all 21 existing tests still pass. The queue guarantees that the tests run on the merged result. You still have to write the test that fails there.</p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A contract turns a silent semantic conflict into a failing test, on the side that broke it.</strong> CI has to run that test on the merged result, against the latest <code>main</code>.</p>
+  </div>
+
+  <p>Here is the repair as an evidence packet (you build it yourself in the lab):</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <tbody>
+        <tr><th>Requirement</th><td>What the organiser types is what the programme shows, and the page and the server agree on when an event starts.</td></tr>
+        <tr><th>Decision</th><td>Start times are UTC instants in storage and the API; festival time only where people read it; one conversion module; strict readers. Rejected: going back to festival time in storage, which would undo Ana's work and leave hand-made conversions in the closing rule.</td></tr>
+        <tr><th>Change</th><td><code>docs/contracts/start-times.md</code>; <code>to_festival</code> in <code>app/festival.py</code> and one line in <code>app/programme.py</code> that calls it; Ben's tests use the contract's format; contract tests and the integration test added.</td></tr>
+        <tr><th>Check</th><td>On the merge before the repair: integration test 2 failed; contract tests 4 passed (producer), 4 failed (consumer). After: <code>pytest</code> 31 passed. <code>show_programme.py</code>: escape room at 20:00, <em>upcoming</em>.</td></tr>
+        <tr><th>Result</th><td>Merge once CI has run on the latest <code>main</code>. Open: the contract covers only 9 to 11 October 2026 (a fixed UTC+2 offset).</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 6. ORCHESTRATE ============ -->
+<section class="block" id="orchestrate">
+  <div class="sechead">
+    <span class="clock">1:15 – 1:25</span>
+    <h2>Orchestration patterns</h2>
+  </div>
+  <p>Coding-agent tools now let one person run several agents at once. Three roles cover most setups, and each can be filled by a person or by an agent.</p>
+  <ul>
+    <li><strong>Planner and workers.</strong> A planner splits the work, writes one task card per worker, and brings the results together. Anthropic's guide <em>Building effective agents</em> (December 2024) calls this pattern orchestrator-workers: <q>a central LLM dynamically breaks down tasks, delegates them to worker LLMs, and synthesizes their results.</q> In a repository, each worker gets its own worktree and branch, and the results meet on one integration branch.</li>
+    <li><strong>Reviewer.</strong> A second agent, with a fresh context, reviews each change against its task card and the contract before a person does. Because it starts without the author's conversation, it is less likely to share the author's assumptions, so it tends to catch different mistakes. Its review is a signal, not a verdict (Week 7). The same guide describes a related loop, evaluator-optimizer, in which <q>one LLM call generates a response while another provides evaluation and feedback in a loop.</q></li>
+    <li><strong>A person at the integration point.</strong> Whoever merges owns the result. The course rule applies: every consequential decision needs an accountable human.</li>
+  </ul>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Orchestration: a person sets the goal; a planner splits the work by dependency and writes the contract and task cards; three workers each work in their own worktree; their branches meet on an integration branch where CI runs the contract and integration tests; a reviewer agent with a fresh context reads the merged diff, the cards and the contract, and sends findings back to the planner; a named person decides the merge to main.">
+        <defs>
+          <filter id="w10f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w10f10-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w10f10-r)">
+          <rect x="20" y="170" width="120" height="64" rx="10" class="s f-card"/>
+          <path d="M142,202 H176" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="180" y="140" width="170" height="124" rx="10" class="s f-card"/>
+          <path d="M352,176 L396,86 M352,202 H396 M352,228 L396,318" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="400" y="54" width="170" height="64" rx="10" class="s f-pen"/>
+          <rect x="400" y="170" width="170" height="64" rx="10" class="s f-pen"/>
+          <rect x="400" y="286" width="170" height="64" rx="10" class="s f-pen"/>
+          <path d="M572,86 L618,176 M572,202 H618 M572,318 L618,228" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="622" y="150" width="150" height="104" rx="10" class="s s-thick f-mark"/>
+          <path d="M697,148 V112" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="622" y="30" width="150" height="80" rx="10" class="s f-card"/>
+          <path d="M620,62 C480,20 300,40 270,136" class="s s-pen s-dash" marker-end="url(#w10f10-p)"/>
+          <path d="M774,202 H812" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="816" y="160" width="130" height="84" rx="10" class="s s-thick f-card"/>
+          <path d="M881,246 V300" class="s" marker-end="url(#w10f10-a)"/>
+          <rect x="816" y="304" width="130" height="44" rx="10" class="s f-green"/>
+        </g>
+        <text x="80" y="198" text-anchor="middle">a person</text>
+        <text x="80" y="218" text-anchor="middle" class="t-sm t-2">sets the goal</text>
+        <text x="265" y="172" text-anchor="middle">planner</text>
+        <text x="265" y="196" text-anchor="middle" class="t-sm t-2">splits by dependency,</text>
+        <text x="265" y="216" text-anchor="middle" class="t-sm t-2">writes the contract</text>
+        <text x="265" y="236" text-anchor="middle" class="t-sm t-2">and the task cards</text>
+        <text x="485" y="82" text-anchor="middle">worker 1</text>
+        <text x="485" y="102" text-anchor="middle" class="t-sm t-2">own worktree</text>
+        <text x="485" y="198" text-anchor="middle">worker 2</text>
+        <text x="485" y="218" text-anchor="middle" class="t-sm t-2">own worktree</text>
+        <text x="485" y="314" text-anchor="middle">worker 3</text>
+        <text x="485" y="334" text-anchor="middle" class="t-sm t-2">own worktree</text>
+        <text x="697" y="180" text-anchor="middle" class="t-mark">integration</text>
+        <text x="697" y="204" text-anchor="middle" class="t-sm t-mark">CI: contract and</text>
+        <text x="697" y="224" text-anchor="middle" class="t-sm t-mark">integration tests</text>
+        <text x="697" y="58" text-anchor="middle">reviewer</text>
+        <text x="697" y="78" text-anchor="middle" class="t-sm t-2">fresh context:</text>
+        <text x="697" y="98" text-anchor="middle" class="t-sm t-2">diff, cards, contract</text>
+        <text x="420" y="30" text-anchor="middle" class="t-sm t-pen">findings go back to the planner</text>
+        <text x="881" y="190" text-anchor="middle">a named</text>
+        <text x="881" y="212" text-anchor="middle">person</text>
+        <text x="881" y="232" text-anchor="middle" class="t-sm t-2">decides</text>
+        <text x="881" y="332" text-anchor="middle" class="t-sm t-green">merge to main</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.10</b> Planner, workers, reviewer, and a person at the integration point. Each box can be a person or an agent, except the last one. The contract and the integration tests live at the meeting point, where CI runs on the merged result; the reviewer reads the change with a fresh context; and a named person decides what reaches <code>main</code>.</figcaption>
+  </figure>
+
+  <h3>When not to parallelise</h3>
+  <p>Parallel agents multiply output, and they multiply the places where work must meet. Keep the work in one lane when:</p>
+  <ul>
+    <li><strong>A shared decision is still open.</strong> Decide it first, or keep the work together. Walden Yan of Cognition, writing about agent systems in June 2025, put it as a principle: <q>Actions carry implicit decisions, and conflicting decisions carry bad results.</q> Ben's one line of code was an implicit decision about <code>starts_at</code>.</li>
+    <li><strong>The design is not settled.</strong> Explore with one agent, or one person, and split once the boundaries are clear.</li>
+    <li><strong>The pieces touch the same hot spot.</strong> Two agents in one function will conflict in the text, or worse, in the meaning.</li>
+    <li><strong>The task is small.</strong> Two task cards and a contract can cost more than doing the work.</li>
+    <li><strong>Review is already the bottleneck.</strong> Four agents make four diffs, and someone has to read them.</li>
+  </ul>
+  <p>Anthropic's post about its research system makes the same point from its own experience: some domains <q>that require all agents to share the same context or involve many dependencies between agents are not a good fit for multi-agent systems today</q>, and <q>most coding tasks involve fewer truly parallelizable tasks than research</q>.</p>
+
+  <div class="callout">
+    <span class="label">What holds parallel work together</span>
+    <p>Before you start parallel workers, people or agents, write these down:</p>
+    <ul>
+      <li><strong>A plan with one entry per piece</strong>, fixing each piece's goal, interface and checks, plus a <em>shared decisions</em> section that binds everyone: the starting code, the pinned packages, and rules such as <q>time-dependent code takes the current time from an injectable clock</q>. This week's kit follows that rule.</li>
+      <li><strong>Ownership and frozen shared pieces.</strong> Each worker edits only its own files. Shared files, such as a home page or a stylesheet, have one owner who integrates changes. Workers copy finished shared pieces; they never import another worker's unfinished files.</li>
+      <li><strong>Dependencies ordered on purpose.</strong> A piece that reuses another piece's work starts after that work is finished.</li>
+      <li><strong>Isolation beyond files.</strong> Each worker gets its own scratch folder and its own range of network ports.</li>
+      <li><strong>An independent reviewer.</strong> When a piece is finished, someone who did not build it reviews it, and every finding is logged with a decision.</li>
+    </ul>
+    <p>A plan cannot prevent every disagreement between pieces. It narrows where they can happen and says who fixes them.</p>
+  </div>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>Plan the meeting points before you start the workers.</strong> Split by dependency, write the contract, give each worker its own worktree, test on the merged result, and keep a named person at the merge.</p>
+  </div>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Next week two agents work in parallel: one adds how long each event lasts, the other shows "ends at 22:30" on the programme. Write the contract rule for the shared field (name, type, unit, who converts) and one example row both sides would test.</li>
+        <li>Your team of four each runs two agents: twelve contributors. How many possible pairwise channels is that? Why is that number not the cost? Name one way to need fewer.</li>
+        <li>Name one task from your team's next two weeks that you would <em>not</em> give to parallel agents, and why.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 11</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 30 minutes</p>
+  <h2>The long view of many hands</h2>
+  <p>The lecture stayed with one merge. These four readings give the background: what Brooks actually argued, why git cannot see this kind of conflict, how teams keep <code>main</code> green, and whether Ana was right to store UTC at all.</p>
+</div>
+
+<section class="block" id="mmm">
+  <div class="sechead"><span class="clock">R1</span><h2>The Mythical Man-Month in context</h2></div>
+  <p>Brooks wrote from experience. <q>When in 1964 I became manager of Operating System/360</q>, he recalls in the preface, he took over a project that at its peak had over 1000 people working on it. The book's second chapter asks why adding people so often fails to shorten a schedule, and it sorts tasks into four kinds by how time to finish changes as workers are added. His figures show the shapes; here they are as sketches.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 300" role="img" aria-label="Four sketches of months to finish against number of workers, after Brooks's figures 2.1 to 2.4. Perfectly partitionable, like reaping wheat: time falls steadily as workers are added. Unpartitionable, like bearing a child: time stays flat. Partitionable with communication: time falls, then flattens. Complex interrelationships, like software: time falls, then rises again as more workers are added. A model, not data.">
+        <defs>
+          <filter id="w10f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f11-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f11-r)">
+          <path d="M50,236 V48 M50,236 H242" class="s s-thin" marker-end="url(#w10f11-a)"/>
+          <path d="M290,236 V48 M290,236 H482" class="s s-thin" marker-end="url(#w10f11-a)"/>
+          <path d="M530,236 V48 M530,236 H722" class="s s-thin" marker-end="url(#w10f11-a)"/>
+          <path d="M770,236 V48 M770,236 H952" class="s s-thin" marker-end="url(#w10f11-a)"/>
+          <path d="M60.0,65.0 L64.2,95.3 L68.5,116.2 L72.8,131.5 L77.0,143.2 L81.2,152.4 L85.5,159.8 L89.8,165.9 L94.0,171.1 L98.2,175.5 L102.5,179.2 L106.8,182.5 L111.0,185.4 L115.2,188.0 L119.5,190.2 L123.8,192.3 L128.0,194.1 L132.2,195.8 L136.5,197.3 L140.8,198.7 L145.0,200.0 L149.2,201.2 L153.5,202.3 L157.8,203.3 L162.0,204.2 L166.2,205.1 L170.5,205.9 L174.8,206.7 L179.0,207.4 L183.2,208.1 L187.5,208.7 L191.8,209.3 L196.0,209.9 L200.3,210.4 L204.5,210.9 L208.8,211.4 L213.0,211.9 L217.2,212.3 L221.5,212.7 L225.8,213.1 L230.0,213.5" class="s s-thick s-green"/>
+          <path d="M300,147.5 H470" class="s s-thick s-pen"/>
+          <path d="M540.0,65.0 L544.2,94.9 L548.5,115.3 L552.8,130.2 L557.0,141.4 L561.2,150.1 L565.5,157.1 L569.8,162.8 L574.0,167.5 L578.2,171.4 L582.5,174.8 L586.8,177.6 L591.0,180.1 L595.2,182.2 L599.5,184.0 L603.8,185.6 L608.0,187.0 L612.2,188.2 L616.5,189.3 L620.8,190.3 L625.0,191.1 L629.2,191.8 L633.5,192.5 L637.8,193.0 L642.0,193.5 L646.2,194.0 L650.5,194.3 L654.8,194.6 L659.0,194.9 L663.2,195.2 L667.5,195.3 L671.8,195.5 L676.0,195.6 L680.2,195.7 L684.5,195.8 L688.8,195.8 L693.0,195.8 L697.2,195.8 L701.5,195.8 L705.8,195.7 L710.0,195.7" class="s s-thick s-pen"/>
+          <path d="M780.0,65.0 L784.2,93.1 L788.5,111.8 L792.8,124.8 L797.0,134.2 L801.2,141.2 L805.5,146.4 L809.8,150.3 L814.0,153.3 L818.2,155.4 L822.5,157.0 L826.8,158.0 L831.0,158.7 L835.2,159.0 L839.5,159.1 L843.8,158.9 L848.0,158.5 L852.2,157.9 L856.5,157.2 L860.8,156.4 L865.0,155.4 L869.2,154.4 L873.5,153.3 L877.8,152.0 L882.0,150.8 L886.2,149.4 L890.5,148.0 L894.8,146.5 L899.0,145.0 L903.2,143.5 L907.5,141.9 L911.8,140.3 L916.0,138.6 L920.2,136.9 L924.5,135.2 L928.8,133.4 L933.0,131.7 L937.2,129.9 L941.5,128.1" class="s s-thick s-red"/>
+        </g>
+        <text x="56" y="44" class="t-sm t-2">months</text>
+        <text x="236" y="256" text-anchor="end" class="t-sm t-2">workers</text>
+        <text x="140" y="276" text-anchor="middle" class="t-sm">perfectly partitionable</text>
+        <text x="140" y="294" text-anchor="middle" class="t-sm t-2">reaping wheat</text>
+        <text x="380" y="276" text-anchor="middle" class="t-sm">unpartitionable</text>
+        <text x="380" y="294" text-anchor="middle" class="t-sm t-2">bearing a child</text>
+        <text x="620" y="276" text-anchor="middle" class="t-sm">partitionable, with</text>
+        <text x="620" y="294" text-anchor="middle" class="t-sm">communication</text>
+        <text x="860" y="276" text-anchor="middle" class="t-sm">complex interrelationships</text>
+        <text x="860" y="294" text-anchor="middle" class="t-sm t-red">software, says Brooks</text>
+        <text x="950" y="44" text-anchor="end" class="t-sm t-2">a model, not data</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.11</b> Brooks's four kinds of task, sketched after his Figs 2.1 to 2.4: months to finish against the number of workers. The curves are drawn from simple formulas to show the shapes; they are not data. Only the first kind trades people for months evenly. For the last kind, which Brooks said software is, communication can make more workers slower.</figcaption>
+  </figure>
+
+  <p>For the last kind he is blunt: <q>Since software construction is inherently a systems effort—an exercise in complex interrelationships—communication effort is great, and it quickly dominates the decrease in individual task time brought about by partitioning. Adding more men then lengthens, not shortens, the schedule.</q> The chapter's worked example, which he calls the regenerative schedule disaster, adds two people to a late three-person task: they need training by the experienced people, the work must be repartitioned, and system testing grows.</p>
+  <p>Brooks came back to the law twenty years later, in the 1995 anniversary edition. He cites a 1991 book by Abdel-Hamid and Madnick, <em>Software Project Dynamics</em>, and quotes its conclusion: <q>Adding more people to a late project always makes it more costly, but it does not always cause it to be completed later.</q> Adding people early is safer than adding them late. His own verdict: <q>I stand by the bald statement as the best zeroth-order approximation to the truth, a rule of thumb to warn managers against blindly making the instinctive fix to a late project.</q></p>
+  <p>What changes when the extra hands are agents? Some costs move. An agent needs no months of training, but it starts every session knowing only what it is given, and someone has to write that down. Some costs stay: the work still has to be partitioned, the pieces still have to fit, and every piece still has to be checked by someone accountable. Whether adding an agent to a late task makes it later is an empirical question about <em>your</em> work, not something Brooks or anyone else has settled for you. Week 11 is about measuring exactly that kind of effort.</p>
+</section>
+
+<section class="block" id="semantic">
+  <div class="sechead"><span class="clock">R2</span><h2>Semantic conflicts</h2></div>
+  <p>Git merges text. When two branches change different lines, git combines them and reports success. It has no idea what the lines mean. Martin Fowler named the gap in 2011: <q>By a semantic conflict I mean a situation where Jez and I make changes which can be safely merged on a textual level but cause the program to behave differently</q>. In his longer 2020 guide to branching he adds that a developer must re-test after merging <q>even if it's a clean merge, because even a clean merge can hide semantic conflicts.</q></p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 360" role="img" aria-label="Top, what git compares: Ana's changes and Ben's changes fall on different lines of different files, and in main.py on separate lines, so git reports a clean merge. Bottom, what the program means: Ana's writer stores a UTC instant in starts_at and Ben's reader reads that field as festival time; the meaning changed on one side only, and git cannot see it.">
+        <defs>
+          <filter id="w10f12-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f12-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f12-r)">
+          <rect x="200" y="30" width="110" height="130" rx="4" class="s f-card"/>
+          <rect x="330" y="30" width="110" height="130" rx="4" class="s f-card"/>
+          <rect x="460" y="30" width="110" height="130" rx="4" class="s f-card"/>
+          <rect x="590" y="30" width="110" height="130" rx="4" class="s f-card"/>
+          <rect x="208" y="70" width="94" height="44" class="f-pen"/>
+          <rect x="338" y="56" width="94" height="14" class="f-pen"/>
+          <rect x="338" y="96" width="94" height="40" class="f-pen"/>
+          <rect x="468" y="46" width="94" height="8" class="f-mark"/>
+          <rect x="468" y="66" width="94" height="8" class="f-pen"/>
+          <rect x="468" y="92" width="94" height="22" class="f-mark"/>
+          <rect x="468" y="126" width="94" height="20" class="f-pen"/>
+          <rect x="598" y="40" width="94" height="110" class="f-mark"/>
+          <rect x="720" y="58" width="16" height="14" class="s s-thin f-pen"/>
+          <rect x="720" y="82" width="16" height="14" class="s s-thin f-mark"/>
+          <path d="M20,196 H940" class="s s-thin s-dash s-2"/>
+          <rect x="200" y="240" width="170" height="64" rx="10" class="s f-pen"/>
+          <path d="M372,272 H436" class="s" marker-end="url(#w10f12-a)"/>
+          <rect x="440" y="244" width="140" height="56" rx="6" class="s s-red s-thick f-red"/>
+          <path d="M582,272 H646" class="s" marker-end="url(#w10f12-a)"/>
+          <rect x="650" y="240" width="170" height="64" rx="10" class="s f-mark"/>
+        </g>
+        <text x="20" y="60" class="t-lg">What git</text>
+        <text x="20" y="84" class="t-lg">compares</text>
+        <text x="20" y="108" class="t-sm t-2">lines of text</text>
+        <text x="255" y="178" text-anchor="middle" class="t-mono">festival.py</text>
+        <text x="385" y="178" text-anchor="middle" class="t-mono">db.py</text>
+        <text x="515" y="178" text-anchor="middle" class="t-mono">main.py</text>
+        <text x="645" y="178" text-anchor="middle" class="t-mono">programme.py</text>
+        <text x="744" y="70" class="t-sm">Ana's changes</text>
+        <text x="744" y="94" class="t-sm">Ben's changes</text>
+        <text x="720" y="130" class="t-sm t-green">no line changed by both:</text>
+        <text x="720" y="150" class="t-sm t-green">clean merge ✓</text>
+        <text x="20" y="252" class="t-lg">What the</text>
+        <text x="20" y="276" class="t-lg">program</text>
+        <text x="20" y="300" class="t-lg">means</text>
+        <text x="285" y="268" text-anchor="middle">Ana's writer</text>
+        <text x="285" y="290" text-anchor="middle" class="t-sm t-2">stores UTC</text>
+        <text x="510" y="278" text-anchor="middle" class="t-mono t-red">starts_at</text>
+        <text x="735" y="268" text-anchor="middle">Ben's reader</text>
+        <text x="735" y="290" text-anchor="middle" class="t-sm t-2">reads festival time</text>
+        <text x="510" y="232" text-anchor="middle" class="t-sm t-red">meaning changed on one side only</text>
+        <text x="510" y="330" text-anchor="middle" class="t-sm t-red">git cannot see this ✗</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.12</b> Two views of the same merge. Top: the files the two branches changed, with each branch's changed lines shaded (positions sketched, not exact); no line was changed by both, so git merges cleanly. Bottom: the program's view, where one field's meaning changed on one side only.</figcaption>
+  </figure>
+
+  <p>How common is this? In a 2011 study, Brun, Holmes, Ernst and Notkin went through the version histories of nine open-source projects. In the three whose test suites they could run (Git, Perl5 and Voldemort), 16% of merges had a textual conflict, 1% merged cleanly but then failed to build, and 6% merged cleanly but then failed tests. Put differently, about a third of all the conflicts they found were invisible to the version control system. (These numbers are from the paper's results section; its one-line summary of them is easy to misread.)</p>
+  <p>You cannot make git understand meaning, but you can make a change in meaning <em>loud</em>:</p>
+  <ul>
+    <li><strong>Rename when the meaning changes.</strong> If Ana had renamed the field <code>starts_at_utc</code>, Ben's code, still asking for <code>starts_at</code>, would have failed on the merge with an error. A semantic conflict becomes one the tests see at once.</li>
+    <li><strong>Use types that carry the meaning.</strong> A timezone-aware <code>datetime</code> instead of a bare string, or a small type such as <code>UtcInstant</code>, makes the wrong use harder to write.</li>
+    <li><strong>Make readers strict.</strong> A reader that refuses a value it does not expect fails on the first merged run instead of printing a wrong hour for weeks.</li>
+    <li><strong>Test both sides against one contract</strong>, as in class.</li>
+    <li><strong>Integrate often.</strong> Fowler's advice in 2011 was simply <q>to merge more often</q>. Ana's and Ben's branches lived about a day. The longer branches live apart, the more meaning can drift between them.</li>
+  </ul>
+</section>
+
+<section class="block" id="queues">
+  <div class="sechead"><span class="clock">R3</span><h2>Merge queues</h2></div>
+  <p>Many teams hold themselves to one rule: <code>main</code> always passes all the tests. That only works if each change is tested on top of the <code>main</code> it will actually land on. Here is what GitHub does, from its own documentation.</p>
+  <ul>
+    <li><strong>A pull request's checks test a merge, by default.</strong> A workflow triggered by a pull request checks out a merge branch unless it asks for something else, so <q>Your CI tests run against the merged result, not just the head branch alone</q>. But that result is computed with <code>main</code> as it was at that moment. When another pull request merges first, the green check is out of date.</li>
+    <li><strong>"Require branches to be up to date before merging"</strong> closes the gap by force: in GitHub's words, it is there <q>to ensure that pull requests are tested with the latest code on the protected branch</q>. The price, also in GitHub's words: <q>More builds may be required, as you'll need to bring the head branch up to date after other collaborators update the target branch.</q></li>
+    <li><strong>A merge queue</strong> does the same work in order, without asking each author to update and wait. When a pull request joins the queue, its changes are grouped <q>with the latest version of the base_branch as well as changes from pull requests ahead of it in the queue</q>, tested in a temporary branch, and merged only if the required checks pass. One practical detail: GitHub Actions workflows run for a queue only if they are triggered by the <code>merge_group</code> event, so the CI file needs <code>merge_group:</code> next to <code>pull_request:</code>.</li>
+  </ul>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 340" role="img" aria-label="Top: pull requests 21 and 22 are both checked against Tuesday's main and pass; 21 merges, then 22 merges on its old green check, and main is wrong without any red check. Bottom, with a merge queue: 21 is tested on main plus 21 and merges; 22 is tested on main plus 21 plus 22. all 21 existing tests still pass there; only if an integration test exists does 22 fail and go back to its author, and main stays right.">
+        <defs>
+          <filter id="w10f13-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="14"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f13-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w10f13-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w10f13-r)">
+          <path d="M180,110 H900" class="s"/>
+          <circle cx="220" cy="110" r="10" class="s f-card"/>
+          <circle cx="520" cy="110" r="10" class="s f-card"/>
+          <circle cx="760" cy="110" r="12" class="s s-red s-thick f-red"/>
+          <rect x="250" y="30" width="200" height="34" rx="17" class="s s-green f-green"/>
+          <rect x="560" y="30" width="170" height="34" rx="17" class="s s-green f-green"/>
+          <path d="M350,66 L510,104" class="s" marker-end="url(#w10f13-a)"/>
+          <path d="M645,66 L752,102" class="s s-red" marker-end="url(#w10f13-ar)"/>
+          <path d="M20,168 H940" class="s s-thin s-dash s-2"/>
+          <path d="M180,300 H900" class="s"/>
+          <circle cx="220" cy="300" r="10" class="s f-card"/>
+          <circle cx="520" cy="300" r="10" class="s f-card"/>
+          <rect x="250" y="196" width="220" height="60" rx="10" class="s f-card"/>
+          <rect x="560" y="196" width="270" height="60" rx="10" class="s f-card"/>
+          <path d="M360,258 L512,292" class="s" marker-end="url(#w10f13-a)"/>
+          <path d="M832,226 H898" class="s s-red s-dash" marker-end="url(#w10f13-ar)"/>
+        </g>
+        <text x="20" y="60" class="t-lg">Checks on</text>
+        <text x="20" y="84" class="t-lg">each branch</text>
+        <text x="350" y="52" text-anchor="middle" class="t-sm t-green">#21 ✓ vs Tuesday's main</text>
+        <text x="645" y="52" text-anchor="middle" class="t-sm t-green">#22 ✓ vs Tuesday's main</text>
+        <text x="220" y="140" text-anchor="middle" class="t-sm t-2">main</text>
+        <text x="520" y="140" text-anchor="middle" class="t-sm t-2">#21 merged</text>
+        <text x="760" y="146" text-anchor="middle" class="t-sm t-red">#22 merged on an old check:</text>
+        <text x="760" y="162" text-anchor="middle" class="t-sm t-red">main wrong, no red check</text>
+        <text x="20" y="232" class="t-lg">Merge</text>
+        <text x="20" y="256" class="t-lg">queue</text>
+        <text x="360" y="220" text-anchor="middle" class="t-sm">test main + #21</text>
+        <text x="360" y="242" text-anchor="middle" class="t-sm t-green">✓ merge</text>
+        <text x="695" y="220" text-anchor="middle" class="t-sm">test main + #21 + #22</text>
+        <text x="695" y="242" text-anchor="middle" class="t-sm t-red">✗ if an integration test exists</text>
+        <text x="884" y="210" text-anchor="middle" class="t-sm t-red">back to Ben</text>
+        <text x="220" y="330" text-anchor="middle" class="t-sm t-2">main</text>
+        <text x="520" y="330" text-anchor="middle" class="t-sm t-2">#21 merged</text>
+        <text x="760" y="288" text-anchor="middle" class="t-sm t-green">main stays right</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.13</b> Why a green pull request can still break <code>main</code>, and what a merge queue changes. Top: both checks ran against Tuesday's <code>main</code>; after #21 merged, #22's check was out of date. Bottom: the queue tests #22 on top of #21. It only turns red if some test crosses the boundary: re-run there, all 21 existing tests still pass.</figcaption>
+  </figure>
+
+  <p>The last point is the one to remember. A merge queue, or the up-to-date rule, guarantees that the tests run on the merged result. It cannot invent the test that fails there. Put Ana's and Ben's branches through a queue with only their own tests, and the merged build goes through green, exactly as it did in class. The queue needs the integration test and the contract tests to have something to catch.</p>
+</section>
+
+<section class="block" id="which">
+  <div class="sechead"><span class="clock">R4</span><h2>Which time was right?</h2></div>
+  <p>Ana chose to store UTC instants. For timestamps of things that have happened, like the moment a reservation was made, that is standard advice, and the AfterHours schema already stored <code>created_at</code> that way (<code>…Z</code>) while it stored <code>starts_at</code> as festival time. One schema, two conventions, and nothing in the column names to tell them apart.</p>
+  <p>For events that people schedule in a place, in the future, UTC is not the whole story. Jon Skeet argues that the common advice to convert everything to UTC <q>is overly broad in my view. For future and near-past events, it doesn't take into account that time zone rules change, making the initial conversion potentially inaccurate.</q> Time zone rules do change; in his words, <q>This isn't a corner case, it's the normal way things work.</q> An event at 20:00 on the local clock still happens when the wall clock shows 20:00, whatever the rules say by then. His preferred design keeps the local time and the zone's name, and treats UTC as derived data to be recomputed.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 280" role="img" aria-label="Illustrative: an event at 20:00 local time in a place on UTC+1 is stored two ways. Then the place moves its clocks to UTC+2 before the event. The row that stored the UTC instant, 19:00 UTC, now shows 21:00 local, which is wrong. The row that stored 20:00 with the zone's name recomputes 18:00 UTC and still shows 20:00, which is right.">
+        <defs>
+          <filter id="w10f14-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="15"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w10f14-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w10f14-r)">
+          <rect x="220" y="60" width="220" height="60" rx="8" class="s f-card"/>
+          <rect x="220" y="170" width="220" height="60" rx="8" class="s f-card"/>
+          <rect x="480" y="30" width="170" height="220" rx="6" class="s s-dash f-mark"/>
+          <path d="M442,90 H686" class="s" marker-end="url(#w10f14-a)"/>
+          <path d="M442,200 H686" class="s" marker-end="url(#w10f14-a)"/>
+          <rect x="690" y="60" width="250" height="60" rx="8" class="s s-red f-red"/>
+          <rect x="690" y="170" width="250" height="60" rx="8" class="s s-green f-green"/>
+        </g>
+        <text x="20" y="84" class="t-sm">store the instant</text>
+        <text x="20" y="104" class="t-sm t-2">(Ana's choice)</text>
+        <text x="20" y="194" class="t-sm">store wall time</text>
+        <text x="20" y="214" class="t-sm t-2">and the zone's name</text>
+        <text x="330" y="96" text-anchor="middle" class="t-mono">19:00 UTC</text>
+        <text x="330" y="206" text-anchor="middle" class="t-mono">20:00 · zone name</text>
+        <text x="330" y="40" text-anchor="middle" class="t-sm t-2">event: 20:00 local, UTC+1</text>
+        <text x="565" y="126" text-anchor="middle" class="t-sm t-mark">the place moves</text>
+        <text x="565" y="146" text-anchor="middle" class="t-sm t-mark">its clocks to UTC+2</text>
+        <text x="565" y="166" text-anchor="middle" class="t-sm t-mark">before the event</text>
+        <text x="815" y="86" text-anchor="middle" class="t-sm t-red">shown: 21:00 local</text>
+        <text x="815" y="106" text-anchor="middle" class="t-sm t-red">wrong by an hour</text>
+        <text x="815" y="196" text-anchor="middle" class="t-sm t-green">recompute: 18:00 UTC</text>
+        <text x="815" y="216" text-anchor="middle" class="t-sm t-green">shown: 20:00 local ✓</text>
+        <text x="940" y="266" text-anchor="end" class="t-sm t-2">illustrative: a made-up rule change</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 10.14</b> A made-up rule change, to show Skeet's point. Stored as an instant, a future event drifts when the place changes its clocks before the event. Stored as wall time plus the zone's name, it is recomputed with the new rules and still shows the time on the poster.</figcaption>
+  </figure>
+
+  <p>For a three-day festival two weeks away, Ana's choice is fine. For "every Friday at 20:00 next year", keeping the local time and the zone's name would be safer. Python's <code>zoneinfo</code> module reads named zones from the operating system, and where there is no zone database (Windows, notably), Python's documentation recommends declaring a dependency on the <code>tzdata</code> package. The lab kit avoids all of this with a fixed UTC+2 offset, which is exact only because every festival date falls in summer time.</p>
+  <p>So which time was right? Both representations are defensible. The bug was having two of them under one name, with nobody owning the choice. That is what the contract fixes.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Worktree</dt><dd>An extra working folder attached to the same git repository, with its own checked-out branch and files. All worktrees share one history.</dd>
+    <dt>Merge base</dt><dd>The latest commit two branches have in common; where they started to differ (<code>git merge-base</code>).</dd>
+    <dt>Textual conflict</dt><dd>Two branches changed the same lines; git stops and asks a person.</dd>
+    <dt>Semantic conflict</dt><dd>Two changes that merge cleanly as text but make the program behave wrongly together.</dd>
+    <dt>Integration test</dt><dd>A test that crosses a boundary between parts built separately, such as typed time to shown time. In this lab the two parts disagree only once they are merged, so that is where the integration test catches the bug.</dd>
+    <dt>Integration contract</dt><dd>A short, owned document fixing what a shared thing means, with examples that tests on both sides use.</dd>
+    <dt>Contract test</dt><dd>A test of one side of a boundary against the contract's examples: the producer emits them, the consumer accepts them.</dd>
+    <dt>Critical path</dt><dd>The longest chain of tasks that must happen one after another. No number of workers finishes sooner.</dd>
+    <dt>Merge queue</dt><dd>A service that tests each change on top of the latest <code>main</code> and the changes ahead of it, and merges only if the tests pass.</dd>
+    <dt>Planner and workers</dt><dd>One planner splits the work and integrates; workers each do one part (also called orchestrator-workers).</dd>
+    <dt>UTC, offset</dt><dd>UTC is the reference clock. An offset such as +02:00 says how far a local clock is ahead of it.</dd>
+    <dt>Naive and aware</dt><dd>A Python <code>datetime</code> without a time zone is naive; one with a time zone is aware. <code>replace(tzinfo=…)</code> relabels; <code>astimezone(…)</code> converts.</dd>
+    <dt>Injectable clock</dt><dd>The one function the app asks for "now", so tests can fix the time.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>Frederick P. Brooks Jr., <em>The Mythical Man-Month: Essays on Software Engineering</em>, Addison-Wesley, 1975: chapter 2 "The Mythical Man-Month" (pp. 13–26), chapter 3 (p. 31) and the preface; Anniversary Edition, 1995, chapters 18 and 19. <a href="https://web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf">First-edition copy used as a course reading</a></li>
+    <li>Melvin E. Conway, "How Do Committees Invent?", <em>Datamation</em>, April 1968. <a href="https://www.melconway.com/Home/Committees_Paper.html">melconway.com</a> · on the paper's history and the name "Conway's law": <a href="https://www.melconway.com/Home/Conways_Law.html">melconway.com</a></li>
+    <li>Alan MacCormack, Carliss Baldwin and John Rusnak, "Exploring the duality between product and organizational architectures: A test of the 'mirroring' hypothesis", <em>Research Policy</em> 41(8), 2012. <a href="https://doi.org/10.1016/j.respol.2012.04.011">doi.org</a> · <a href="https://dash.harvard.edu/handle/1/34403525">Harvard DASH</a></li>
+    <li>Anthropic (Erik Schluntz and Barry Zhang), "Building effective agents", 19 December 2024. <a href="https://www.anthropic.com/engineering/building-effective-agents">anthropic.com</a></li>
+    <li>Anthropic, "How we built our multi-agent research system", 13 June 2025. <a href="https://www.anthropic.com/engineering/multi-agent-research-system">anthropic.com</a></li>
+    <li>Walden Yan, "Don't Build Multi-Agents", Cognition, 12 June 2025. <a href="https://cognition.ai/blog/dont-build-multi-agents">cognition.ai</a></li>
+    <li>Git documentation, "git-worktree: Manage multiple working trees". <a href="https://git-scm.com/docs/git-worktree">git-scm.com</a> · Claude Code documentation, "Run parallel sessions with worktrees" (read 27 September 2026). <a href="https://code.claude.com/docs/en/worktrees">code.claude.com</a></li>
+    <li>GitHub Docs: "Events that trigger workflows" (<code>pull_request</code>). <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows">docs.github.com</a> · "About protected branches". <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches">docs.github.com</a> · "Managing a merge queue". <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue">docs.github.com</a></li>
+    <li>Martin Fowler, "SemanticConflict", 4 August 2011. <a href="https://martinfowler.com/bliki/SemanticConflict.html">martinfowler.com</a> · "Patterns for Managing Source Code Branches", 2020. <a href="https://martinfowler.com/articles/branching-patterns.html">martinfowler.com</a></li>
+    <li>Yuriy Brun, Reid Holmes, Michael D. Ernst and David Notkin, "Proactive Detection of Collaboration Conflicts", ESEC/FSE 2011. <a href="https://people.cs.umass.edu/~brun/pubs/pubs/Brun11fse.pdf">PDF</a></li>
+    <li>Jon Skeet, "Storing UTC is not a silver bullet", 27 March 2019. <a href="https://codeblog.jonskeet.uk/2019/03/27/storing-utc-is-not-a-silver-bullet/">codeblog.jonskeet.uk</a></li>
+    <li>Python documentation: <code>datetime</code> (<code>replace</code> and <code>astimezone</code>) and <code>zoneinfo</code> (data sources, <code>tzdata</code>). <a href="https://docs.python.org/3/library/datetime.html">docs.python.org</a> · <a href="https://docs.python.org/3/library/zoneinfo.html">docs.python.org</a></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="09-quality-for-people.html">← Lecture 9: Quality Is Experienced by People</a>
+  <span>Build It. Prove It. Own It. · Lecture 10</span>
+  <a href="11-performance-and-economics.html">Lecture 11: Performance and the Economics of Agentic Work →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

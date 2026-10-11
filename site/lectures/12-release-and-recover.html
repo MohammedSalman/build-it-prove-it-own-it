@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Release and Recover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* Week 12 only: terminal output shown as it was printed, and a small release card. */
+  .term { max-width: 860px; font-size: 0.8rem; }
+  .term .ok { color: var(--green); }
+  .term .bad { color: var(--red); font-weight: 600; }
+  .releasecard { max-width: 760px; }
+  .releasecard .body { padding: 12px 16px; display: grid; gap: 8px; }
+  .releasecard .body ul { padding-left: 1.2em; display: grid; gap: 2px; margin: 0; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 12 · Lecture 12 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 12 · Release</p>
+  <h1 id="page-title">Release and Recover</h1>
+  <p class="lede">A deploy takes a second. Getting back to a working system after a bad release, or after losing data, takes whatever you prepared beforehand. This lecture treats deploying, rolling back and restoring as behaviours you test and measure, the same way you test a feature.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Loop: Release</span>
+    <span class="fact">Kit: staging, production, three releases, one backup job</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Describe a staged release: environments, gates, flags, canaries, and a stop condition written before the deploy.</li>
+      <li>Define an SLI from the user's side, set an SLO, and turn it into an error budget.</li>
+      <li>Say what a health check can and cannot see, and choose between rolling back and rolling forward.</li>
+      <li>State RPO and RTO, and measure what your own backups achieve.</li>
+      <li>Rehearse a restore into a separate instance and check the result the way a visitor and an owner would.</li>
+      <li>Write a blameless postmortem that ends in changes to the system.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>The backups nobody had restored</span></a></li>
+    <li><a href="#staged"><span class="t">0:15</span><span>Staged release</span></a></li>
+    <li><a href="#slo"><span class="t">0:30</span><span>SLIs, SLOs, error budgets</span></a></li>
+    <li><a href="#rollback"><span class="t">0:45</span><span>Roll back or roll forward</span></a></li>
+    <li><a href="#restore"><span class="t">1:00</span><span>Backups and restores</span></a></li>
+    <li><a href="#postmortem"><span class="t">1:15</span><span>Blameless postmortems</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#gitlab"><span class="t">R1</span><span>GitLab, in depth</span></a></li>
+    <li><a href="#runbook"><span class="t">R2</span><span>Writing a runbook</span></a></li>
+    <li><a href="#friday"><span class="t">R3</span><span>A postmortem for Friday</span></a></li>
+    <li><a href="#copies"><span class="t">R4</span><span>Three copies, one tested</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:15</span>
+    <h2>The backups nobody had restored</h2>
+  </div>
+  <div class="callout try">
+    <span class="label">Hands up</span>
+    <p>Keep your hand up if your laptop has a backup. Keep it up if you have restored a file from that backup in the last month. Look at how many hands went down between the two questions.</p>
+  </div>
+  <p>On 31 January 2017, GitLab.com, the hosted service run by the company that makes GitLab, lost part of its main database. Here is what happened, in the words we will use all term:</p>
+  <div class="callout case">
+    <span class="label">Case: GitLab.com, 31 January 2017</span>
+    <p>While fixing replication, an engineer deleted the primary database's data directory, thinking it was the secondary. Backups had been failing silently; recovery used a snapshot about 6 hours old, and about 6 hours of database changes were lost (about 5,000 projects, 5,000 comments and 700 accounts). Git repositories were unaffected.</p>
+  </div>
+  <p>GitLab published a detailed postmortem ten days later. It lists every way they had to get the data back. When the engineers went to use them, this is what they found:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 410" role="img" aria-label="GitLab's primary database, db1, wiped at 23:30 UTC. Four places a copy might have been: daily pg_dump backups to S3, but the bucket was empty because every run had failed silently; Azure disk snapshots, not enabled for the database servers; replication to db2, meant for failover, and db2 had just been wiped; LVM snapshots made to refresh staging, one taken by hand about six hours earlier. Only the last one could be used, and restoring from it took about 18 hours.">
+        <defs>
+          <filter id="w12f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w12f1-r)">
+          <path d="M50,120 V250 A90,18 0 0 0 230,250 V120" class="s s-red f-red"/>
+          <ellipse cx="140" cy="120" rx="90" ry="18" class="s s-red f-red"/>
+          <path d="M232,185 L346,53" class="s s-thin s-dash s-2" marker-end="url(#w12f1-a)"/>
+          <path d="M232,185 L346,137" class="s s-thin s-dash s-2" marker-end="url(#w12f1-a)"/>
+          <path d="M232,185 L346,221" class="s s-thin s-dash s-2" marker-end="url(#w12f1-a)"/>
+          <path d="M232,185 L346,305" class="s s-thin s-dash s-2" marker-end="url(#w12f1-a)"/>
+          <rect x="350" y="20" width="580" height="66" rx="10" class="s f-card"/>
+          <rect x="350" y="104" width="580" height="66" rx="10" class="s f-card"/>
+          <rect x="350" y="188" width="580" height="66" rx="10" class="s f-card"/>
+          <rect x="350" y="272" width="580" height="66" rx="10" class="s s-green s-thick f-green"/>
+          <circle cx="388" cy="53" r="17" class="s s-red f-card"/>
+          <path d="M381,46 l14,14 M395,46 l-14,14" class="s s-red s-thick"/>
+          <circle cx="388" cy="137" r="17" class="s s-red f-card"/>
+          <path d="M381,130 l14,14 M395,130 l-14,14" class="s s-red s-thick"/>
+          <circle cx="388" cy="221" r="17" class="s s-red f-card"/>
+          <path d="M381,214 l14,14 M395,214 l-14,14" class="s s-red s-thick"/>
+          <circle cx="388" cy="305" r="17" class="s s-green f-card"/>
+          <path d="M379,306 l6,7 l12,-14" class="s s-green s-thick"/>
+        </g>
+        <text x="140" y="170" text-anchor="middle" class="t-lg">db1, the primary</text>
+        <text x="140" y="196" text-anchor="middle" class="t-sm">data directory</text>
+        <text x="140" y="216" text-anchor="middle" class="t-sm t-red">wiped by mistake</text>
+        <text x="140" y="298" text-anchor="middle" class="t-sm">about 23:30 UTC</text>
+        <text x="140" y="318" text-anchor="middle" class="t-sm">≈300 GB gone before the</text>
+        <text x="140" y="336" text-anchor="middle" class="t-sm">command was stopped</text>
+        <text x="140" y="380" text-anchor="middle" class="t-sm t-2">Git repositories: stored</text>
+        <text x="140" y="398" text-anchor="middle" class="t-sm t-2">separately, not affected</text>
+        <text x="288" y="36" text-anchor="middle" class="t-sm t-pen">a copy?</text>
+        <text x="420" y="48">pg_dump every 24 h, uploaded to Amazon S3</text>
+        <text x="420" y="72" class="t-sm t-red">the bucket was empty: every run had failed, silently</text>
+        <text x="420" y="132">Azure disk snapshots</text>
+        <text x="420" y="156" class="t-sm t-red">not enabled for the database servers</text>
+        <text x="420" y="216">replication to the secondary, db2</text>
+        <text x="420" y="240" class="t-sm t-red">meant for failover; db2 had just been wiped to resync</text>
+        <text x="420" y="300">LVM snapshots, made to refresh staging</text>
+        <text x="420" y="324" class="t-sm t-green">one taken by hand around 17:20, about 6 h old</text>
+        <text x="420" y="366" class="t-sm t-green">restored from this copy: GitLab.com back about 18 hours later,</text>
+        <text x="420" y="386" class="t-sm t-green">and about 6 hours of database changes lost</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.1</b> What GitLab.com had to restore from, according to its postmortem. Four mechanisms existed. Three could not help. The one that worked was a snapshot an engineer had taken by hand six hours earlier, to load fresh data into staging for load testing.</figcaption>
+  </figure>
+
+  <p>The daily <code>pg_dump</code> job ran on a server with an older copy of PostgreSQL's tools (9.2) than the database itself (9.6). Every night it stopped with an error. The job did send an email when it failed, and the receiving mail server rejected those emails. So the backups failed every night, and the alarm failed with them. GitLab's postmortem asks why the backup procedure was not tested regularly, and answers: <q>Because there was no ownership, as a result nobody was responsible for testing this procedure.</q></p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A backup is a hope until you have restored it and checked the result.</strong> The same goes for a rollback you have never run and a deploy gate you have never seen fail.</p>
+  </div>
+
+  <p>This matters more with agents than without them. If agents help your team make more changes, the team also makes more releases, and each release is another chance to break production. How much a bad release or a lost database costs you is decided before it happens: by the gates in your pipeline, by whether you can undo a release in seconds, and by whether anybody has ever restored your backups. Today we test all three on AfterHours.</p>
+</section>
+
+<!-- ============ 2. STAGED RELEASE ============ -->
+<section class="block" id="staged">
+  <div class="sechead">
+    <span class="clock">0:15 – 0:30</span>
+    <h2>Staged release</h2>
+  </div>
+  <p>Until now every change we made ran on one laptop. A release puts it where people depend on it. Teams lower the risk of a release in three ways: they try it somewhere safe first, they check it at gates along the way, and they keep each step small enough to undo.</p>
+  <p>An <strong>environment</strong> is one running copy of the system with its own data. <strong>Production</strong> is the copy real users see. <strong>Staging</strong> is a copy that nobody depends on: the same code path, data that looks like production's, and no real users. In this week's kit both are AfterHours servers on your laptop, production on port 9210 and staging on port 9211, each with its own database file.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 480" role="img" aria-label="The engineering loop as a strip, with Release highlighted as this week. Below, Release zoomed in: release 1.5.0 passes a tests gate, runs in staging, passes gates there, is promoted to production, passes gates there, and is then watched through its SLI. A red dashed arrow from watching back to production says: stop condition met, roll back. Notes: the team's gates asked only whether GET /healthz answers 200; a feature flag deploys code with the feature off; a canary gives the new release to a small share of users first.">
+        <defs>
+          <filter id="w12f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w12f2-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w12f2-r)">
+          <rect x="20" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <rect x="154" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <rect x="288" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <rect x="422" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <rect x="556" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <rect x="690" y="40" width="112" height="40" rx="8" class="s s-thick f-mark"/>
+          <rect x="824" y="40" width="112" height="40" rx="8" class="s f-card"/>
+          <path d="M134,60 H151" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M268,60 H285" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M402,60 H419" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M536,60 H553" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M670,60 H687" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M804,60 H821" class="s s-thin" marker-end="url(#w12f2-a)"/>
+          <path d="M690,82 L24,118 M802,82 L936,118" class="s s-thin s-dash s-2"/>
+          <rect x="20" y="120" width="920" height="340" rx="12" class="s s-thin s-2"/>
+          <rect x="40" y="190" width="130" height="64" rx="10" class="s f-card"/>
+          <rect x="230" y="190" width="160" height="64" rx="10" class="s f-card"/>
+          <rect x="460" y="190" width="160" height="64" rx="10" class="s f-card"/>
+          <rect x="690" y="190" width="230" height="64" rx="10" class="s f-pen"/>
+          <path d="M200,178 V266 M425,178 V266 M655,178 V266" class="s s-thick"/>
+          <circle cx="200" cy="176" r="6" class="s f-ink"/>
+          <circle cx="425" cy="176" r="6" class="s f-ink"/>
+          <circle cx="655" cy="176" r="6" class="s f-ink"/>
+          <path d="M172,222 H226" class="s" marker-end="url(#w12f2-a)"/>
+          <path d="M392,222 H456" class="s" marker-end="url(#w12f2-a)"/>
+          <path d="M622,222 H686" class="s" marker-end="url(#w12f2-a)"/>
+          <path d="M800,256 Q700,330 560,258" class="s s-red s-dash" marker-end="url(#w12f2-ar)"/>
+        </g>
+        <text x="76" y="65" text-anchor="middle" class="t-sm">Understand</text>
+        <text x="210" y="65" text-anchor="middle" class="t-sm">Specify</text>
+        <text x="344" y="65" text-anchor="middle" class="t-sm">Delegate</text>
+        <text x="478" y="65" text-anchor="middle" class="t-sm">Inspect</text>
+        <text x="612" y="65" text-anchor="middle" class="t-sm">Verify</text>
+        <text x="746" y="66" text-anchor="middle" class="t-mark">Release</text>
+        <text x="880" y="65" text-anchor="middle" class="t-sm">Observe</text>
+        <text x="746" y="28" text-anchor="middle" class="t-sm t-pen">this week</text>
+        <text x="105" y="216" text-anchor="middle" class="t-sm t-2">release</text>
+        <text x="105" y="240" text-anchor="middle" class="t-lg">1.5.0</text>
+        <text x="310" y="218" text-anchor="middle" class="t-lg">staging</text>
+        <text x="310" y="240" text-anchor="middle" class="t-sm t-2">a copy with history</text>
+        <text x="540" y="218" text-anchor="middle" class="t-lg">production</text>
+        <text x="540" y="240" text-anchor="middle" class="t-sm t-2">real visitors</text>
+        <text x="805" y="218" text-anchor="middle" class="t-lg">watch</text>
+        <text x="805" y="240" text-anchor="middle" class="t-sm">the SLI, live</text>
+        <text x="200" y="150" text-anchor="middle" class="t-sm">gate:</text>
+        <text x="200" y="164" text-anchor="middle" class="t-sm">tests</text>
+        <text x="425" y="150" text-anchor="middle" class="t-sm">gate: checks</text>
+        <text x="425" y="164" text-anchor="middle" class="t-sm">in staging</text>
+        <text x="655" y="150" text-anchor="middle" class="t-sm">gate: promotion,</text>
+        <text x="655" y="164" text-anchor="middle" class="t-sm">checks in production</text>
+        <text x="700" y="324" text-anchor="middle" class="t-sm t-red">stop condition met: roll back</text>
+        <text x="430" y="368" text-anchor="middle" class="t-sm t-red">the team's gates asked only:</text>
+        <text x="430" y="386" text-anchor="middle" class="t-sm t-red">does GET /healthz answer 200?</text>
+        <text x="40" y="416" class="t-sm t-pen">feature flag: deploy the code with the feature switched off</text>
+        <text x="40" y="438" class="t-sm t-pen">canary: give the new release to a small share of users first</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.2</b> Release, zoomed in. A release moves right only through gates: its tests, the checks in staging, and the promotion rule and checks in production. After that you keep watching, with a stop condition written in advance. The team's gates asked one question, and on Friday release 1.5.0 answered it correctly.</figcaption>
+  </figure>
+
+  <p>A <strong>gate</strong> is a check a release must pass before it moves on. The kit's pipeline, <code>ops/deploy.py</code>, has three. First the release's own tests. Then a promotion rule: production accepts only a release whose latest deploy to staging passed. Then checks against the new release right after it starts; the team lists them in <code>ops/pipeline.json</code>. On Friday that list held one check, <code>live</code>, which asks <code>GET /healthz</code> for a 200.</p>
+
+  <p>Here is Friday's release. An agent wrote most of it from the team's request; a teammate reviewed it; CI was green.</p>
+  <article class="patch releasecard">
+    <header><strong>AfterHours 1.5.0 · Event categories</strong><span>merged Friday 9 October, 17:40 · <code>releases/1.5.0/</code> in the kit</span></header>
+    <div class="body">
+      <ul>
+        <li>Every event has a category: games, music, film, maker or other.</li>
+        <li><code>GET /api/events?category=games</code> filters; the events page gets filter buttons.</li>
+      </ul>
+    </div>
+<pre class="diff"><span class="ctx">  CREATE TABLE IF NOT EXISTS events (</span><span class="ctx">      ...</span><span class="ctx">      capacity  INTEGER NOT NULL CHECK (capacity &gt; 0),</span><span class="add">+     category  TEXT    NOT NULL DEFAULT 'other'   -- new in 1.5.0</span><span class="ctx">  );</span></pre>
+    <footer>pytest: 12 passed · CI green</footer>
+  </article>
+  <div class="callout case">
+    <span class="label">About this release</span>
+    <p>We wrote release 1.5.0 and planted its defect so it shows up on cue. The team, the agent and the merge are fictional; the code is real and runs in the lab. The same mistake is easy to make by hand.</p>
+  </div>
+
+  <div class="callout try">
+    <span class="label">Predict, in pairs (4 minutes)</span>
+    <ol>
+      <li>The pipeline runs the tests, deploys to staging, checks <code>/healthz</code>, promotes to production, checks <code>/healthz</code>. Where does 1.5.0 stop?</li>
+      <li>What does a visitor see on the events page at 18:00?</li>
+      <li>Which single check, added to the gates, would have stopped it?</li>
+    </ol>
+  </div>
+
+  <details class="reveal">
+    <summary>What happened (a real run of the lab kit)</summary>
+    <div class="inner">
+      <p>Nothing stopped it. This is the output of <code>ops/deploy.py</code> for production, copied from a run of the kit (the timestamps are from the day we ran it):</p>
+<pre class="term"><code>$ python ops/deploy.py production 1.5.0
+Deploying 1.5.0 to production (port 9210). Running now: 1.4.0
+  [1/4] tests      ok    releases/1.5.0: 12 passed in 0.13s
+  [2/4] promotion  ok    1.5.0 passed staging at 2026-09-27T21:56:44Z
+  [3/4] switch     ok    stopped 1.4.0 (pid 5819); started 1.5.0 (pid 5881)
+  [4/4] live       ok    GET /healthz -&gt; 200 in 1 ms, release 1.5.0
+<span class="ok">Deployed 1.5.0 to production in 0.8 s. Gates passed: live.</span></code></pre>
+      <p>A visitor opening the site saw <em>Could not load the programme (HTTP 500). Try again in a minute.</em> The server log says why, request after request: <code>sqlite3.OperationalError: no such column: e.category</code>.</p>
+      <p><strong>Why the tests passed.</strong> Each test starts from an empty database, built from 1.5.0's own <code>schema.sql</code>, which has the new column. <strong>Why production failed.</strong> Production's <code>events</code> table was created months ago by an older release. <code>CREATE TABLE IF NOT EXISTS</code> leaves an existing table exactly as it is, so the column never appeared, and every query that names it fails. <strong>Why the gate passed.</strong> <code>/healthz</code> runs <code>SELECT 1</code>. It proves the process is up and the database file opens. It never runs the query that the events page runs.</p>
+      <p>Staging was broken too, from the first second. Its database also had history, so staging did its job as a rehearsal. Nobody looked, and the gate there asked the same question.</p>
+      <p>Bookings kept working the whole time: <code>reserve()</code> never touches the new column. A dashboard of booking counts would have looked fine.</p>
+      <p>Forty-five seconds after the deploy, a door volunteer who had the page open posted in the team channel: <em>the programme shows an error</em>. The release steward rolled back. The rest of this lecture uses that run: what the visitors measured, how the rollback went, and what the checks could and could not see.</p>
+    </div>
+  </details>
+
+  <h3>Smaller steps: flags and canaries</h3>
+  <p>Deploying and releasing are two acts. A <strong>deploy</strong> puts new code on the servers. A <strong>release</strong> lets users see a new feature. A <strong>feature flag</strong> separates the two: the code ships with the feature switched off, and switching it on means editing a setting while nothing is redeployed. Pete Hodgson's taxonomy of flags (2017) calls these <em>release toggles</em>, and calls a flag kept so operators can quickly switch a feature off an <em>ops toggle</em>; a few long-lived ones serve as kill switches. Every flag also adds a path through the code that someone has to test and, one day, delete (Week 13).</p>
+  <p>A <strong>canary release</strong> gives the new version to a small share of users first, and compares their experience with everyone else's before going further. The name comes from miners who carried a canary into coal mines as an early warning of gas. A flag can do the same for a feature: on for 5% of visitors, then 50%, then everyone.</p>
+  <p>Each of these needs a <strong>stop condition</strong>: a rule, written before the deploy, that says when to stop and go back. For example: <em>if fewer than 99% of probe requests are good, roll back</em>. During an incident it is tempting to explain a bad number away. A rule written in advance takes that decision out of the stressful moment.</p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A gate can only catch what it asks about.</strong> Ask what a visitor needs from this release, and check that.</p>
+  </div>
+</section>
+
+<!-- ============ 3. SLO ============ -->
+<section class="block" id="slo">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>SLIs, SLOs, error budgets</h2>
+  </div>
+  <p>Which question should a gate ask? Google's site reliability engineers (SRE) wrote down an answer in their 2016 book <em>Site Reliability Engineering</em>: start from what users care about, measure that, and agree in advance how much failure is acceptable. Their advice is blunt: <q>Start by thinking about (or finding out!) what your users care about, not what you can measure.</q> Three terms carry the idea.</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Term</th><th>The SRE book's definition</th><th>For AfterHours</th></tr></thead>
+      <tbody>
+        <tr><td><strong>SLI</strong>, service level indicator</td><td><q>a carefully defined quantitative measure of some aspect of the level of service that is provided</q></td><td>The share of festival-page requests that got a correct answer within 0.5 s</td></tr>
+        <tr><td><strong>SLO</strong>, service level objective</td><td><q>a target value or range of values for a service level that is measured by an SLI</q></td><td>SLI ≥ 99% over the festival weekend</td></tr>
+        <tr><td><strong>Error budget</strong></td><td>The failure the SLO allows: <q>how unreliable the service is allowed to be</q> in the period (Google uses a quarter)</td><td>1% of the weekend's requests may be bad</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>You will also hear <strong>SLA</strong>, service level agreement: a contract with users that includes consequences, often money, when an SLO is missed. A student festival has SLOs and no SLA.</p>
+  <p>The SLI has to say exactly which requests count and what makes one good. Ours, as the kit's <code>ops/sli.py</code> will define it:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Request</th><th>Good when</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /api/events</code></td><td>200, a JSON list, every event has <code>places_left ≥ 0</code></td><td>A programme that shows −1 places is a wrong answer, even with a 200. Week 1's promise, inside the SLI</td></tr>
+        <tr><td><code>GET /api/events/{id}</code></td><td>200, <code>places_left ≥ 0</code></td><td>The same, for one event</td></tr>
+        <tr><td><code>POST …/reservations</code></td><td>201 booked, or 409 full</td><td>Telling Sam the event is full is a correct answer</td></tr>
+        <tr><td><code>POST /api/events</code></td><td>201</td><td>An organiser adding an event</td></tr>
+        <tr><td>any of them</td><td>bad if there was no answer, or it took over 0.5 s</td><td>Slow and missing count as failures for the visitor</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Where you measure matters. A server only sees the requests that reach it; when the server is down, it sees nothing at all. The kit measures at the client. <code>ops/traffic.py</code> plays four visitors who send about 10 requests a second in total, and prints the SLI every 5 seconds. This is the same run as the reveal above:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 380" role="img" aria-label="Bar chart, one bar per 5-second window, of the share of simulated visitors' requests answered correctly within half a second. Under release 1.4.0 every window is at 100 percent, above the 99 percent SLO line. From the deploy of 1.5.0 at about 17 seconds until the rollback at about 63 seconds, the windows fall to between 6 and 43 percent. From the first full window after the rollback, every window is back at 100 percent.">
+        <defs>
+          <filter id="w12f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="1.0" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w12f3-r)">
+          <rect x="92.5" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="127.7" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="162.9" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="198.2" y="192.2" width="30.2" height="107.8" class="s s-thin s-red f-red"/><rect x="233.4" y="252.2" width="30.2" height="47.8" class="s s-thin s-red f-red"/><rect x="268.6" y="265.0" width="30.2" height="35.0" class="s s-thin s-red f-red"/><rect x="303.8" y="264.2" width="30.2" height="35.8" class="s s-thin s-red f-red"/><rect x="339.0" y="236.2" width="30.2" height="63.8" class="s s-thin s-red f-red"/><rect x="374.2" y="246.8" width="30.2" height="53.2" class="s s-thin s-red f-red"/><rect x="409.5" y="248.0" width="30.2" height="52.0" class="s s-thin s-red f-red"/><rect x="444.7" y="255.0" width="30.2" height="45.0" class="s s-thin s-red f-red"/><rect x="479.9" y="284.5" width="30.2" height="15.5" class="s s-thin s-red f-red"/><rect x="515.1" y="162.8" width="30.2" height="137.2" class="s s-thin s-pen f-pen"/><rect x="550.3" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="585.5" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="620.8" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="656.0" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="691.2" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="726.4" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="761.6" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="796.8" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/><rect x="832.1" y="50.0" width="30.2" height="250.0" class="s s-thin s-pen f-pen"/>
+          <path d="M90,300 H900" class="s s-thin"/>
+          <path d="M90,300 V40" class="s s-thin"/>
+          <path d="M90.0,300 V306" class="s s-thin"/><path d="M160.4,300 V306" class="s s-thin"/><path d="M230.9,300 V306" class="s s-thin"/><path d="M301.3,300 V306" class="s s-thin"/><path d="M371.7,300 V306" class="s s-thin"/><path d="M442.2,300 V306" class="s s-thin"/><path d="M512.6,300 V306" class="s s-thin"/><path d="M583.0,300 V306" class="s s-thin"/><path d="M653.5,300 V306" class="s s-thin"/><path d="M723.9,300 V306" class="s s-thin"/><path d="M794.3,300 V306" class="s s-thin"/><path d="M864.8,300 V306" class="s s-thin"/><path d="M84,300.0 H90" class="s s-thin"/><path d="M84,237.5 H90" class="s s-thin"/><path d="M84,175.0 H90" class="s s-thin"/><path d="M84,112.5 H90" class="s s-thin"/><path d="M84,50.0 H90" class="s s-thin"/>
+          <path d="M90,52.5 H900" class="s s-thin s-dash s-green"/>
+          <path d="M207.6,34 V300" class="s s-thin s-dash"/>
+          <path d="M532.3,34 V300" class="s s-thin s-dash"/>
+        </g>
+        <text x="90.0" y="322" text-anchor="middle" class="t-mono t-2">0</text><text x="160.4" y="322" text-anchor="middle" class="t-mono t-2">10</text><text x="230.9" y="322" text-anchor="middle" class="t-mono t-2">20</text><text x="301.3" y="322" text-anchor="middle" class="t-mono t-2">30</text><text x="371.7" y="322" text-anchor="middle" class="t-mono t-2">40</text><text x="442.2" y="322" text-anchor="middle" class="t-mono t-2">50</text><text x="512.6" y="322" text-anchor="middle" class="t-mono t-2">60</text><text x="583.0" y="322" text-anchor="middle" class="t-mono t-2">70</text><text x="653.5" y="322" text-anchor="middle" class="t-mono t-2">80</text><text x="723.9" y="322" text-anchor="middle" class="t-mono t-2">90</text><text x="794.3" y="322" text-anchor="middle" class="t-mono t-2">100</text><text x="864.8" y="322" text-anchor="middle" class="t-mono t-2">110</text><text x="80" y="304.0" text-anchor="end" class="t-mono t-2">0%</text><text x="80" y="241.5" text-anchor="end" class="t-mono t-2">25%</text><text x="80" y="179.0" text-anchor="end" class="t-mono t-2">50%</text><text x="80" y="116.5" text-anchor="end" class="t-mono t-2">75%</text><text x="80" y="54.0" text-anchor="end" class="t-mono t-2">100%</text>
+        <text x="495" y="348" text-anchor="middle" class="t-sm">seconds since the simulated visitors started (one bar per 5-second window)</text>
+        <text x="201.6" y="28" text-anchor="end" class="t-sm">deploy 1.5.0: gate "live" passed</text>
+        <text x="538.3" y="28" class="t-sm">rollback to 1.4.0</text>
+        <text x="900" y="44.5" text-anchor="end" class="t-sm t-green">SLO 99%</text>
+        <text x="370" y="150" text-anchor="middle" class="t-sm t-red">while 1.5.0 served, only bookings</text>
+        <text x="370" y="168" text-anchor="middle" class="t-sm t-red">got correct answers (201, 409)</text>
+        <text x="495.0" y="276.5" text-anchor="middle" class="t-mono t-red">6.2%</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.3</b> The SLI during Friday's release, measured by <code>ops/traffic.py</code> in one run of the lab kit and drawn to scale. Each bar is one 5-second window: blue while 1.4.0 served, red while 1.5.0 did (by the release serving at the window's end; the two windows that contain a switch are mixed). The dashed green line is the 99% SLO. The rollback came about 45 seconds after the deploy, because we ran it then, standing in for someone noticing.</figcaption>
+  </figure>
+
+  <p>In the ten windows the incident touched, 374 of 492 requests were bad. While 1.5.0 served on its own, 83% of requests were bad: everything except bookings. The first full window after the rollback was back at 100%.</p>
+
+  <div class="callout try">
+    <span class="label">In pairs (8 minutes)</span>
+    <p>At the door, volunteers scan each person's reservation on a phone. The app answers <em>in</em> or <em>not on the list</em>.</p>
+    <ol>
+      <li>Write an SLI for check-in: which requests count, what is good, and where you measure it.</li>
+      <li>Write an SLO for a festival night.</li>
+      <li>On Saturday the doors handle 3,000 scans. How many bad scans does your SLO allow?</li>
+      <li>Which kind of bad scan can the server not see at all?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: one good answer</summary>
+    <div class="inner">
+      <p><strong>SLI:</strong> the share of check-in scans that got a correct answer within 1 second, measured on the volunteer's phone, which logs every scan with its result and time. Good means <em>in</em> for a valid reservation and <em>not on the list</em> for an invalid one. Bad means an error, a timeout, a spinner longer than a second, or a wrong answer.</p>
+      <p><strong>SLO:</strong> 99.5% of scans per festival night. <strong>Budget:</strong> 0.5% of 3,000 is 15 bad scans on Saturday.</p>
+      <p><strong>The blind spot:</strong> a wrong answer with status 200. The server believes it answered correctly when it told Maya she is not on the list. Only the volunteer knows, when they let her in by hand after checking her email. So count manual overrides: they are your only signal for wrong answers. Many teams measure what the server can see and miss exactly this case.</p>
+    </div>
+  </details>
+
+  <h3>Turning the SLO into a budget</h3>
+  <p>Now put numbers on it. Suppose the festival weekend runs from Friday 18:00 to Sunday midnight, 54 hours, at the kit's rate of 10 requests a second: 1,944,000 requests. An SLO of 99% allows 19,440 bad ones. That is the weekend's error budget.</p>
+  <p>The SRE workbook names the speed at which an incident spends it: <q>Burn rate is how fast, relative to the SLO, the service consumes the error budget.</q> A burn rate of 1 would spend exactly the whole budget over the whole weekend. Release 1.5.0 made 83% of requests bad against an allowance of 1%: a burn rate of about 83. At that rate the weekend's budget lasts 39 minutes.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 390" role="img" aria-label="A model of the error budget over the festival weekend, from Friday 18:00 to Sunday midnight, for a 99 percent SLO at 10 requests a second. With no incident, normal glitches use a fifth of the budget by Sunday night. The Friday release, rolled back after 45 seconds, uses about 2 percent more. Left running for 30 minutes it would use about three quarters of the weekend's budget at once. Left for an hour it would use all of it within about 39 minutes, and releases would stop for the rest of the weekend.">
+        <defs>
+          <filter id="w12f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w12f4-r)">
+          <path d="M110,300 H900" class="s s-thin"/>
+          <path d="M110,300 V40" class="s s-thin"/>
+          <path d="M110.0,300 V306" class="s s-thin"/><path d="M197.8,300 V306" class="s s-thin"/><path d="M373.3,300 V306" class="s s-thin"/><path d="M548.9,300 V306" class="s s-thin"/><path d="M724.4,300 V306" class="s s-thin"/><path d="M900.0,300 V306" class="s s-thin"/><path d="M104,300.0 H110" class="s s-thin"/><path d="M104,237.5 H110" class="s s-thin"/><path d="M104,175.0 H110" class="s s-thin"/><path d="M104,112.5 H110" class="s s-thin"/><path d="M104,50.0 H110" class="s s-thin"/>
+          <path d="M110.0,50.0 L900.0,100.0" class="s s-thin s-dash s-2"/>
+          <path d="M110.0,50.0 L110.2,54.8 L900.0,104.8" class="s s-thick s-pen"/>
+          <path d="M110.0,50.0 L117.3,241.6 L900.0,291.1" class="s s-thick"/>
+          <path d="M110.0,50.0 L119.6,300.0 L900.0,300.0" class="s s-thick s-red"/>
+        </g>
+        <text x="110.0" y="322" text-anchor="middle" class="t-mono t-2">Fri 18:00</text><text x="197.8" y="322" text-anchor="middle" class="t-mono t-2">Sat 00:00</text><text x="373.3" y="322" text-anchor="middle" class="t-mono t-2">Sat 12:00</text><text x="548.9" y="322" text-anchor="middle" class="t-mono t-2">Sun 00:00</text><text x="724.4" y="322" text-anchor="middle" class="t-mono t-2">Sun 12:00</text><text x="900.0" y="322" text-anchor="middle" class="t-mono t-2">Sun 24:00</text><text x="100" y="304.0" text-anchor="end" class="t-mono t-2">0%</text><text x="100" y="241.5" text-anchor="end" class="t-mono t-2">25%</text><text x="100" y="179.0" text-anchor="end" class="t-mono t-2">50%</text><text x="100" y="116.5" text-anchor="end" class="t-mono t-2">75%</text><text x="100" y="54.0" text-anchor="end" class="t-mono t-2">100%</text>
+        <text x="40" y="175" text-anchor="middle" transform="rotate(-90 40 175)" class="t-sm">error budget left</text>
+        <text x="402.6" y="52.5" text-anchor="middle" class="t-sm t-2">no incident: 80% left on Sunday night</text>
+        <text x="695.2" y="119.8" text-anchor="middle" class="t-sm t-pen">rolled back after 45 s: 78% left</text>
+        <text x="636.7" y="258.5" text-anchor="middle" class="t-sm">noticed after 30 min: 4% left</text>
+        <text x="153.9" y="288.0" class="t-sm t-red">noticed after an hour: budget gone by 18:39 on Friday; releases stop</text>
+        <text x="900" y="26" text-anchor="end" class="t-sm t-2">a model, not a measurement</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.4</b> A model, not a measurement. It assumes the bad release goes out at 18:00 on Friday, a steady 10 requests a second, normal glitches that use a fifth of the budget over the weekend, and Friday's measured bad rate (83%) while the bad release serves. Rolled back after 45 seconds, the incident cost about 2% of the weekend's budget. The same bug noticed after half an hour would have cost about three quarters (76%).</figcaption>
+  </figure>
+
+  <p>The budget is also a release policy. The SRE book describes the loop: while budget remains, releases go ahead; <q>If SLO violations occur frequently enough to expend the error budget, releases are temporarily halted while additional resources are invested in system testing and development to make the system more resilient, improve its performance, and so on.</q> A team with budget left can take risks. A team without it spends the rest of the weekend on reliability.</p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>An SLO turns the question of whether the service is good enough into arithmetic you agree on before anything breaks.</strong> The same definition of good belongs in the gate, on the dashboard and in the postmortem.</p>
+  </div>
+</section>
+
+<!-- ============ 4. ROLLBACK ============ -->
+<section class="block" id="rollback">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:00</span>
+    <h2>Roll back or roll forward</h2>
+  </div>
+  <p>Before choosing a fix, look at why the checks disagreed. Here is the request map from Lecture 1 again, with the three checks we had on Friday drawn through it.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 420" role="img" aria-label="Three checks traced through AfterHours 1.5.0. The live gate calls healthz, skips the page's query, runs SELECT 1 on the production database, and passes. The tests run the same routes and the real list_events query, but against an empty test database built from 1.5.0's schema, and pass. The SLI gate, like a visitor, calls GET /api/events, runs list_events with SELECT e.category against the production database, which has no category column, and fails.">
+        <defs>
+          <filter id="w12f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f5-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w12f5-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w12f5-r)">
+          <path d="M20,58 H940" class="s s-thin s-2"/>
+          <rect x="250" y="100" width="140" height="60" rx="10" class="s f-card"/>
+          <rect x="730" y="100" width="180" height="60" rx="10" class="s f-card"/>
+          <path d="M150,130 H246" class="s" marker-end="url(#w12f5-a)"/>
+          <path d="M392,130 H726" class="s" marker-end="url(#w12f5-a)"/>
+          <circle cx="934" cy="130" r="13" class="s s-green f-card"/>
+          <path d="M927,131 l5,6 l9,-11" class="s s-green s-thick"/>
+          <rect x="250" y="200" width="140" height="60" rx="10" class="s f-card"/>
+          <rect x="460" y="200" width="190" height="60" rx="10" class="s f-card"/>
+          <rect x="730" y="200" width="180" height="60" rx="10" class="s s-dash f-paper"/>
+          <path d="M150,230 H246" class="s" marker-end="url(#w12f5-a)"/>
+          <path d="M392,230 H456" class="s" marker-end="url(#w12f5-a)"/>
+          <path d="M652,230 H726" class="s" marker-end="url(#w12f5-a)"/>
+          <circle cx="934" cy="230" r="13" class="s s-green f-card"/>
+          <path d="M927,231 l5,6 l9,-11" class="s s-green s-thick"/>
+          <rect x="250" y="300" width="140" height="60" rx="10" class="s f-card"/>
+          <rect x="460" y="300" width="190" height="60" rx="10" class="s f-card"/>
+          <rect x="730" y="300" width="180" height="60" rx="10" class="s s-red s-thick f-red"/>
+          <path d="M150,330 H246" class="s" marker-end="url(#w12f5-a)"/>
+          <path d="M392,330 H456" class="s" marker-end="url(#w12f5-a)"/>
+          <path d="M652,330 H726" class="s s-red s-thick" marker-end="url(#w12f5-ar)"/>
+          <circle cx="934" cy="330" r="13" class="s s-red f-card"/>
+          <path d="M928,324 l12,12 M940,324 l-12,12" class="s s-red s-thick"/>
+        </g>
+        <text x="30" y="42" class="t-sm t-2">who asks</text>
+        <text x="320" y="42" text-anchor="middle" class="t-sm t-2">route</text>
+        <text x="555" y="42" text-anchor="middle" class="t-sm t-2">code</text>
+        <text x="820" y="42" text-anchor="middle" class="t-sm t-2">database</text>
+        <text x="30" y="124" class="t-sm">live gate</text>
+        <text x="30" y="144" class="t-mono t-2">GET /healthz</text>
+        <text x="320" y="135" text-anchor="middle" class="t-mono">healthz()</text>
+        <text x="555" y="120" text-anchor="middle" class="t-sm t-2">skips the page's query</text>
+        <text x="820" y="126" text-anchor="middle" class="t-mono">SELECT 1</text>
+        <text x="820" y="148" text-anchor="middle" class="t-sm">the file opens</text>
+        <text x="30" y="224" class="t-sm">tests</text>
+        <text x="30" y="244" class="t-mono t-2">pytest -q</text>
+        <text x="320" y="235" text-anchor="middle" class="t-sm">same routes</text>
+        <text x="555" y="226" text-anchor="middle" class="t-mono">list_events()</text>
+        <text x="555" y="246" text-anchor="middle" class="t-sm">the real query</text>
+        <text x="820" y="226" text-anchor="middle" class="t-sm">empty test database</text>
+        <text x="820" y="246" text-anchor="middle" class="t-sm t-2">built from 1.5.0's schema</text>
+        <text x="30" y="324" class="t-sm">sli gate,</text>
+        <text x="30" y="342" class="t-sm">a visitor</text>
+        <text x="320" y="335" text-anchor="middle" class="t-mono">GET /api/events</text>
+        <text x="555" y="326" text-anchor="middle" class="t-mono">list_events()</text>
+        <text x="555" y="346" text-anchor="middle" class="t-mono t-red">SELECT e.category</text>
+        <text x="820" y="326" text-anchor="middle" class="t-sm">production database</text>
+        <text x="820" y="346" text-anchor="middle" class="t-sm t-red">no category column</text>
+        <text x="690" y="396" text-anchor="middle" class="t-sm t-red">the bug lives where a new query meets a table with history</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.5</b> What each check touched on Friday, on the request map from Lecture 1. The live gate stops at <code>SELECT 1</code>. The tests run the real query, on an empty database built from the new schema. Only a request that a visitor sends runs the new query against the table production actually has.</figcaption>
+  </figure>
+
+  <p><code>/healthz</code> is a <strong>liveness check</strong>. It answers <em>is this process alive?</em>, which is the right question when a supervisor has to decide whether to restart a process. It cannot tell you whether this release works for visitors. A check that asks that question has to do what a visitor does: load the programme, open an event, and judge the answer by the SLI. That is the kit's <code>sli</code> gate.</p>
+
+  <h3>Two ways back</h3>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th></th><th>Roll back</th><th>Roll forward</th></tr></thead>
+      <tbody>
+        <tr><th>What</th><td>Put the last good release back</td><td>Ship a new release that fixes the problem</td></tr>
+        <tr><th>How fast</th><td>As fast as a deploy: under half a second in the kit (about 3.5 s with the <code>sli</code> gate's 3-second probe), plus the time to decide</td><td>As fast as a fix can be written, reviewed and passed through every gate</td></tr>
+        <tr><th>Safe when</th><td>The bad release has not changed the data in a way the old release cannot read</td><td>The fix is small and understood, or going back is not safe</td></tr>
+        <tr><th>Friday</th><td>1.4.0 back; the first full 5-second window after it was 100% good</td><td>1.5.1: adds the missing column on start-up, and ships categories behind a flag</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>When rolling back is safe, do it first and diagnose afterwards, with service restored. Friday's case was safe: 1.5.0 changed neither the schema nor the format of any data. It did write data, the bookings it accepted, but those are ordinary rows that 1.4.0 reads, and they survive the rollback. A release that renames or drops a column, or rewrites rows into a new format, can make the old release fail against the new data. Then rolling back the code does not roll back the data, and your options are rolling forward or restoring a backup. Week 13 shows how to split such a change into steps that stay reversible.</p>
+  <p>Some effects cannot be undone by any release: an email sent, a payment captured, a message posted. For those, the fastest control is often a flag that switches the feature off before it does more damage.</p>
+  <div class="callout case">
+    <span class="label">Case: Replit, July 2025 (Lecture 1, R7)</span>
+    <p>During a declared code freeze, Replit's agent deleted the production database of Jason Lemkin's SaaStr project, then wrongly said rollback was impossible; the rollback worked. Whether you can roll back is a claim like any other, from an agent or a person. The evidence is a rollback you ran recently, on a copy.</p>
+  </div>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (4 minutes, no laptop)</span>
+    <p>For each incident, write <em>roll back</em>, <em>roll forward</em> or <em>something else</em>, with one reason.</p>
+    <ol>
+      <li>Release 1.5.0: the programme fails with <code>no such column</code>. It changed no schema; bookings kept arriving as ordinary rows.</li>
+      <li>Release 1.6.0 renamed the column <code>attendee</code> to <code>name</code>, copied the data across, and dropped <code>attendee</code>. Check-in is now broken.</li>
+      <li>Release 1.6.1 emailed <em>your event is cancelled</em> to 800 people by mistake, and keeps doing so for every new booking.</li>
+      <li>A configuration change raised the payment timeout. Bookings take 4 seconds. Schema and data format are unchanged.</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answers</summary>
+    <div class="inner">
+      <ol>
+        <li><strong>Roll back.</strong> Code only; 1.4.0 reads every row as it is, including the bookings taken under 1.5.0. Then roll forward calmly with 1.5.1.</li>
+        <li><strong>Roll forward, or restore.</strong> 1.5.1 queries <code>attendee</code>, which no longer exists, so rolling back breaks everything else too. Fix check-in in a new release, or restore the backup taken before the deploy and lose the bookings made since. This is why Week 13 never drops a column in the same step that stops using it.</li>
+        <li><strong>Something else first:</strong> stop the damage. Turn the feature off with a flag if there is one, otherwise roll back. Then send a correction to the 800 people. No release unsends an email.</li>
+        <li><strong>Roll back the configuration.</strong> A configuration change is a release too: it deserves the same gates and the same way back.</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 5. RESTORE ============ -->
+<section class="block" id="restore">
+  <div class="sechead">
+    <span class="clock">1:00 – 1:15</span>
+    <h2>Backups and restores</h2>
+  </div>
+  <p>A rollback undoes code. When the data itself is lost or damaged, you need a backup, and two numbers say what your backups must achieve. NIST's contingency planning guide (SP 800-34, 2010) defines both.</p>
+  <ul>
+    <li><strong>RPO</strong>, recovery point objective: <q>The point in time to which data must be recovered after an outage.</q> In practice: how much recent data you accept to lose. It decides how often you back up.</li>
+    <li><strong>RTO</strong>, recovery time objective: <q>The overall length of time an information system's components can be in the recovery phase before negatively impacting the organization's mission or mission/business processes.</q> In practice: how long you accept to be down. It decides how fast your restore must be.</li>
+  </ul>
+  <p>Here is GitLab's night on those two axes:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 76 960 296" role="img" aria-label="GitLab's recovery timeline, drawn to scale from the postmortem. At about 17:20 UTC on 31 January an LVM snapshot is taken. At about 23:30 the primary's data is wiped; the engineer stops the command a second or two after noticing the mistake. Everything changed between 17:20 and 23:30, about six hours, is lost: the data-loss window. Restoring, mostly copying data back from slow staging disks, takes until 17:00 on 1 February, and checking and restoring webhooks until about 18:00. GitLab.com was down for about 18 hours.">
+        <defs>
+          <filter id="w12f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2.0" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="w12f6-h" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="f-red"/><line x1="3.5" y1="0" x2="3.5" y2="7" class="s s-red s-thin"/></pattern>
+        </defs>
+        <g filter="url(#w12f6-r)">
+          <path d="M60,250 H920" class="s s-thin"/>
+          <path d="M60.0,250 V257" class="s s-thin"/><path d="M182.9,250 V257" class="s s-thin"/><path d="M305.7,250 V257" class="s s-thin"/><path d="M428.6,250 V257" class="s s-thin"/><path d="M551.4,250 V257" class="s s-thin"/><path d="M674.3,250 V257" class="s s-thin"/><path d="M797.1,250 V257" class="s s-thin"/><path d="M920.0,250 V257" class="s s-thin"/>
+          <rect x="101.0" y="160" width="189.4" height="46" class="s s-red" style="fill:url(#w12f6-h)"/>
+          <rect x="290.4" y="160" width="537.5" height="46" class="s f-mark"/>
+          <rect x="827.9" y="160" width="30.7" height="46" class="s f-green"/>
+          <path d="M101.0,150 V290 M290.4,150 V290 M827.9,206 V290 M858.6,206 V334" class="s s-thin s-2"/>
+          <path d="M101.0,108 H858.6" class="s s-thin s-dash s-2"/>
+        </g>
+        <text x="60.0" y="272" text-anchor="middle" class="t-mono t-2">16:00</text><text x="182.9" y="272" text-anchor="middle" class="t-mono t-2">20:00</text><text x="305.7" y="272" text-anchor="middle" class="t-mono t-2">00:00</text><text x="428.6" y="272" text-anchor="middle" class="t-mono t-2">04:00</text><text x="551.4" y="272" text-anchor="middle" class="t-mono t-2">08:00</text><text x="674.3" y="272" text-anchor="middle" class="t-mono t-2">12:00</text><text x="797.1" y="272" text-anchor="middle" class="t-mono t-2">16:00</text><text x="920.0" y="272" text-anchor="middle" class="t-mono t-2">20:00</text>
+        <text x="311.7" y="244" class="t-sm t-2">1 Feb</text>
+        <text x="195.7" y="130" text-anchor="middle" class="t-sm t-red">lost: ≈6 h of changes</text>
+        <text x="195.7" y="148" text-anchor="middle" class="t-sm t-red">(what an RPO limits)</text>
+        <text x="574.5" y="130" text-anchor="middle" class="t-sm">down about 18 h</text>
+        <text x="574.5" y="148" text-anchor="middle" class="t-sm">(what an RTO limits)</text>
+        <text x="559.1" y="180" text-anchor="middle" class="t-sm">restoration: copying the staging copy back,</text>
+        <text x="559.1" y="198" text-anchor="middle" class="t-sm">≈18 h on disks throttled to ≈60 Mbps</text>
+        <text x="479.8" y="100" text-anchor="middle" class="t-sm t-2">31 January to 1 February 2017, UTC, drawn to scale</text>
+        <text x="101.0" y="306" text-anchor="middle" class="t-sm">17:20 snapshot</text>
+        <text x="101.0" y="324" text-anchor="middle" class="t-sm t-2">(taken for staging)</text>
+        <text x="290.4" y="306" text-anchor="middle" class="t-sm t-red">23:30 primary wiped</text>
+        <text x="290.4" y="324" text-anchor="middle" class="t-sm">noticed; command stopped</text>
+        <text x="290.4" y="342" text-anchor="middle" class="t-sm">1 to 2 s after noticing</text>
+        <text x="821.9" y="306" text-anchor="end" class="t-sm">17:00 database</text>
+        <text x="821.9" y="324" text-anchor="end" class="t-sm">restored</text>
+        <text x="862.6" y="352" text-anchor="end" class="t-sm t-green">18:00 verified: "operating as expected"</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.6</b> GitLab.com's recovery timeline, drawn to scale from the postmortem. Containment was quick: the engineer stopped the command a second or two after noticing the mistake (the postmortem does not say how long the noticing took). Restoration took about 17.5 hours, mostly copying data at the speed of cheap disks, and verification about one more. The postmortem gives the end of the lost window as 23:30 in one place and 00:00 in another; we draw 23:30.</figcaption>
+  </figure>
+
+  <p>GitLab's actual numbers were a data-loss window of about 6 hours and about 18 hours down. Among its changes afterwards, it took the LVM snapshots every hour instead of every 24 hours. That shrinks the worst possible data-loss window from a day to an hour. It does nothing for the time a restore takes; only practising the restore shows that.</p>
+
+  <h3>Taking a backup of a live database</h3>
+  <p>Copying a database file while the app writes to it can catch a transaction half-way. SQLite's own documentation warns that such a copy <q>might contain some old and some new content, and thus be corrupt.</q> SQLite's <strong>online backup API</strong> exists for this: it copies a consistent snapshot while the database stays in use. The kit's <code>ops/backup.py</code> calls it through Python's <code>sqlite3</code> module, then writes two more files next to the snapshot: a <strong>canonical logical dump</strong> (every table's schema and rows as text, in a fixed order) and a manifest saying when, from where, and which release was running.</p>
+
+  <h3>The rehearsal</h3>
+  <p>A restore rehearsal restores a backup on purpose, before you need it, into a <strong>separate instance</strong> that nobody depends on, and checks the result. Separate, because a restore that goes wrong must not make production worse, and because you want to rehearse on a Tuesday afternoon without anyone noticing. The kit's <code>ops/restore_check.py</code> checks six things:</p>
+  <ol>
+    <li><strong>As a visitor:</strong> the restored app loads the programme.</li>
+    <li><strong>As SQLite:</strong> <code>PRAGMA integrity_check</code> says <code>ok</code>.</li>
+    <li><strong>As an owner:</strong> every reservation references an existing event.</li>
+    <li><strong>As an owner:</strong> confirmed reservations ≤ capacity, for every event.</li>
+    <li><strong>Against the calendar:</strong> the snapshot has data, and its manifest says it is recent. A file's own date proves nothing: copying a file gives it a new one.</li>
+    <li><strong>Against the snapshot:</strong> the restored instance's canonical dump is identical to the snapshot's.</li>
+  </ol>
+  <p>The AfterHours team has had a backup job since Week 3. It has printed <code>Backup OK</code> every night. Here is last night's backup, restored and checked by a run of the kit:</p>
+<pre class="term"><code>$ python ops/nightly_backup.py
+Backup OK: backups/nightly-20260927.db
+
+$ python ops/restore_check.py backups/nightly-20260927.db
+Restore rehearsal: nightly-20260927.db -&gt; a separate instance (environment &#x27;restore&#x27;, http://127.0.0.1:9212)
+  manifest: none: the snapshot file itself is the reference, and its age is unknown
+  [1] restore   copied into envs/restore/afterhours.db in 0.00 s
+  [2] start     release 1.4.0 answers on port 9212 after 0.22 s
+  [3] checks
+<span class="ok">      PASS  a visitor can load the programme: GET /api/events -&gt; 200, the programme lists 5 events</span>
+<span class="ok">      PASS  the database file is intact: PRAGMA integrity_check says: ok</span>
+<span class="ok">      PASS  every reservation references an existing event: 0 problem rows found</span>
+<span class="ok">      PASS  confirmed &lt;= capacity for every event: 0 problem rows found</span>
+<span class="bad">      FAIL  the snapshot has recent data: the snapshot holds 0 events and 0 reservations (newest: None); no manifest, so nothing records when it was taken</span>
+<span class="bad">      FAIL  the restored instance holds exactly the snapshot: the restored instance is NOT the snapshot: snapshot 0 lines, restored 236 lines; first difference at line 1: snapshot (end of dump), restored &#x27;table events: &quot;CREATE TABLE events (\\n    id        INTEGER &#x27;</span>
+Time to a checked restore of this data: 0.2 s (copy 0.0, start 0.2, checks 0.0).
+Data-loss window: none can be claimed. This backup failed its checks, so it could not be used; only an earlier backup that passes would count.
+<span class="bad">RESULT: FAIL (4 of 6 checks passed)</span></code></pre>
+  <div class="callout case">
+    <span class="label">About this backup job</span>
+    <p><code>ops/nightly_backup.py</code> is planted: we wrote its defect on purpose for the lab. The mechanism is common: GitLab's backups also failed without anyone finding out.</p>
+  </div>
+  <p>The job reads the database's path from the variable <code>AFTERHOURS_DB</code>. Cron does not set it, so the job opened <code>afterhours.db</code> in its working folder. No such file existed; SQLite quietly created an empty one, and the job backed up nothing, perfectly. When the restored app started, it found an empty database and filled it with its five demo events, so the restored site looked alive. The restored database was intact, and its demo rows broke no rule: no orphaned reservations, no event over capacity. On the snapshot itself, the two queries would not even have run: it holds no tables at all, so SQLite stops with <code>no such table</code>. On tables that exist but hold no rows, they pass. They look for broken rows, and an empty table has none to find.</p>
+
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p><strong>A check for broken rows cannot see missing rows.</strong> Check a restore the way a visitor would, the way an owner would, and against the snapshot itself: is there data, is it recent, and is it exactly what you backed up?</p>
+  </div>
+  <p>A real backup of production, taken while simulated visitors were booking, passed all six checks in the same run: 29 events and 382 reservations in a 32 KB snapshot, restored and checked in 0.2 seconds, most of it spent starting the app (GitLab had about 300 GB to move). Before you trust a check, make it fail: the lab has you damage a copy on purpose and watch the right check turn red.</p>
+  <p>When a real restore is needed, the kit's <code>ops/restore.py</code> refuses any backup that has not just passed this rehearsal, keeps the database it replaces, and makes you type the environment's name a second time (<code>--confirm production</code>). That last part is aimed at GitLab's mistake: a prompt that tells you which machine you are on is a sign; a tool that will not overwrite production until you name it is a fence.</p>
+
+  <div class="callout try">
+    <span class="label">In pairs (3 minutes)</span>
+    <p>Backups run daily at 03:00. On Saturday at 21:40 the database disk fails. Copying the latest backup back takes 25 minutes and checking it 10 more.</p>
+    <ol>
+      <li>What is the data-loss window?</li>
+      <li>How long are bookings down, at best?</li>
+      <li>What changes with hourly backups? What does not?</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Answers</summary>
+    <div class="inner">
+      <ol>
+        <li>18 hours 40 minutes: every booking since 03:00, which is the whole of Saturday's sales. Fig 12.11 in R4 draws this.</li>
+        <li>At least 35 minutes, plus the time to notice and to decide. In GitLab's case the copy alone took about 18 hours.</li>
+        <li>With hourly backups the window is at most an hour (here 40 minutes, since the 21:00 backup). The 35 minutes of restoring do not change. Neither does the need for the backup to live somewhere other than the disk that failed.</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 6. POSTMORTEM ============ -->
+<section class="block" id="postmortem">
+  <div class="sechead">
+    <span class="clock">1:15 – 1:25</span>
+    <h2>Blameless postmortems</h2>
+  </div>
+  <p>When production breaks, service comes back first. Understanding comes next, in writing. The SRE book defines a postmortem as <q>a written record of an incident, its impact, the actions taken to mitigate or resolve it, the root cause(s), and the follow-up actions to prevent the incident from recurring.</q></p>
+  <p>It also says how to write one: <q>For a postmortem to be truly blameless, it must focus on identifying the contributing causes of the incident without indicting any individual or team for bad or inappropriate behavior.</q> The reason is practical. People who expect punishment hide problems, and <q>You can't "fix" people, but you can fix systems and processes to better support people making the right choices when designing and maintaining complex systems.</q></p>
+  <p>GitLab's postmortem is a good example. It names no culprit. Its root cause analysis uses a technique called the 5 Whys and ends at missing ownership. Its list of fixes includes <q>Update PS1 across all hosts to more clearly differentiate between hosts and environments</q>: make every terminal prompt show clearly which machine it is on, the exact confusion behind the deletion.</p>
+  <p>Blameless does not mean nobody is accountable. The course rule still holds: a named human owns every consequential decision, including each follow-up action. It means the analysis asks what made the mistake easy, and changes that. With agents in the loop the same rule applies. <q>The agent wrote it</q> ends a blameful story the same way <q>Sam deployed it</q> does. The useful next question is what let a change that nobody had run against real data reach production.</p>
+
+  <div class="callout try">
+    <span class="label">In pairs (4 minutes)</span>
+    <p>Rewrite each sentence blamelessly, and add one action item to each.</p>
+    <ol>
+      <li><q>Sam deployed 1.5.0 without checking the site.</q></li>
+      <li><q>The agent wrote a broken schema change.</q></li>
+      <li><q>The backups failed because Lee set up cron wrong in Week 3.</q></li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: rewritten, with actions</summary>
+    <div class="inner">
+      <ol>
+        <li>The deploy gate checked only <code>/healthz</code>, so a release that broke the events page passed it, and the release steward had no signal that anything was wrong until a volunteer reported it. <em>Action: add the <code>sli</code> gate; the release steward watches <code>traffic.py</code> for five minutes after every production deploy.</em></li>
+        <li>1.5.0 changed the schema only in <code>schema.sql</code>. <code>CREATE TABLE IF NOT EXISTS</code> never alters an existing table, and no test started the release on a database with history. <em>Action: a test that starts each release on the previous release's schema (1.5.1 has one); staging refreshed from a production backup.</em></li>
+        <li>The nightly job read its database path from a variable that cron does not set, reported success whatever it copied, and nobody had ever restored one of its backups. <em>Action: a weekly restore rehearsal with <code>restore_check.py</code>, with a named owner; the job fails loudly when the source database does not exist.</em></li>
+      </ol>
+      <p>Notice that every rewrite is longer. The blameful version stops at a person; the blameless version keeps going until it reaches something the team can change.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Write an SLI and an SLO for one AfterHours feature other than browsing the programme. Say where you would measure it.</li>
+        <li>A release renamed a column and removed the old one. It breaks the organisers' page. Roll back or roll forward? Name the check that would tell you service is back.</li>
+        <li>Your teammate says <q>our backups work</q>. What evidence would convince you? Name two checks and the numbers you would want to see.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 13</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Before the next incident</h2>
+  <p>The lecture used two incidents: GitLab's real one and AfterHours' planted one. These four readings go further into each, and give you the three documents your team writes in the lab: a runbook, a rehearsal log and a postmortem.</p>
+</div>
+
+<section class="block" id="gitlab">
+  <div class="sechead"><span class="clock">R1</span><h2>GitLab, in depth</h2></div>
+  <p>GitLab's postmortem is worth reading in full: it is unusually open about what went wrong. The evening started with a different problem. From about 19:00 UTC the database was under unusual load. GitLab suspected spam, and later found that part of the load came from a background job removing an employee's account, which a troll's abuse report had flagged by mistake. Around 23:00 the secondary database fell too far behind the primary, and replication stopped. Rebuilding the secondary means emptying its data directory and copying the primary across. The copying tool hung without explanation. Engineers changed settings and tried again. At about 23:30 an engineer, trying once more, wiped the data directory on the primary instead of the secondary.</p>
+  <p>The postmortem then splits the incident into two problems and asks <em>why</em> for each. The second problem, why restoring took so long, is the one this lecture is about:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 500" role="img" aria-label="GitLab's chain of whys for the slow restore, as a staircase of cards. Restoring took over 18 hours, because GitLab.com had to be restored from the staging copy on slower disks in another region, because Azure disk snapshots were off for the database servers and the pg_dump backups were not working, because pg_dump 9.2 failed against PostgreSQL 9.6 silently, as the failure emails were rejected, because the backup procedure was not tested regularly, because there was no ownership: nobody was responsible for testing it.">
+        <defs>
+          <filter id="w12f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w12f7-r)">
+          <rect x="20" y="20" width="420" height="58" rx="8" class="s f-card"/>
+          <rect x="120" y="100" width="440" height="58" rx="8" class="s f-card"/>
+          <rect x="220" y="180" width="460" height="58" rx="8" class="s f-card"/>
+          <rect x="320" y="260" width="480" height="58" rx="8" class="s f-card"/>
+          <rect x="420" y="340" width="420" height="58" rx="8" class="s f-card"/>
+          <rect x="500" y="430" width="440" height="58" rx="8" class="s s-thick f-mark"/>
+          <path d="M70,80 V129 H116" class="s s-pen" marker-end="url(#w12f7-a)"/>
+          <path d="M170,160 V209 H216" class="s s-pen" marker-end="url(#w12f7-a)"/>
+          <path d="M270,240 V289 H316" class="s s-pen" marker-end="url(#w12f7-a)"/>
+          <path d="M370,320 V369 H416" class="s s-pen" marker-end="url(#w12f7-a)"/>
+          <path d="M470,400 V459 H496" class="s s-pen" marker-end="url(#w12f7-a)"/>
+        </g>
+        <text x="36" y="44" class="t-sm t-2">problem 2</text>
+        <text x="36" y="66">restoring GitLab.com took over 18 hours</text>
+        <text x="136" y="124" class="t-sm">had to use the staging copy, on slower disks</text>
+        <text x="136" y="144" class="t-sm">in a different region</text>
+        <text x="236" y="204" class="t-sm">disk snapshots were off for the database servers,</text>
+        <text x="236" y="224" class="t-sm">and the pg_dump backups were not working</text>
+        <text x="336" y="284" class="t-sm">pg_dump 9.2 failed against PostgreSQL 9.6, silently:</text>
+        <text x="336" y="304" class="t-sm">the failure emails were rejected by the mail server</text>
+        <text x="436" y="364" class="t-sm">the backup procedure was not tested</text>
+        <text x="436" y="384" class="t-sm">on a regular basis</text>
+        <text x="516" y="454" class="t-sm t-mark">"there was no ownership, as a result nobody</text>
+        <text x="516" y="474" class="t-sm t-mark">was responsible for testing this procedure"</text>
+        <text x="82" y="112" class="t-sm t-pen">why?</text>
+        <text x="182" y="192" class="t-sm t-pen">why?</text>
+        <text x="282" y="272" class="t-sm t-pen">why?</text>
+        <text x="382" y="352" class="t-sm t-pen">why?</text>
+        <text x="482" y="424" class="t-sm t-pen">why?</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.7</b> GitLab's chain of whys for the slow restore, shortened from its postmortem (the last card is quoted). Each answer is about the system; none is about a person. The chain ends at ownership, which is why one of the fixes was <q>Assign an owner for data durability</q>.</figcaption>
+  </figure>
+
+  <p>The recovery itself was public. GitLab kept its notes in a shared online document and streamed the recovery live on YouTube, with a peak of around 5,000 viewers. The shared notes contained the engineer's name, added by the engineer; GitLab wrote that it would redact names in future cases. Its list of fixes reads like this lecture's outline: <q>Prometheus monitoring for backups</q>, <q>Hourly LVM snapshots of the production databases</q>, <q>Automated testing of recovering PostgreSQL database backups</q>, and <q>Improve PostgreSQL replication documentation/runbooks</q>.</p>
+  <p>Its conclusion is the one to remember: <q>An ideal environment is one in which you can make mistakes but easily and quickly recover from them with minimal to no impact.</q> The engineer who typed the command made one mistake. The system around them turned it into six hours of lost work and eighteen hours of downtime.</p>
+</section>
+
+<section class="block" id="runbook">
+  <div class="sechead"><span class="clock">R2</span><h2>Writing a runbook</h2></div>
+  <p>A <strong>runbook</strong> is a written procedure for an operational task: deploy, roll back, restore. Write it for a tired teammate at 21:00 on festival night who did not build the system and has no agent to ask. GitLab's timeline shows why: during the incident, the copying tool's silent waiting <q>was not clearly documented in our engineering runbooks</q>, and a fix on its list was better runbooks.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 470" role="img" aria-label="A runbook page drawn as an index card with notes around it. It has a title and an owner line with the date it was last rehearsed; a when line; a before-you-start line; a stop condition; a table of steps with three columns, do, expect and if not, whose do column holds complete commands such as python ops/rollback.py production; and a line on when rollback is not safe. Handwritten notes point at the parts: a date so you know it still works, decided before and not during, a command to copy, what you should see, and what to do if it fails.">
+        <defs>
+          <filter id="w12f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w12f8-r)">
+          <rect x="150" y="20" width="660" height="430" rx="6" class="s f-card"/>
+          <path d="M150,72 H810" class="s s-red"/>
+          <rect x="170" y="170" width="620" height="40" class="s s-thin f-pen"/>
+          <path d="M170,250 H790 M170,290 H790 M170,330 H790 M470,210 V330 M640,210 V330" class="s s-thin s-2"/>
+          <path d="M880,90 V44 H816" class="s s-pen s-thin" marker-end="url(#w12f8-a)"/>
+          <path d="M142,126 H164" class="s s-pen s-thin" marker-end="url(#w12f8-a)"/>
+          <path d="M142,272 H172" class="s s-pen s-thin" marker-end="url(#w12f8-a)"/>
+          <path d="M822,362 H715 V336" class="s s-pen s-thin" marker-end="url(#w12f8-a)"/>
+          <path d="M822,410 H555 V336" class="s s-pen s-thin" marker-end="url(#w12f8-a)"/>
+        </g>
+        <text x="170" y="50" class="t-lg">Roll back production</text>
+        <text x="790" y="50" text-anchor="end" class="t-sm t-2">owner: Maya · rehearsed 2 Oct</text>
+        <text x="170" y="100" class="t-sm"><tspan font-weight="700">When:</tspan> a release made the SLI worse; no schema change</text>
+        <text x="170" y="126" class="t-sm"><tspan font-weight="700">Before:</tspan> tell the team channel; note the time</text>
+        <text x="170" y="152" class="t-sm"><tspan font-weight="700">Stop and roll back if:</tspan> SLI below 99% for two windows</text>
+        <text x="320" y="196" text-anchor="middle" class="t-sm">do</text>
+        <text x="555" y="196" text-anchor="middle" class="t-sm">expect</text>
+        <text x="715" y="196" text-anchor="middle" class="t-sm">if not</text>
+        <text x="180" y="236" class="t-mono">python ops/status.py</text>
+        <text x="480" y="236" class="t-sm">release, pid, ok</text>
+        <text x="650" y="236" class="t-sm">ask who deployed</text>
+        <text x="180" y="276" class="t-mono">python ops/rollback.py production</text>
+        <text x="480" y="276" class="t-sm">"Service restored"</text>
+        <text x="650" y="276" class="t-sm">restore: section 3</text>
+        <text x="180" y="316" class="t-mono">python ops/traffic.py production</text>
+        <text x="480" y="316" class="t-sm">100% for 1 minute</text>
+        <text x="650" y="316" class="t-sm">call the owner</text>
+        <text x="170" y="436" class="t-sm"><tspan font-weight="700">Not safe when:</tspan> the release dropped or renamed a column</text>
+        <text x="826" y="108" class="t-sm t-pen">a date: you know</text>
+        <text x="826" y="126" class="t-sm t-pen">it still works</text>
+        <text x="136" y="120" text-anchor="end" class="t-sm t-pen">decided before,</text>
+        <text x="136" y="138" text-anchor="end" class="t-sm t-pen">not during</text>
+        <text x="136" y="266" text-anchor="end" class="t-sm t-pen">a command</text>
+        <text x="136" y="284" text-anchor="end" class="t-sm t-pen">to copy</text>
+        <text x="826" y="358" class="t-sm t-pen">what to do</text>
+        <text x="826" y="376" class="t-sm t-pen">if it fails</text>
+        <text x="826" y="406" class="t-sm t-pen">what you</text>
+        <text x="826" y="424" class="t-sm t-pen">should see</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.8</b> The shape of a runbook step: a command to copy, what you should see, and what to do if you do not. The date it was last rehearsed tells the reader whether to trust it. The kit's <code>templates/runbook.md</code> has this layout.</figcaption>
+  </figure>
+
+  <p>Four habits keep a runbook useful:</p>
+  <ul>
+    <li><strong>Commands to copy.</strong> <q>Roll back</q> is an intention; <code>python ops/rollback.py production</code> is a step.</li>
+    <li><strong>Expected results.</strong> Every step says what success looks like, so the reader knows when to stop.</li>
+    <li><strong>Stop conditions and escape routes.</strong> Decide in advance when to abandon a step, and what then.</li>
+    <li><strong>Rehearsed, with a date.</strong> A runbook nobody has followed since the last change is a guess. Keep it in the repository and change it in the same pull request as the thing it describes.</li>
+  </ul>
+  <p>A good runbook is also a good task contract for an agent (Week 3). That makes it tempting to let an agent run it. For reversible steps that can be fine. For a restore over production, keep a human decision in the loop, and keep production credentials out of the agent's reach: a sign asks, a fence decides (Lecture 1, R7).</p>
+</section>
+
+<section class="block" id="friday">
+  <div class="sechead"><span class="clock">R3</span><h2>A postmortem for Friday</h2></div>
+  <p>The kit's <code>templates/postmortem.md</code> has the usual parts of a postmortem: summary, impact, timeline, contributing factors, action items and lessons (the SRE book prints a complete example). Two parts need practice.</p>
+  <p><strong>The timeline</strong> marks four moments: when the problem was <em>detected</em>, when it was <em>contained</em> (it stopped getting worse), when service was <em>restored</em>, and when that was <em>verified</em> with a measurement. On Friday the first bad requests and the deploy were the same second, but detection came only when someone looked. The SLI gate turns detection into a step of the deploy.</p>
+  <p><strong>The contributing factors</strong> come from asking <em>why</em> until the answer is something you can change, and keeping every branch. Compare two ways of asking:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 330" role="img" aria-label="Two ways to ask about Friday's incident. Asking who: the release steward deployed it, so be more careful; a dead end, nothing in the system changes. Asking what made it possible gives three contributing factors, each with an action item: the tests start from an empty database, so test each release on the old release's schema; the gate asked only whether the process was up, so add the sli gate; no check ran the page on data with history, so refresh staging from a backup.">
+        <defs>
+          <filter id="w12f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w12f9-ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-greenink"/></marker>
+        </defs>
+        <g filter="url(#w12f9-r)">
+          <rect x="300" y="16" width="360" height="54" rx="10" class="s s-red f-red"/>
+          <path d="M380,72 L200,118" class="s" marker-end="url(#w12f9-a)"/>
+          <path d="M540,72 V118" class="s" marker-end="url(#w12f9-a)"/>
+          <rect x="40" y="124" width="300" height="46" rx="8" class="s s-2 f-card"/>
+          <path d="M190,172 V182" class="s s-2" marker-end="url(#w12f9-a)"/>
+          <rect x="40" y="186" width="300" height="46" rx="8" class="s s-2 f-card"/>
+          <rect x="385" y="124" width="310" height="46" rx="8" class="s f-card"/>
+          <rect x="385" y="186" width="310" height="46" rx="8" class="s f-card"/>
+          <rect x="385" y="248" width="310" height="46" rx="8" class="s f-card"/>
+          <rect x="735" y="124" width="200" height="46" rx="8" class="s s-green f-green"/>
+          <rect x="735" y="186" width="200" height="46" rx="8" class="s s-green f-green"/>
+          <rect x="735" y="248" width="200" height="46" rx="8" class="s s-green f-green"/>
+          <path d="M697,147 H731" class="s s-green" marker-end="url(#w12f9-ag)"/>
+          <path d="M697,209 H731" class="s s-green" marker-end="url(#w12f9-ag)"/>
+          <path d="M697,271 H731" class="s s-green" marker-end="url(#w12f9-ag)"/>
+        </g>
+        <text x="480" y="38" text-anchor="middle">1.5.0 broke the programme</text>
+        <text x="480" y="58" text-anchor="middle" class="t-sm">for 45 seconds, Friday evening</text>
+        <text x="250" y="100" text-anchor="end" class="t-sm t-2">who?</text>
+        <text x="552" y="100" class="t-sm">what made it possible?</text>
+        <text x="835" y="112" text-anchor="middle" class="t-sm t-green">action items</text>
+        <text x="190" y="152" text-anchor="middle" class="t-sm t-2">the release steward deployed it</text>
+        <text x="190" y="214" text-anchor="middle" class="t-sm t-2">"be more careful"</text>
+        <text x="190" y="264" text-anchor="middle" class="t-sm t-2">a dead end: nothing</text>
+        <text x="190" y="282" text-anchor="middle" class="t-sm t-2">in the system changes</text>
+        <text x="540" y="152" text-anchor="middle" class="t-sm">the tests start from an empty database</text>
+        <text x="540" y="214" text-anchor="middle" class="t-sm">the gate asked only "is the process up?"</text>
+        <text x="540" y="276" text-anchor="middle" class="t-sm">no check ran the page on data with history</text>
+        <text x="835" y="143" text-anchor="middle" class="t-sm">test each release on</text>
+        <text x="835" y="161" text-anchor="middle" class="t-sm">the old release's schema</text>
+        <text x="835" y="214" text-anchor="middle" class="t-sm">add the sli gate</text>
+        <text x="835" y="267" text-anchor="middle" class="t-sm">refresh staging</text>
+        <text x="835" y="285" text-anchor="middle" class="t-sm">from a backup</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.9</b> Two questions about the same incident. <q>Who?</q> ends at a person and a promise to be careful, and nothing in the system changes. <q>What made it possible?</q> keeps going until it reaches things the team can change, and each of them becomes an action item with an owner.</figcaption>
+  </figure>
+
+  <p>Action items come in kinds: <em>prevent</em> (the old-schema test), <em>detect</em> (the SLI gate), <em>mitigate</em> (faster rollback, a kill switch), <em>process</em> (who watches after a deploy). A postmortem with only <em>prevent</em> items assumes the next failure will look like this one. It rarely does.</p>
+  <p>Write the postmortem within a few days, while memories and logs are fresh, and share it beyond the team. An incident that other teams can learn from has paid back some of its cost.</p>
+</section>
+
+<section class="block" id="copies">
+  <div class="sechead"><span class="clock">R4</span><h2>Three copies, one tested</h2></div>
+  <p>How many backups are enough? A rule of thumb you will often meet is the <strong>3-2-1 rule</strong>. A 2012 guide produced for US-CERT, a US government organisation, puts it this way: <q>Keep 3 copies of any important file: 1 primary and 2 backups.</q> <q>Keep the files on 2 different media types to protect against different types of hazards.</q> <q>Store 1 copy offsite (e.g., outside your home or business facility).</q> The rule is usually credited to the photographer Peter Krogh; the US-CERT guide cites his book <em>The DAM Book</em> (2nd edition, 2009) for it.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 360" role="img" aria-label="The 3-2-1 rule for AfterHours. Copy 1 is the production database on the server's disk. Copy 2 is a backup on a different kind of storage in the same place. Copy 3 is a backup off site, in a cloud bucket in another region. Brackets group copies 1 and 2 as two different media and mark copy 3 as off site. A fourth stamp says: restored and checked this week, the part the rule does not say.">
+        <defs>
+          <filter id="w12f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w12f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w12f10-r)">
+          <path d="M60,80 V170 A70,14 0 0 0 200,170 V80" class="s f-card"/>
+          <ellipse cx="130" cy="80" rx="70" ry="14" class="s f-card"/>
+          <rect x="300" y="70" width="170" height="110" rx="10" class="s f-card"/>
+          <path d="M650,120 C630,120 626,84 660,84 C668,58 718,56 730,80 C762,72 784,96 772,120 Z" class="s f-pen s-pen"/>
+          <path d="M202,125 H296" class="s s-dash" marker-end="url(#w12f10-a)"/>
+          <path d="M472,125 H624" class="s s-dash" marker-end="url(#w12f10-a)"/>
+          <path d="M60,214 V226 H470 V214" class="s s-thin"/>
+          <path d="M600,214 V226 H800 V214" class="s s-thin"/>
+          <path d="M560,40 V250" class="s s-dash s-2"/>
+          <rect x="700" y="262" width="230" height="74" rx="6" class="s s-green s-thick f-green" transform="rotate(-3 815 299)"/>
+        </g>
+        <text x="130" y="132" text-anchor="middle">copy 1</text>
+        <text x="130" y="154" text-anchor="middle" class="t-sm">the live database</text>
+        <text x="130" y="206" text-anchor="middle" class="t-sm t-2">server's disk</text>
+        <text x="385" y="112" text-anchor="middle">copy 2</text>
+        <text x="385" y="136" text-anchor="middle" class="t-sm">a backup on another</text>
+        <text x="385" y="154" text-anchor="middle" class="t-sm">kind of storage</text>
+        <text x="710" y="150" text-anchor="middle">copy 3</text>
+        <text x="710" y="172" text-anchor="middle" class="t-sm">cloud storage in</text>
+        <text x="710" y="190" text-anchor="middle" class="t-sm">another region</text>
+        <text x="265" y="250" text-anchor="middle" class="t-sm">2 different media: one fault does not take both</text>
+        <text x="700" y="250" text-anchor="middle" class="t-sm">1 off site: survives fire, theft</text>
+        <text x="410" y="30" text-anchor="middle" class="t-sm t-2">one building</text>
+        <text x="700" y="30" text-anchor="middle" class="t-sm t-2">somewhere else</text>
+        <text x="815" y="296" text-anchor="middle" class="t-sm t-green">+ restored and checked</text>
+        <text x="815" y="316" text-anchor="middle" class="t-sm t-green">this week (not in the rule)</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.10</b> The 3-2-1 rule, applied to AfterHours. Three copies, on two kinds of storage, one of them somewhere else. The green stamp is the part the rule leaves out, and the part GitLab was missing.</figcaption>
+  </figure>
+
+  <p>For a team project, copy 2 might be a backup file on a different disk or service from the database, and copy 3 a private cloud bucket. Replication is not a backup: GitLab's replica was built for failover, and a mistake on the primary, like a <code>DELETE</code> without <code>WHERE</code>, reaches the replica as quickly as any other change.</p>
+  <p>The rule says nothing about <em>when</em> the copies were made, which is what your RPO is about. Between two backups, every new booking exists only in the live database. The longer the gap, the more you lose when the disk fails:</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 360" role="img" aria-label="Hours of bookings not yet in any backup, over a weekend, drawn to scale. With one backup a day at 03:00 the line climbs to 24 hours and drops to zero at each backup, a tall sawtooth. With hourly backups it never exceeds one hour. A disk failure on Saturday at 21:40 would lose about 18 hours 40 minutes of bookings with daily backups and 40 minutes with hourly ones.">
+        <defs>
+          <filter id="w12f11-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w12f11-r)">
+          <path d="M90,280 H900" class="s s-thin"/>
+          <path d="M90,280 V30" class="s s-thin"/>
+          <path d="M90.0,280 V286" class="s s-thin"/><path d="M292.5,280 V286" class="s s-thin"/><path d="M495.0,280 V286" class="s s-thin"/><path d="M697.5,280 V286" class="s s-thin"/><path d="M900.0,280 V286" class="s s-thin"/><path d="M84,280.0 H90" class="s s-thin"/><path d="M84,220.0 H90" class="s s-thin"/><path d="M84,160.0 H90" class="s s-thin"/><path d="M84,100.0 H90" class="s s-thin"/><path d="M84,40.0 H90" class="s s-thin"/>
+          <path d="M90.0,70.0 L140.6,40.0 L140.6,280.0 L545.6,40.0 L545.6,280.0 L900.0,70.0" class="s s-red"/>
+          <path d="M90.0,280.0 L106.9,270.0 L106.9,280.0 L123.8,270.0 L123.8,280.0 L140.6,270.0 L140.6,280.0 L157.5,270.0 L157.5,280.0 L174.4,270.0 L174.4,280.0 L191.2,270.0 L191.2,280.0 L208.1,270.0 L208.1,280.0 L225.0,270.0 L225.0,280.0 L241.9,270.0 L241.9,280.0 L258.8,270.0 L258.8,280.0 L275.6,270.0 L275.6,280.0 L292.5,270.0 L292.5,280.0 L309.4,270.0 L309.4,280.0 L326.2,270.0 L326.2,280.0 L343.1,270.0 L343.1,280.0 L360.0,270.0 L360.0,280.0 L376.9,270.0 L376.9,280.0 L393.8,270.0 L393.8,280.0 L410.6,270.0 L410.6,280.0 L427.5,270.0 L427.5,280.0 L444.4,270.0 L444.4,280.0 L461.2,270.0 L461.2,280.0 L478.1,270.0 L478.1,280.0 L495.0,270.0 L495.0,280.0 L511.9,270.0 L511.9,280.0 L528.8,270.0 L528.8,280.0 L545.6,270.0 L545.6,280.0 L562.5,270.0 L562.5,280.0 L579.4,270.0 L579.4,280.0 L596.2,270.0 L596.2,280.0 L613.1,270.0 L613.1,280.0 L630.0,270.0 L630.0,280.0 L646.9,270.0 L646.9,280.0 L663.8,270.0 L663.8,280.0 L680.6,270.0 L680.6,280.0 L697.5,270.0 L697.5,280.0 L714.4,270.0 L714.4,280.0 L731.2,270.0 L731.2,280.0 L748.1,270.0 L748.1,280.0 L765.0,270.0 L765.0,280.0 L781.9,270.0 L781.9,280.0 L798.8,270.0 L798.8,280.0 L815.6,270.0 L815.6,280.0 L832.5,270.0 L832.5,280.0 L849.4,270.0 L849.4,280.0 L866.2,270.0 L866.2,280.0 L883.1,270.0 L883.1,280.0 L900.0,270.0" class="s s-thin s-pen"/>
+          <path d="M455.6,34.0 V280" class="s s-thin s-dash"/>
+          <circle cx="455.6" cy="93.3" r="5" class="s s-red f-redink"/>
+        </g>
+        <text x="90.0" y="302" text-anchor="middle" class="t-mono t-2">Sat 00:00</text><text x="292.5" y="302" text-anchor="middle" class="t-mono t-2">Sat 12:00</text><text x="495.0" y="302" text-anchor="middle" class="t-mono t-2">Sun 00:00</text><text x="697.5" y="302" text-anchor="middle" class="t-mono t-2">Sun 12:00</text><text x="900.0" y="302" text-anchor="middle" class="t-mono t-2">Mon 00:00</text><text x="80" y="284.0" text-anchor="end" class="t-mono t-2">0 h</text><text x="80" y="224.0" text-anchor="end" class="t-mono t-2">6 h</text><text x="80" y="164.0" text-anchor="end" class="t-mono t-2">12 h</text><text x="80" y="104.0" text-anchor="end" class="t-mono t-2">18 h</text><text x="80" y="44.0" text-anchor="end" class="t-mono t-2">24 h</text>
+        <text x="26" y="160" text-anchor="middle" transform="rotate(-90 26 160)" class="t-sm">not yet in a backup</text>
+        <text x="447.6" y="44.0" text-anchor="end" class="t-sm">disk fails, Sat 21:40</text>
+        <text x="445.6" y="98.3" text-anchor="end" class="t-sm t-red">daily at 03:00: lose 18 h 40 min</text>
+        <text x="447.6" y="260.0" text-anchor="end" class="t-sm t-pen">hourly: lose 40 min</text>
+        <text x="765.0" y="110.0" text-anchor="middle" class="t-sm t-red">once a day</text>
+        <text x="765.0" y="260.0" text-anchor="middle" class="t-sm t-pen">every hour</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 12.11</b> Hours of bookings that exist only in the live database, over one festival weekend, drawn to scale. A daily backup at 03:00 makes a tall sawtooth: a failure on Saturday evening loses almost a day. Hourly backups keep the loss under an hour. Neither changes how long the restore takes.</figcaption>
+  </figure>
+  <p>The fourth number, which no rule of thumb gives you, is the date of your last successful restore rehearsal. GitLab's postmortem shows what it costs not to know it.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Environment</dt><dd>One running copy of the system with its own data: production (real users), staging (a rehearsal copy), a restore instance.</dd>
+    <dt>Deploy / release</dt><dd>Putting new code on the servers / letting users see a new feature. A feature flag separates the two.</dd>
+    <dt>Gate</dt><dd>A check a release must pass before it moves on: tests, promotion, checks against the running release.</dd>
+    <dt>Stop condition</dt><dd>A rule written before a deploy that says when to stop and go back.</dd>
+    <dt>Feature flag</dt><dd>A setting that switches a feature on or off without a deploy. A kill switch is a flag kept for switching something off fast.</dd>
+    <dt>Canary release</dt><dd>Giving a new release to a small share of users first and comparing before going further.</dd>
+    <dt>Liveness check</dt><dd>A check that the process is up (<code>/healthz</code>). It says nothing about whether users get correct answers.</dd>
+    <dt>SLI / SLO / SLA</dt><dd>A measure of service from the user's side / a target for it / a contract with consequences for missing it.</dd>
+    <dt>Error budget</dt><dd>The failure an SLO allows in a period. <strong>Burn rate:</strong> how fast an incident spends it, relative to the SLO.</dd>
+    <dt>Roll back / roll forward</dt><dd>Put the last good release back / ship a new release that fixes the problem.</dd>
+    <dt>RPO / RTO</dt><dd>How much recent data you accept to lose / how long you accept to be down.</dd>
+    <dt>Online backup</dt><dd>A consistent copy of a database taken while it stays in use (SQLite's backup API).</dd>
+    <dt>Canonical logical dump</dt><dd>A database's schema and rows as text in a fixed order, so two copies can be compared for the same content.</dd>
+    <dt>Restore rehearsal</dt><dd>A restore done on purpose, into a separate instance, with the result checked and timed.</dd>
+    <dt>Runbook</dt><dd>A written procedure for an operational task: commands, expected results, what to do if they differ.</dd>
+    <dt>Blameless postmortem</dt><dd>A written account of an incident that looks for contributing causes in the system, and names actions and owners, without blaming individuals.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>GitLab, "Postmortem of database outage of January 31", 10 Feb 2017. <a href="https://about.gitlab.com/blog/postmortem-of-database-outage-of-january-31/">about.gitlab.com</a></li>
+    <li>Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy (eds.), <em>Site Reliability Engineering: How Google Runs Production Systems</em>, O'Reilly, 2016: ch. 3 "Embracing Risk" (error budgets), ch. 4 "Service Level Objectives", ch. 15 "Postmortem Culture: Learning from Failure". <a href="https://sre.google/sre-book/service-level-objectives/">ch. 4</a> · <a href="https://sre.google/sre-book/embracing-risk/">ch. 3</a> · <a href="https://sre.google/sre-book/postmortem-culture/">ch. 15</a></li>
+    <li>Steven Thurgood et al., "Alerting on SLOs", in <em>The Site Reliability Workbook</em>, O'Reilly, 2018 (burn rate). <a href="https://sre.google/workbook/alerting-on-slos/">sre.google</a></li>
+    <li>John Allspaw, "Blameless PostMortems and a Just Culture", Etsy Code as Craft, 2012 (the post the SRE book cites for postmortems). <a href="https://www.etsy.com/codeascraft/blameless-postmortems">etsy.com</a></li>
+    <li>NIST, SP 800-34 Rev. 1, <em>Contingency Planning Guide for Federal Information Systems</em>, May 2010 (RPO and RTO). <a href="https://csrc.nist.gov/pubs/sp/800/34/r1/upd1/final">csrc.nist.gov</a> · <a href="https://csrc.nist.gov/glossary/term/recovery_point_objective">RPO</a> · <a href="https://csrc.nist.gov/glossary/term/recovery_time_objective">RTO</a></li>
+    <li>Paul Ruggiero and Matthew A. Heckathorn, "Data Backup Options", US-CERT, 2012 (the 3-2-1 rule, citing Peter Krogh, <em>The DAM Book</em>, 2nd ed., O'Reilly, 2009). <a href="https://www.cisa.gov/sites/default/files/publications/data_backup_options.pdf">PDF</a></li>
+    <li>SQLite, "Using the SQLite Online Backup API" and "How To Corrupt An SQLite Database File", section 1.2. <a href="https://www.sqlite.org/backup.html">backup</a> · <a href="https://www.sqlite.org/howtocorrupt.html">howtocorrupt</a> · Python, <code>sqlite3.Connection.backup</code>. <a href="https://docs.python.org/3.11/library/sqlite3.html#sqlite3.Connection.backup">docs.python.org</a></li>
+    <li>Pete Hodgson, "Feature Toggles (aka Feature Flags)", martinfowler.com, 9 Oct 2017. <a href="https://martinfowler.com/articles/feature-toggles.html">martinfowler.com</a></li>
+    <li>Danilo Sato, "CanaryRelease", martinfowler.com, 25 Jun 2014. <a href="https://martinfowler.com/bliki/CanaryRelease.html">martinfowler.com</a></li>
+    <li>Replit / SaaStr, July 2025: Jason Lemkin's report <a href="https://x.com/jasonlk/status/1946069562723897802">x.com/jasonlk</a> · Amjad Masad's response <a href="https://x.com/amasad/status/1946986468586721478">x.com/amasad</a> (see Lecture 1).</li>
+  </ol>
+</section>
+
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="../index.html">← Course home</a>
+  <a href="11-performance-and-economics.html">← Lecture 11: Performance and the Economics of Agentic Work</a>
+  <span>Build It. Prove It. Own It. · Lecture 12</span>
+  <a href="13-change-without-forgetting.html">Lecture 13: Change Without Forgetting →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Boundaries That Make Change Cheap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .patch footer.bad { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="course" href="../index.html">Build It. Prove It. <span>Own It.</span></a>
+  <nav aria-label="Lecture">
+    <span>Week 4 · Lecture 4 of 14</span>
+    <button class="toggle" id="projector" type="button" aria-pressed="false">Projector mode</button>
+  </nav>
+</header>
+
+<div class="frame">
+
+<section class="hero" aria-labelledby="page-title">
+  <p class="eyebrow">Week 4 · Design is part of the specification</p>
+  <h1 id="page-title">Boundaries That Make Change Cheap</h1>
+  <p class="lede">An agent can add a feature to any codebase. What the next change costs depends on where the decisions live: in one place, or copied into routes, SQL, web pages and notes. This lecture is about drawing boundaries around the decisions most likely to change.</p>
+  <div class="facts">
+    <span class="fact">90-minute lecture</span>
+    <span class="fact">2-hour lab</span>
+    <span class="fact">~25 minutes of reading after class</span>
+    <span class="fact">Kit: tangled AfterHours</span>
+    <span class="fact">Loop: Specify (design)</span>
+  </div>
+  <div class="outcomes">
+    <p class="eyebrow">By the end of today you can</p>
+    <ul>
+      <li>Find every place a decision is written down, and say what a change to it will touch.</li>
+      <li>Split a system by the decisions likely to change, instead of by the steps of the flow.</li>
+      <li>Tell a deep module from a shallow one, and sketch a small interface for a rule.</li>
+      <li>State the units and meaning of what crosses a boundary, and use types to guard them.</li>
+      <li>Keep a refactor (the existing tests untouched and green) apart from a behaviour change (tests change on purpose).</li>
+      <li>Record a design decision as an ADR, including an alternative you rejected.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <p class="eyebrow">In class</p>
+  <ol>
+    <li><a href="#hook"><span class="t">0:00</span><span>One rule, two codebases</span></a></li>
+    <li><a href="#parnas"><span class="t">0:12</span><span>Hide what will change</span></a></li>
+    <li><a href="#deep"><span class="t">0:30</span><span>Deep modules</span></a></li>
+    <li><a href="#contracts"><span class="t">0:45</span><span>What crosses the boundary</span></a></li>
+    <li><a href="#legible"><span class="t">1:00</span><span>Legible to whom?</span></a></li>
+    <li><a href="#adr"><span class="t">1:15</span><span>Write the decision down</span></a></li>
+    <li><a href="#exit"><span class="t">1:25</span><span>Exit ticket</span></a></li>
+  </ol>
+  <p class="eyebrow part">After class</p>
+  <ol>
+    <li><a href="#conway"><span class="t">R1</span><span>Teams leave marks in code</span></a></li>
+    <li><a href="#wrong"><span class="t">R2</span><span>The wrong abstraction</span></a></li>
+    <li><a href="#adr-example"><span class="t">R3</span><span>An ADR from AfterHours</span></a></li>
+    <li><a href="#easy"><span class="t">R4</span><span>Make the change easy</span></a></li>
+    <li><a href="#words"><span class="t">W</span><span>Words from today</span></a></li>
+    <li><a href="#refs"><span class="t">Refs</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<!-- ============ 1. HOOK ============ -->
+<section class="block" id="hook">
+  <div class="sechead">
+    <span class="clock">0:00 – 0:12</span>
+    <h2>One rule, two codebases</h2>
+  </div>
+  <p>AfterHours has grown since Week 1. One prompt at a time, features were added: people can <strong>cancel</strong> a booking, see <strong>My bookings</strong>, and volunteers can <strong>check people in at the door</strong>. Every feature works, and all 33 tests pass.</p>
+  <p>Then the organisers send a one-line email:</p>
+  <div class="callout">
+    <span class="label">From the organisers, 1 October</span>
+    <p>From next week, cancellations are allowed until <strong>24 hours before the event</strong>. After that, people keep their place.</p>
+  </div>
+  <p>Today the rule is "cancel any time before the event starts". The change sounds like one line. Whether it <em>is</em> one line depends on how many places in the code know the rule.</p>
+
+  <div class="callout try">
+    <span class="label">Predict, then hunt (pairs, 6 minutes)</span>
+    <ol>
+      <li>Before you look: how many places in the code will this change touch? Pick one: <strong>1</strong>, <strong>2–3</strong>, <strong>4–6</strong>, <strong>7 or more</strong>.</li>
+      <li>Now open the kit (<code>lectures/04-boundaries/lab-kit/tangled/</code>, projected at the front). Find every place that states, checks or shows today's rule. Count places that are not Python too.</li>
+    </ol>
+  </div>
+  <p>Here is one place that is easy to miss. It is the query behind <em>My bookings</em>, in <code>app/main.py</code>:</p>
+  <pre><code>SELECT r.id, r.event_id, e.title, e.venue, e.starts_at, r.status,
+       e.starts_at AS cancel_until,                          -- the rule, as a column alias
+       CASE WHEN r.status = 'confirmed' AND e.starts_at &gt; ?  -- the rule again, as text comparison
+            THEN 1 ELSE 0 END AS can_cancel
+FROM reservations r JOIN events e ON e.id = r.event_id
+WHERE r.attendee = ?</code></pre>
+  <p class="handnote">The deadline hides in a column name. The check hides in a comparison of two strings.</p>
+
+  <details class="reveal">
+    <summary>Every place the rule lives (open after you have counted)</summary>
+    <div class="inner">
+      <div class="tablewrap">
+        <table class="grid">
+          <thead><tr><th>#</th><th>Where</th><th>Language</th><th>What it says</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><code>main.py:143</code>, reserve route</td><td>Python</td><td>The confirmation's <code>cancel_until</code> is the start time</td></tr>
+            <tr><td>2</td><td><code>main.py:164</code>, cancel route</td><td>Python</td><td>Refuse when now ≥ start</td></tr>
+            <tr><td>3</td><td><code>main.py:165</code>, cancel route</td><td>message text</td><td>"This event has already started"</td></tr>
+            <tr><td>4</td><td><code>main.py:189</code>, My bookings</td><td>SQL</td><td><code>e.starts_at AS cancel_until</code></td></tr>
+            <tr><td>5</td><td><code>main.py:190</code>, with its parameter at lines 184 and 195</td><td>SQL + Python</td><td><code>can_cancel</code> is true while start &gt; now</td></tr>
+            <tr><td>6</td><td><code>index.html:91</code></td><td>HTML</td><td>"You can cancel any time before an event starts"</td></tr>
+            <tr><td>7</td><td><code>AGENTS.md:27</code></td><td>Markdown</td><td>"People can cancel any time before the event starts."</td></tr>
+            <tr><td>+</td><td><code>main.py:146</code></td><td>comment</td><td>"people can cancel any time before the event starts"</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Seven places, plus a comment that restates the rule, in three files and four languages. We made the change there by hand, correctly: <strong>8 separate edits in 3 files</strong>, and the five new-rule API tests (<code>tests/new_rule/test_cancel_24h.py</code>) pass. In a modular version of the same app, with the same behaviour and the same 33 tests of that behaviour, the change was <strong>2 lines in 1 file</strong>. Both diffs are in <code>lectures/04-boundaries/demo/</code>.</p>
+      <p>One trap on the way. To move the deadline back 24 hours in SQL, SQLite's <code>datetime(e.starts_at, '-24 hours')</code> looks right. It returns <code>2026-10-08 20:00:00</code>, with a space where our stored times have a <code>T</code>. Compared as text with <code>2026-10-08T19:00:00</code>, it says "not later", so on the deadline's own day the Cancel button disappears too early. The tests would catch it only if one of them happened to use a time on that day.</p>
+    </div>
+  </details>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 480" role="img" aria-label="Two sketches of AfterHours. Left, the tangled kit: the 24-hour change needs edits in the web page, in AGENTS.md, and in the reserve route, the cancel route and the My-bookings SQL inside main.py: eight edits in three files. Right, the modular version: main.py calls reservations, catalog and checkin, which ask policy; the change needs two lines in policy.py only.">
+        <defs>
+          <filter id="w4f1-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w4f1-r)">
+          <rect x="40" y="52" width="170" height="58" rx="8" class="s f-card"/>
+          <rect x="270" y="52" width="170" height="58" rx="8" class="s f-card"/>
+          <rect x="40" y="140" width="400" height="220" rx="10" class="s f-card"/>
+          <rect x="58" y="176" width="364" height="30" rx="4" class="s s-thin f-paper"/>
+          <rect x="58" y="212" width="364" height="30" rx="4" class="s s-thin f-paper"/>
+          <rect x="58" y="248" width="364" height="30" rx="4" class="s s-thin f-paper"/>
+          <rect x="58" y="284" width="364" height="30" rx="4" class="s s-thin f-paper"/>
+          <rect x="58" y="320" width="364" height="30" rx="4" class="s s-thin f-paper"/>
+          <rect x="40" y="392" width="180" height="46" rx="8" class="s f-card"/>
+          <rect x="260" y="392" width="180" height="46" rx="8" class="s f-card"/>
+          <path d="M125,112 V136" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M130,362 V388" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M350,362 V388" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M222,415 H256" class="s" marker-end="url(#w4f1-a)"/>
+          <circle cx="198" cy="56" r="12" class="s s-red f-red"/>
+          <circle cx="428" cy="56" r="12" class="s s-red f-red"/>
+          <circle cx="400" cy="227" r="12" class="s s-red f-red"/>
+          <circle cx="400" cy="263" r="12" class="s s-red f-red"/>
+          <circle cx="400" cy="299" r="12" class="s s-red f-red"/>
+          <path d="M480,20 V460" class="s s-dash s-2"/>
+          <rect x="510" y="52" width="170" height="58" rx="8" class="s f-card"/>
+          <rect x="760" y="52" width="170" height="58" rx="8" class="s f-card"/>
+          <rect x="620" y="140" width="200" height="52" rx="8" class="s f-card"/>
+          <rect x="510" y="236" width="130" height="50" rx="8" class="s f-card"/>
+          <rect x="655" y="236" width="130" height="50" rx="8" class="s f-card"/>
+          <rect x="800" y="236" width="130" height="50" rx="8" class="s f-card"/>
+          <rect x="615" y="340" width="210" height="64" rx="10" class="s s-red s-thick f-red"/>
+          <path d="M600,112 L656,136" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M670,194 L594,232" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M720,194 V232" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M770,194 L846,232" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M590,288 L668,336" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M720,288 V336" class="s" marker-end="url(#w4f1-a)"/>
+          <path d="M850,288 L772,336" class="s" marker-end="url(#w4f1-a)"/>
+          <circle cx="812" cy="344" r="12" class="s s-red f-red"/>
+        </g>
+        <text x="240" y="32" text-anchor="middle" class="t-lg">Tangled kit</text>
+        <text x="125" y="80" text-anchor="middle">index.html</text>
+        <text x="125" y="100" text-anchor="middle" class="t-sm t-2">help text</text>
+        <text x="355" y="80" text-anchor="middle">AGENTS.md</text>
+        <text x="355" y="100" text-anchor="middle" class="t-sm t-2">festival rules</text>
+        <text x="58" y="166" class="t-lg">main.py</text>
+        <text x="422" y="166" text-anchor="end" class="t-sm t-2">routes, SQL and rules</text>
+        <text x="72" y="196" class="t-sm">event list</text>
+        <text x="72" y="232" class="t-sm">reserve route</text>
+        <text x="72" y="268" class="t-sm">cancel route</text>
+        <text x="72" y="304" class="t-sm">My bookings query (SQL)</text>
+        <text x="72" y="340" class="t-sm">door routes</text>
+        <text x="130" y="420" text-anchor="middle" class="t-sm">reservations.py</text>
+        <text x="350" y="420" text-anchor="middle" class="t-sm">db.py</text>
+        <text x="198" y="61" text-anchor="middle" class="t-sm t-red">1</text>
+        <text x="428" y="61" text-anchor="middle" class="t-sm t-red">1</text>
+        <text x="400" y="232" text-anchor="middle" class="t-sm t-red">1</text>
+        <text x="400" y="268" text-anchor="middle" class="t-sm t-red">2</text>
+        <text x="400" y="304" text-anchor="middle" class="t-sm t-red">3</text>
+        <text x="240" y="470" text-anchor="middle" class="t-sm t-red">8 edits in 3 files: Python, SQL, HTML, Markdown</text>
+        <text x="720" y="32" text-anchor="middle" class="t-lg">Modular (the full split)</text>
+        <text x="595" y="80" text-anchor="middle">index.html</text>
+        <text x="595" y="100" text-anchor="middle" class="t-sm t-2">shows cancel_until</text>
+        <text x="845" y="80" text-anchor="middle">AGENTS.md</text>
+        <text x="845" y="100" text-anchor="middle" class="t-sm t-2">points to policy.py</text>
+        <text x="720" y="164" text-anchor="middle">main.py</text>
+        <text x="720" y="183" text-anchor="middle" class="t-sm t-2">HTTP only</text>
+        <text x="575" y="266" text-anchor="middle" class="t-sm">reservations</text>
+        <text x="720" y="266" text-anchor="middle" class="t-sm">catalog</text>
+        <text x="865" y="266" text-anchor="middle" class="t-sm">checkin</text>
+        <text x="720" y="372" text-anchor="middle" class="t-lg">policy.py</text>
+        <text x="720" y="394" text-anchor="middle" class="t-sm">time rules</text>
+        <text x="812" y="349" text-anchor="middle" class="t-sm t-red">1</text>
+        <text x="720" y="470" text-anchor="middle" class="t-sm t-red">2 lines in 1 file</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.1</b> The same 24-hour change in two versions of the same app. Red circles count the edits each part needs; arrows point from a part to what it uses. Left: 8 edits spread over three files. Right: one edit (two lines) in the module that holds the time rules. <code>db.py</code>, <code>clock.py</code> and <code>payments.py</code> are left out on the right.</figcaption>
+  </figure>
+
+  <div class="callout case">
+    <span class="label">About this code</span>
+    <p>We built the tangled kit on purpose, the way an app tends to look after features are bolted on one prompt at a time. It is a teaching construction, not the output of one particular agent. It works, and every characterization test passes. One oddity on the door page is planted and pinned by a test; the lab explains it.</p>
+  </div>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>What a change costs is decided before anyone makes it: by how many places know the thing that is changing.</p>
+  </div>
+</section>
+
+<!-- ============ 2. PARNAS ============ -->
+<section class="block" id="parnas">
+  <div class="sechead">
+    <span class="clock">0:12 – 0:30</span>
+    <h2>Hide what will change</h2>
+  </div>
+  <p>How did the rule end up in seven places? Each feature was built as a <em>flow</em>: a request comes in, rows are read, something is checked, rows are written, a response goes out. Cancelling is one flow, My bookings another, booking a third. Each flow needed to know the rule, so each got its own copy.</p>
+  <p>In 1972 David Parnas compared two ways of splitting the same small program into modules. The program built a KWIC index: it took lines of text, produced every circular shift of every line, and printed them in alphabetical order. His first split followed the processing steps, one module each for input, circular shift, alphabetizing and output. His second gave each module one design decision to keep to itself; one module, for example, alone knew how the lines were stored in memory.</p>
+  <p>Then he asked what would happen to each split when a likely decision changed. Changing how lines are stored, or packing four characters into each machine word, touched every module in the first split, because they all used the storage format directly. In the second split, only the storage module changed. His conclusion:</p>
+  <div class="callout">
+    <p><q>We have tried to demonstrate by these examples that it is almost always incorrect to begin the decomposition of a system into modules on the basis of a flowchart. We propose instead that one begins with a list of difficult design decisions or design decisions which are likely to change. Each module is then designed to hide such a decision from the others.</q></p>
+    <p class="handnote">D. L. Parnas, Communications of the ACM, December 1972</p>
+  </div>
+  <p>He called the criterion <strong>information hiding</strong>. A module is a boundary around a secret: everyone else knows only what they can ask it, never how it decides.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 470" role="img" aria-label="Parnas's comparison redrawn for AfterHours. Left, split by flow: event list, reserve, cancel, My bookings, door check-in, web page. Change A, cancellation closing 24 hours before, touches reserve, cancel, My bookings and the web page. Change B, two places at every event kept back for volunteers, touches event list and reserve. Right, split by decision: main.py for HTTP, policy for time rules, catalog for what counts as taken, reservations, checkin, and the web page. Change A touches only policy; change B touches only catalog.">
+        <defs>
+          <filter id="w4f2-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w4f2-r)">
+          <rect x="60" y="76" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="60" y="130" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="60" y="184" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="60" y="238" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="60" y="292" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="60" y="346" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="402" y="90" width="16" height="16" class="s s-pen f-penink"/>
+          <circle cx="385" cy="152" r="9" class="s s-red f-redink"/>
+          <rect x="402" y="144" width="16" height="16" class="s s-pen f-penink"/>
+          <circle cx="385" cy="206" r="9" class="s s-red f-redink"/>
+          <circle cx="385" cy="260" r="9" class="s s-red f-redink"/>
+          <circle cx="385" cy="368" r="9" class="s s-red f-redink"/>
+          <path d="M480,70 V400" class="s s-dash s-2"/>
+          <rect x="540" y="76" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="130" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="184" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="238" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="292" width="300" height="44" rx="8" class="s f-card"/>
+          <rect x="540" y="346" width="300" height="44" rx="8" class="s f-card"/>
+          <circle cx="865" cy="152" r="9" class="s s-red f-redink"/>
+          <rect x="882" y="198" width="16" height="16" class="s s-pen f-penink"/>
+          <circle cx="80" cy="446" r="9" class="s s-red f-redink"/>
+          <rect x="520" y="438" width="16" height="16" class="s s-pen f-penink"/>
+        </g>
+        <text x="240" y="30" text-anchor="middle" class="t-lg">Split by flow</text>
+        <text x="240" y="54" text-anchor="middle" class="t-sm t-2">one module per request, like main.py today</text>
+        <text x="720" y="30" text-anchor="middle" class="t-lg">Split by decision</text>
+        <text x="720" y="54" text-anchor="middle" class="t-sm t-2">each module keeps one secret</text>
+        <text x="80" y="104">event list</text>
+        <text x="80" y="158">reserve</text>
+        <text x="80" y="212">cancel</text>
+        <text x="80" y="266">My bookings</text>
+        <text x="80" y="320">door check-in</text>
+        <text x="80" y="374">web page</text>
+        <text x="560" y="104">main.py: HTTP only</text>
+        <text x="560" y="158">policy: time rules</text>
+        <text x="560" y="212">catalog: what counts as taken</text>
+        <text x="560" y="266">reservations: storing bookings</text>
+        <text x="560" y="320">checkin: the door record</text>
+        <text x="560" y="374">web page: shows what the API says</text>
+        <text x="240" y="420" text-anchor="middle" class="t-sm">A touches 4 modules · B touches 2</text>
+        <text x="720" y="420" text-anchor="middle" class="t-sm">A touches 1 module · B touches 1</text>
+        <text x="96" y="451" class="t-sm t-red">A: cancelling closes 24 h before the start</text>
+        <text x="544" y="451" class="t-sm t-pen">B: two places per event kept for volunteers</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.2</b> Parnas's comparison, redrawn for AfterHours. Both splits hold the same behaviour. Two likely changes: A is this week's rule; B (two places per event kept back for volunteers, so fewer can be booked) is a hypothetical next one. Split by flow, each change touches several modules. Split by decision, each touches the one module that keeps that secret.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Decision cards (pairs, 8 minutes)</span>
+    <p>Here are eight decisions inside AfterHours. For each, say how likely it is to change this year, and who would change it. Then group them into modules so that each likely change lands in one module.</p>
+    <ol>
+      <li>How long before the start people may cancel.</li>
+      <li>When the door opens and closes for check-in.</li>
+      <li>What counts as a taken place (confirmed bookings only? places kept back for volunteers?).</li>
+      <li>Which database we use (SQLite today).</li>
+      <li>How a payment is authorised (the provider).</li>
+      <li>How the door page looks.</li>
+      <li>The text format of times stored in the database.</li>
+      <li>How people identify themselves (a typed name today; logins in Week 8).</li>
+    </ol>
+  </div>
+  <details class="reveal">
+    <summary>Debrief: one reasonable grouping</summary>
+    <div class="inner">
+      <ul>
+        <li><strong>Time rules</strong> (1, 2): the organisers change them, often together. One module, <code>policy</code>.</li>
+        <li><strong>What counts as taken</strong> (3): product decisions, and they will change; Week 6's optional waitlist design explores how the count might change. One module, <code>catalog</code>, owns the count.</li>
+        <li><strong>Storage</strong> (4, 7): engineering decisions that change rarely but hurt everywhere when they do. Keep SQL and stored formats behind the modules that own the tables, and convert text to <code>datetime</code> at that edge.</li>
+        <li><strong>Payments</strong> (5): already its own module in Week 1, so a new provider changes <code>payments.py</code>, not the routes.</li>
+        <li><strong>The door page</strong> (6): the most likely change of all, so keep rules out of the page. The page shows what the API says.</li>
+        <li><strong>Identity</strong> (8): not hidden anywhere yet; today's typed name leaks into every route. Week 8 will pay for that.</li>
+      </ul>
+      <p>Other groupings can be right. Test yours the way Parnas did: pick a likely change and count the modules it touches.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Split a system by the decisions you expect to change, not by the steps a request goes through. Each module keeps one secret.</p>
+  </div>
+</section>
+
+<!-- ============ 3. DEEP ============ -->
+<section class="block" id="deep">
+  <div class="sechead">
+    <span class="clock">0:30 – 0:45</span>
+    <h2>Deep modules</h2>
+  </div>
+  <p>A boundary helps only if the secret stays inside it. John Ousterhout's book <em>A Philosophy of Software Design</em> (2018) gives a way to see whether it does. Picture a module as a rectangle. The top edge is its <strong>interface</strong>: everything a caller must know to use it. The area is the <strong>work it does</strong> for them. In his words: <q>The best modules are those that provide powerful functionality yet have simple interfaces. I use the term deep to describe such modules.</q></p>
+  <p>One of his examples is file input and output in Unix, which he calls <q>a beautiful example of a deep interface</q>: five basic system calls (<code>open</code>, <code>read</code>, <code>write</code>, <code>lseek</code>, <code>close</code>) in front of everything the operating system does to store files. He also names the symptom that tangled code shows: <strong>change amplification</strong>, when <q>a seemingly simple change requires code modifications in many different places</q>. That is our hook.</p>
+  <p>Here are two ways to take the cancellation rule out of the routes.</p>
+  <div class="patches">
+    <article class="patch">
+      <header><strong>Shallow · a helper module</strong><span>timeutils.py and one of its callers (illustrative)</span></header>
+<pre class="diff"><span class="ctx">def parse(s: str) -&gt; datetime: ...</span><span class="ctx">def fmt(dt: datetime) -&gt; str: ...</span><span class="ctx">def add_hours(dt: datetime, h: int) -&gt; datetime: ...</span><span class="ctx">def is_before(a: datetime, b: datetime) -&gt; bool: ...</span><span class="ctx">def hours_until(a: datetime, b: datetime) -&gt; float: ...</span><span class="ctx"> </span><span class="ctx"># in the cancel route: the caller still knows the rule</span><span class="ctx">deadline = add_hours(parse(row["starts_at"]), -24)</span><span class="ctx">if not is_before(now, deadline):</span><span class="ctx">    raise HTTPException(409, "Cancellations close 24 hours before ...")</span></pre>
+      <footer class="bad">5 functions to learn · 24, "before" and the message live in every caller</footer>
+    </article>
+    <article class="patch">
+      <header><strong>Deep · a policy module</strong><span>app/policy.py and one of its callers (from the lab's reference)</span></header>
+<pre class="diff"><span class="ctx">def cancellation(starts_at: datetime, now: datetime) -&gt; Cancellation:</span><span class="ctx">    """Cancellation(allowed, deadline, reason)"""</span><span class="ctx"> </span><span class="ctx"># in the cancel route: the caller asks, and knows nothing else</span><span class="ctx">answer = policy.cancellation(starts_at, now)</span><span class="ctx">if not answer.allowed:</span><span class="ctx">    raise HTTPException(409, answer.reason)</span></pre>
+      <footer>1 function to learn · the number, the edge case and the wording stay inside</footer>
+    </article>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 460" role="img" aria-label="Left, a shallow module: a wide, short rectangle with five functions. Three callers above it each carry sticky notes saying 24, before and the format: the rule lives in every caller. Right, a deep module: a narrow, tall rectangle with one function, cancellation. Its callers only know to pass festival local time as datetime objects; inside it hides 24 hours, before-not-at, the refusal message, what notice means, how the deadline is computed, and next year's rule.">
+        <defs>
+          <filter id="w4f3-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="6"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w4f3-r)">
+          <rect x="40" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <rect x="165" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <rect x="290" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <rect x="37" y="108" width="116" height="28" rx="2" class="s s-thin f-mark"/>
+          <rect x="162" y="108" width="116" height="28" rx="2" class="s s-thin f-mark"/>
+          <rect x="287" y="108" width="116" height="28" rx="2" class="s s-thin f-mark"/>
+          <path d="M95,138 V184" class="s" marker-end="url(#w4f3-a)"/>
+          <path d="M220,138 V184" class="s" marker-end="url(#w4f3-a)"/>
+          <path d="M345,138 V184" class="s" marker-end="url(#w4f3-a)"/>
+          <rect x="30" y="190" width="380" height="72" class="s f-pen"/>
+          <path d="M30,190 H410" class="s s-thick"/>
+          <path d="M480,30 V430" class="s s-dash s-2"/>
+          <rect x="540" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <rect x="665" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <rect x="790" y="60" width="110" height="40" rx="6" class="s f-card"/>
+          <path d="M600,102 L700,184" class="s" marker-end="url(#w4f3-a)"/>
+          <path d="M720,102 V184" class="s" marker-end="url(#w4f3-a)"/>
+          <path d="M840,102 L740,184" class="s" marker-end="url(#w4f3-a)"/>
+          <rect x="650" y="190" width="140" height="230" class="s f-pen"/>
+          <path d="M650,190 H790" class="s s-thick"/>
+          <path d="M660,230 H780" class="s s-thin s-dash"/>
+        </g>
+        <text x="220" y="34" text-anchor="middle" class="t-lg">Shallow: timeutils.py</text>
+        <text x="95" y="85" text-anchor="middle" class="t-sm">cancel route</text>
+        <text x="220" y="85" text-anchor="middle" class="t-sm">My bookings</text>
+        <text x="345" y="85" text-anchor="middle" class="t-sm">confirmation</text>
+        <text x="95" y="127" text-anchor="middle" class="t-sm t-mark">24 · before · fmt</text>
+        <text x="220" y="127" text-anchor="middle" class="t-sm t-mark">24 · before · fmt</text>
+        <text x="345" y="127" text-anchor="middle" class="t-sm t-mark">24 · before · fmt</text>
+        <text x="220" y="220" text-anchor="middle" class="t-mono">parse() · fmt() · add_hours()</text>
+        <text x="220" y="244" text-anchor="middle" class="t-mono">is_before() · hours_until()</text>
+        <text x="220" y="292" text-anchor="middle" class="t-sm t-2">wide top edge: five functions to learn</text>
+        <text x="220" y="314" text-anchor="middle" class="t-sm t-2">shallow: each does a line or two</text>
+        <text x="220" y="348" text-anchor="middle" class="t-sm t-red">the rule lives in every caller</text>
+        <text x="720" y="34" text-anchor="middle" class="t-lg">Deep: policy.py</text>
+        <text x="595" y="85" text-anchor="middle" class="t-sm">cancel route</text>
+        <text x="720" y="85" text-anchor="middle" class="t-sm">My bookings</text>
+        <text x="845" y="85" text-anchor="middle" class="t-sm">confirmation</text>
+        <text x="720" y="216" text-anchor="middle" class="t-mono">cancellation()</text>
+        <text x="720" y="258" text-anchor="middle" class="t-sm">24 hours</text>
+        <text x="720" y="284" text-anchor="middle" class="t-sm">before, not at</text>
+        <text x="720" y="310" text-anchor="middle" class="t-sm">refusal message</text>
+        <text x="720" y="336" text-anchor="middle" class="t-sm">what "notice" means</text>
+        <text x="720" y="362" text-anchor="middle" class="t-sm">how the deadline</text>
+        <text x="720" y="382" text-anchor="middle" class="t-sm">is computed</text>
+        <text x="720" y="404" text-anchor="middle" class="t-sm t-2">next year's rule</text>
+        <text x="802" y="200" class="t-sm t-2">one call to learn;</text>
+        <text x="802" y="220" class="t-sm t-2">callers know: local</text>
+        <text x="802" y="240" class="t-sm t-2">time in, deadline out</text>
+        <text x="802" y="390" class="t-sm t-2">deep: the rule</text>
+        <text x="802" y="410" class="t-sm t-2">stays inside</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.3</b> Deep and shallow, after Ousterhout's picture: the top edge is what a caller must learn, the depth is what the module does for them. The shallow helper removes some typing but leaves the rule (24, "before", the format) in every caller. The deep module's callers still know one convention (festival local time in, a <code>datetime</code> deadline out, which they format). Illustrative.</figcaption>
+  </figure>
+
+  <div class="callout try">
+    <span class="label">Quick check (pairs, 3 minutes)</span>
+    <p>The organisers change 24 hours to 48. With the shallow helper, which files change? With the deep module? And which version do you trust an agent to change without missing a caller?</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p>Shallow: every caller that passes <code>-24</code> or writes the message, so three places at least, plus the page and the docs if they state the rule. Deep: one constant and one sentence in <code>policy.py</code>. The helper module made the code shorter without hiding the decision.</p>
+      <p>Deep does not mean big, and more modules is not better. Ousterhout calls the opposite extreme <strong>classitis</strong>: so many small classes that each does little and every caller must learn them all. The test is the ratio: how much the module hides for how little it asks you to know.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>A good interface is much smaller than what it hides. A helper that every caller must combine correctly has moved the code, not the decision.</p>
+  </div>
+</section>
+
+<!-- ============ 4. CONTRACTS ============ -->
+<section class="block" id="contracts">
+  <div class="sechead">
+    <span class="clock">0:45 – 1:00</span>
+    <h2>What crosses the boundary</h2>
+  </div>
+  <p>A boundary is also a promise between two sides. Names and types are the visible part. The rest is <strong>meaning</strong>: which units, which time zone, which text format, whether the edge value is included, who converts. When the two sides assume different meanings, both sides can be correct on their own and wrong together.</p>
+
+  <div class="callout case">
+    <span class="label">Case: Mars Climate Orbiter, 1999</span>
+    <p>A ground program called SM_FORCES, run by the spacecraft team at Lockheed Martin Astronautics, wrote thruster data into a file (the AMD file). The project's Software Interface Specification said the impulse values must be in newton-seconds. The program wrote them in pound-force seconds. JPL's navigation software read the file as the specification said, in newton-seconds, and so underestimated the effect of each thruster firing by a factor of 4.45. The small errors added up over the nine-month cruise. At arrival the orbiter was about 170 km lower than planned, and it was lost on 23 September 1999.</p>
+    <p>The investigation board named the units error as the root cause and listed eight contributing causes, including verification that did not cover the ground software and poor communication between project teams. It was not "just a units bug": the process around the interface did not catch it for months.</p>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 420" role="img" aria-label="The Mars Climate Orbiter interface. The spacecraft team's SM_FORCES software writes the AMD file in pound-force seconds; the interface specification says newton-seconds; JPL's navigation software reads the file as newton-seconds. Bars drawn to scale show that one pound-force second is 4.45 newton-seconds, so each firing's push was read as 4.45 times too small. At arrival the orbiter was about 170 km lower than planned.">
+        <defs>
+          <filter id="w4f4-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f4-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+          <marker id="w4f4-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-redink"/></marker>
+        </defs>
+        <g filter="url(#w4f4-r)">
+          <rect x="340" y="10" width="280" height="42" rx="2" class="s s-thin f-mark"/>
+          <path d="M480,54 V66" class="s s-thin s-dash"/>
+          <rect x="30" y="80" width="250" height="110" rx="10" class="s f-card"/>
+          <path d="M390,70 H550 L580,100 V210 H390 Z" class="s f-card"/>
+          <path d="M550,70 V100 H580" class="s s-thin"/>
+          <rect x="680" y="80" width="250" height="110" rx="10" class="s f-card"/>
+          <path d="M282,140 H384" class="s s-red" marker-end="url(#w4f4-ar)"/>
+          <path d="M582,140 H676" class="s" marker-end="url(#w4f4-a)"/>
+          <rect x="200" y="258" width="80" height="24" class="s s-thin s-pen f-pen"/>
+          <rect x="200" y="298" width="356" height="24" class="s s-thin s-red f-red"/>
+          <path d="M200,338 H560 M200,332 V344 M280,332 V344 M556,332 V344" class="s s-thin s-2"/>
+        </g>
+        <text x="480" y="37" text-anchor="middle" class="t-sm t-mark">interface spec (SIS): newton-seconds</text>
+        <text x="155" y="114" text-anchor="middle" class="t-lg">spacecraft team</text>
+        <text x="155" y="140" text-anchor="middle" class="t-sm">Lockheed Martin Astronautics</text>
+        <text x="155" y="166" text-anchor="middle" class="t-mono">SM_FORCES software</text>
+        <text x="485" y="124" text-anchor="middle" class="t-lg">AMD file</text>
+        <text x="485" y="150" text-anchor="middle" class="t-sm">thruster impulse</text>
+        <text x="485" y="172" text-anchor="middle" class="t-sm">per firing</text>
+        <text x="805" y="114" text-anchor="middle" class="t-lg">navigation team</text>
+        <text x="805" y="140" text-anchor="middle" class="t-sm">JPL</text>
+        <text x="805" y="166" text-anchor="middle" class="t-mono">trajectory software</text>
+        <text x="333" y="128" text-anchor="middle" class="t-sm t-red">writes lbf·s</text>
+        <text x="629" y="128" text-anchor="middle" class="t-sm">reads N·s</text>
+        <text x="190" y="275" text-anchor="end" class="t-sm">read as 1 N·s</text>
+        <text x="190" y="315" text-anchor="end" class="t-sm t-red">meant 1 lbf·s</text>
+        <text x="566" y="315" class="t-sm t-red">= 4.45 N·s</text>
+        <text x="200" y="360" text-anchor="middle" class="t-mono t-2">0</text>
+        <text x="280" y="360" text-anchor="middle" class="t-mono t-2">1</text>
+        <text x="556" y="360" text-anchor="middle" class="t-mono t-2">4.45 N·s</text>
+        <text x="740" y="275" class="t-sm">each firing's push was</text>
+        <text x="740" y="295" class="t-sm">read 4.45 times too small</text>
+        <text x="480" y="404" text-anchor="middle" class="t-sm t-red">at arrival: about 170 km lower than planned · lost 23 September 1999</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.4</b> Two teams, one file, two units. The bars are drawn to scale: one pound-force second is 4.45 newton-seconds. The specification was right; one side did not follow it, and the project's checks did not catch the mismatch in time.</figcaption>
+  </figure>
+
+  <p>AfterHours has the same kind of boundary, in miniature. Every value that crosses <code>policy.cancellation()</code> has a meaning that could be read two ways:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>At the boundary</th><th>Could be read as</th><th>What we wrote down</th></tr></thead>
+      <tbody>
+        <tr><td><code>starts_at</code>, <code>now</code></td><td>UTC or festival time? Text or a time object?</td><td>Festival local time, as naive <code>datetime</code> objects. Callers parse text first.</td></tr>
+        <tr><td>the notice period</td><td><code>24</code> what? Hours, minutes?</td><td><code>timedelta(hours=24)</code>: the unit travels with the number.</td></tr>
+        <tr><td>the deadline</td><td>Is cancelling allowed <em>at</em> the deadline?</td><td>Allowed while <code>now &lt; deadline</code>; at exactly 24 hours before, refused.</td></tr>
+        <tr><td><code>cancel_until</code> in the API</td><td><code>2026-10-08T20:00</code> or <code>2026-10-08T20:00:00</code>?</td><td>Same text format as <code>starts_at</code>: minutes, no seconds.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Types are guardrails.</strong> A signature like <code>cancellation(starts_at: datetime, now: datetime) -&gt; Cancellation</code> says more than <code>can_cancel(starts_at: str, now: str, hours: int) -&gt; bool</code>: no format to guess, no unit to forget, and a result with a name for each part. Python does not check these hints while the program runs; a type checker such as mypy checks them before it runs, and they tell every reader, human or agent, what the boundary expects. What a type cannot say (festival time, the edge value) goes in the docstring, and a test pins it.</p>
+
+  <div class="callout off">
+    <span class="label">Agent-off drill (5 minutes, no laptop)</span>
+    <p>A teammate adds a mobile API. It calls the policy module like this:</p>
+    <pre><code>now = datetime.now(timezone.utc).replace(tzinfo=None)   # "strip the zone"
+answer = policy.cancellation(event_start, now)</code></pre>
+    <p>Festival local time is two hours ahead of UTC. The escape room starts <strong>Friday 20:00</strong> festival time, so cancelling closes <strong>Thursday 20:00</strong>. Maya taps Cancel on <strong>Thursday at 21:00</strong> festival time. What does the mobile API answer, and for how long is the rule wrong? Write the answer, then one change to the boundary that would have stopped it.</p>
+  </div>
+  <details class="reveal">
+    <summary>Answer</summary>
+    <div class="inner">
+      <p>At 21:00 festival time the server's UTC clock reads 19:00. With the zone stripped, the policy compares 19:00 with a 20:00 deadline and says <strong>allowed</strong>: Maya's cancellation goes through an hour after it should have been refused. Every cancellation between 20:00 and 22:00 festival time on the deadline day is wrongly allowed. Both sides did what their own code says, as in 1999.</p>
+      <p>The policy cannot catch this by looking at the value it receives: once <code>.replace(tzinfo=None)</code> has stripped the zone, 19:00 UTC and 19:00 festival time are the same naive object. Stripping the zone destroyed the information needed to notice. What works: make the boundary accept only zone-aware times and reject naive ones, converting to festival time inside the policy; or keep naive festival time and make one function, <code>clock.now()</code>, the only allowed source of "now" (the kit has one), checked in review; and write the convention in the docstring and in a test. Week 10 comes back to UTC and local time.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>An interface is a promise about meaning: units, zones, formats and edges. Write them down where the boundary is, make the types carry what they can, and test the rest.</p>
+  </div>
+</section>
+
+<!-- ============ 5. LEGIBLE ============ -->
+<section class="block" id="legible">
+  <div class="sechead">
+    <span class="clock">1:00 – 1:15</span>
+    <h2>Legible to whom?</h2>
+  </div>
+  <p>A common claim is that code a new teammate can change safely is also code an agent can change safely. It is plausible. A new teammate and an agent both start from nothing, have to find the places before they can edit them, and learn the codebase from what they read. For an agent, what it reads fills its context (Week 3). If a rule lives in one module, there is less to find and less to miss, and a small test file for that module gives fast feedback.</p>
+  <p>It is also a hypothesis, and so is its usual yardstick, "fewer files to read". Agents read quickly and search well; a small tangled codebase may cost them little. So we tried it once.</p>
+  <p>We gave Codex (the gpt-6-astra model) the same request on two copies of AfterHours with the same behaviour and the same 33 characterization tests: the tangled kit, and the modular version with the old rule. The modular copy also had five unit tests for <code>policy.py</code> (38 tests in all), and the agent could read those too. The request stated the new rule and its message and said to keep all other behaviour the same. Two fresh runs on each copy. Afterwards we ran 5 hidden spec tests, which the agent never saw, against each result.</p>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 400" role="img" aria-label="Bar charts of four Codex runs, two on the tangled codebase (T1, T2) and two on the modular one (M1, M2). Files the agent read: 15, 11, 17, 15. Non-test files it changed: 3, 3, 1, 1. Hidden spec tests passed out of 5: 3, 3, 5, 5.">
+        <defs>
+          <filter id="w4f5-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="10"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <g filter="url(#w4f5-r)">
+          <path d="M60,110 V320 H300" class="s s-thin"/>
+          <path d="M54,220 H60 M54,120 H60" class="s s-thin"/>
+          <rect x="75" y="170" width="40" height="150" class="s s-thin s-red f-red"/>
+          <rect x="125" y="210" width="40" height="110" class="s s-thin s-red f-red"/>
+          <rect x="195" y="150" width="40" height="170" class="s s-thin s-pen f-pen"/>
+          <rect x="245" y="170" width="40" height="150" class="s s-thin s-pen f-pen"/>
+          <path d="M370,110 V320 H610" class="s s-thin"/>
+          <path d="M364,220 H370 M364,120 H370" class="s s-thin"/>
+          <rect x="385" y="170" width="40" height="150" class="s s-thin s-red f-red"/>
+          <rect x="435" y="170" width="40" height="150" class="s s-thin s-red f-red"/>
+          <rect x="505" y="270" width="40" height="50" class="s s-thin s-pen f-pen"/>
+          <rect x="555" y="270" width="40" height="50" class="s s-thin s-pen f-pen"/>
+          <path d="M680,110 V320 H920" class="s s-thin"/>
+          <path d="M674,120 H680" class="s s-thin"/>
+          <rect x="695" y="200" width="40" height="120" class="s s-thin s-red f-red"/>
+          <rect x="745" y="200" width="40" height="120" class="s s-thin s-red f-red"/>
+          <rect x="815" y="120" width="40" height="200" class="s s-thin s-pen f-pen"/>
+          <rect x="865" y="120" width="40" height="200" class="s s-thin s-pen f-pen"/>
+          <rect x="330" y="366" width="16" height="16" class="s s-thin s-red f-red"/>
+          <rect x="470" y="366" width="16" height="16" class="s s-thin s-pen f-pen"/>
+        </g>
+        <text x="180" y="44" text-anchor="middle">files the agent read</text>
+        <text x="180" y="66" text-anchor="middle" class="t-sm t-2">of 26 (tangled) or 31 (modular)</text>
+        <text x="490" y="44" text-anchor="middle">non-test files it changed</text>
+        <text x="800" y="44" text-anchor="middle">hidden spec tests passed</text>
+        <text x="800" y="66" text-anchor="middle" class="t-sm t-2">out of 5</text>
+        <text x="50" y="324" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="50" y="224" text-anchor="end" class="t-mono t-2">10</text>
+        <text x="50" y="124" text-anchor="end" class="t-mono t-2">20</text>
+        <text x="360" y="324" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="360" y="224" text-anchor="end" class="t-mono t-2">2</text>
+        <text x="360" y="124" text-anchor="end" class="t-mono t-2">4</text>
+        <text x="670" y="324" text-anchor="end" class="t-mono t-2">0</text>
+        <text x="670" y="124" text-anchor="end" class="t-mono t-2">5</text>
+        <text x="95" y="164" text-anchor="middle" class="t-mono">15</text>
+        <text x="145" y="204" text-anchor="middle" class="t-mono">11</text>
+        <text x="215" y="144" text-anchor="middle" class="t-mono">17</text>
+        <text x="265" y="164" text-anchor="middle" class="t-mono">15</text>
+        <text x="405" y="164" text-anchor="middle" class="t-mono">3</text>
+        <text x="455" y="164" text-anchor="middle" class="t-mono">3</text>
+        <text x="525" y="264" text-anchor="middle" class="t-mono">1</text>
+        <text x="575" y="264" text-anchor="middle" class="t-mono">1</text>
+        <text x="715" y="194" text-anchor="middle" class="t-mono">3</text>
+        <text x="765" y="194" text-anchor="middle" class="t-mono">3</text>
+        <text x="835" y="114" text-anchor="middle" class="t-mono">5</text>
+        <text x="885" y="114" text-anchor="middle" class="t-mono">5</text>
+        <text x="95" y="340" text-anchor="middle" class="t-mono t-2">T1</text>
+        <text x="145" y="340" text-anchor="middle" class="t-mono t-2">T2</text>
+        <text x="215" y="340" text-anchor="middle" class="t-mono t-2">M1</text>
+        <text x="265" y="340" text-anchor="middle" class="t-mono t-2">M2</text>
+        <text x="405" y="340" text-anchor="middle" class="t-mono t-2">T1</text>
+        <text x="455" y="340" text-anchor="middle" class="t-mono t-2">T2</text>
+        <text x="525" y="340" text-anchor="middle" class="t-mono t-2">M1</text>
+        <text x="575" y="340" text-anchor="middle" class="t-mono t-2">M2</text>
+        <text x="715" y="340" text-anchor="middle" class="t-mono t-2">T1</text>
+        <text x="765" y="340" text-anchor="middle" class="t-mono t-2">T2</text>
+        <text x="835" y="340" text-anchor="middle" class="t-mono t-2">M1</text>
+        <text x="885" y="340" text-anchor="middle" class="t-mono t-2">M2</text>
+        <text x="352" y="379" class="t-sm">tangled</text>
+        <text x="492" y="379" class="t-sm">modular</text>
+        <text x="620" y="379" class="t-sm t-2">two runs each, 27 Sep 2026</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.5</b> One observation, drawn to scale from the run logs: four Codex runs, two per codebase, same prompt. The agent read about as much in both. It changed three non-test files in the tangled codebase and one in the modular one. Both tangled runs changed the text format of <code>cancel_until</code>, so 2 of the 5 hidden spec tests failed. Two runs per codebase is an observation, not a measurement.</figcaption>
+  </figure>
+
+  <p>What we saw, in order of surprise:</p>
+  <ul>
+    <li><strong>Reading did not shrink.</strong> In both codebases the agent read <code>AGENTS.md</code>, the README, the main code and several test files before editing: 11 to 15 files in the tangled one, 15 to 17 in the modular one. On an app this small it can afford to read nearly everything.</li>
+    <li><strong>The edit shrank.</strong> Both tangled runs found every place the rule lived, and each pulled the deadline into a helper function of its own, a small seam. Both modular runs changed the same two lines of <code>policy.py</code> as our reference solution.</li>
+    <li><strong>An interface detail drifted.</strong> Both tangled runs rewrote the code that builds <code>cancel_until</code> and changed its format from <code>2026-10-08T20:00</code> to <code>2026-10-08T20:00:00</code>. The web page shows both the same way, and no characterization test pinned the format, so the agents' own test runs were green. In the modular runs that code was never touched, so it could not drift.</li>
+    <li>No run weakened or deleted a test. All of them added tests.</li>
+  </ul>
+  <p>So in this observation the modular version did not save reading. It saved <em>edits</em>, and code that is not edited keeps its promises. With two runs each, one model, one prompt and a codebase we designed for exactly this change, treat it as a reason to keep testing the idea, not as proof. The full logs are in <code>lectures/04-boundaries/demo/agent-observation/</code>.</p>
+
+  <div class="callout try">
+    <span class="label">Write the contract (pairs, 4 minutes)</span>
+    <p>Write the task contract (Week 3) you would give an agent for the 24-hour change, once for each codebase. What can you promise or require in the modular one that you cannot in the tangled one?</p>
+  </div>
+  <details class="reveal">
+    <summary>Debrief</summary>
+    <div class="inner">
+      <p>In the modular codebase you can bound the change: "Only <code>app/policy.py</code> and its tests should change. If anything else needs to change, stop and tell me why." That limit is checkable in the diff (<code>git diff --stat</code>), and a diff that breaks it is a signal worth reading. In the tangled codebase the honest contract is "find every place", which asks for exactly the search that is easy to get subtly wrong. A second useful line in both: "Keep the format of every existing API field", which names the drift above so a reviewer can check for it.</p>
+    </div>
+  </details>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Judge a boundary by the behaviour it preserves and the responsibility it contains, not by counting files. "Legible to people, legible to agents" is a hypothesis worth testing on your own code.</p>
+  </div>
+</section>
+
+<!-- ============ 6. ADR ============ -->
+<section class="block" id="adr">
+  <div class="sechead">
+    <span class="clock">1:15 – 1:25</span>
+    <h2>Write the decision down</h2>
+  </div>
+  <p>A boundary is a decision, and the reasons for it disappear first. In a year, someone (or some agent) will look at <code>policy.py</code> and ask why the rule is not simply in the route. In 2011 Michael Nygard proposed a light way to keep the answer: an <strong>architecture decision record</strong> (ADR), a short text file in the repository, one per decision, numbered and never renumbered. His format has five parts: a <strong>title</strong>, the <strong>context</strong> (the forces at play), the <strong>decision</strong>, its <strong>status</strong>, and its <strong>consequences</strong>, where <q>All consequences should be listed here, not just the "positive" ones.</q> He also kept it short: <q>The whole document should be one or two pages long.</q></p>
+  <p>This course adds one section Nygard's format does not have: <strong>alternatives considered</strong>, at least one option you rejected and why. A rejected alternative shows that a choice was made, and tells the next person what not to try again without new information.</p>
+  <div class="contract">
+    <span class="cardtitle">ADR 0001 · The cancellation rule lives in one policy module</span>
+    <dl>
+      <dt>Status</dt><dd>Accepted, 1 October 2026. Decided by the product lead with the implementer and verifier.</dd>
+      <dt>Context</dt><dd>Organisers want cancelling to close 24 h before the start, and may change time rules again. Today's rule is written in 7 places in 3 files.</dd>
+      <dt>Decision</dt><dd>One function, <code>policy.cancellation(starts_at, now)</code>. Festival local time in; deadline exclusive; <code>cancel_until</code> keeps the <code>starts_at</code> format. Refactor first, then change the rule.</dd>
+      <dt>Rejected</dt><dd>Edit in place (8 edits, drifts again). Notice per event in the database (not asked for yet). An environment variable (invisible in review).</dd>
+      <dt>Consequences</dt><dd>A notice change is 2 lines in 1 file. A new <em>kind</em> of rule, such as workshops only, changes the interface and its 3 callers. One more module to learn.</dd>
+    </dl>
+  </div>
+  <p class="handnote">The full ADR is reading R3. You will write your own in the lab.</p>
+
+  <p>Here is today's work as an evidence packet:</p>
+  <div class="tablewrap">
+    <table class="grid">
+      <tbody>
+        <tr><th>Requirement</th><td>Cancellations close 24 hours before the event starts; from then on, 409 with "Cancellations close 24 hours before the event starts."</td></tr>
+        <tr><th>Decision</th><td>Move the rule into <code>app/policy.py</code> first, with no behaviour change; then change it there (ADR 0001). Rejected: edit in place; per-event setting; environment variable.</td></tr>
+        <tr><th>Change</th><td>Refactor: 4 non-test files, 0 test files. Rule change: 2 lines of <code>policy.py</code>; the 4 tests that pinned the old rule retired in the same commit.</td></tr>
+        <tr><th>Check</th><td>33 characterization tests green at every step; 4 old-rule tests green after the refactor; 8 new-rule tests red before the change and green after.</td></tr>
+        <tr><th>Result</th><td>Ready. Open: the door page's "expected" count includes cancelled bookings (pinned, needs its own decision); a per-event-type notice would change the interface.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 200" role="img" aria-label="The engineering loop drawn as a strip: Understand, Specify, Delegate, Inspect, Verify, Release, Observe, then back to Understand. Specify is highlighted: this week, deciding where each decision lives.">
+        <defs>
+          <filter id="w4f6-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f6-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w4f6-r)">
+          <rect x="20" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <rect x="154" y="50" width="116" height="54" rx="10" class="s s-thick f-mark"/>
+          <rect x="288" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <rect x="422" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <rect x="556" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <rect x="690" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <rect x="824" y="50" width="116" height="54" rx="10" class="s f-card"/>
+          <path d="M138,77 H150" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M272,77 H284" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M406,77 H418" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M540,77 H552" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M674,77 H686" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M808,77 H820" class="s" marker-end="url(#w4f6-a)"/>
+          <path d="M882,106 C882,190 78,190 78,110" class="s s-dash s-2" marker-end="url(#w4f6-a)"/>
+        </g>
+        <text x="78" y="83" text-anchor="middle">Understand</text>
+        <text x="212" y="83" text-anchor="middle" class="t-mark">Specify</text>
+        <text x="346" y="83" text-anchor="middle">Delegate</text>
+        <text x="480" y="83" text-anchor="middle">Inspect</text>
+        <text x="614" y="83" text-anchor="middle">Verify</text>
+        <text x="748" y="83" text-anchor="middle">Release</text>
+        <text x="882" y="83" text-anchor="middle">Observe</text>
+        <text x="212" y="36" text-anchor="middle" class="t-sm t-pen">week 4: where each decision lives</text>
+        <text x="480" y="192" text-anchor="middle" class="t-sm t-2">and back to Understand</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.6</b> Where this week sits on the engineering loop. Choosing boundaries is part of specifying: it sets what each later change will cost, before anything is delegated. Week 2 specified what to build; this week specifies where each decision lives.</figcaption>
+  </figure>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>A boundary without its reasons gets undone by the next person in a hurry. An ADR keeps the context, the choice, what you gave up, and what you rejected, next to the code.</p>
+  </div>
+</section>
+
+<!-- ============ 7. EXIT ============ -->
+<section class="block" id="exit">
+  <div class="sechead">
+    <span class="clock">1:25 – 1:30</span>
+    <h2>Exit ticket</h2>
+  </div>
+  <div class="ticket">
+    <div class="main">
+      <p><strong>Hand this in before you leave</strong> (index card or the course form).</p>
+      <ol>
+        <li>Name one decision in your team's AfterHours that is likely to change. Where is it written down today (files), and which module should keep it?</li>
+        <li>The organisers now want <em>48 hours for workshops, 24 hours for everything else</em>. In the modular version, which module changes, and does its interface have to change? Say why in two sentences.</li>
+        <li>Name one thing you are still unsure about after today.</li>
+      </ol>
+    </div>
+    <div class="stub">ADMIT ONE · WEEK 5</div>
+  </div>
+</section>
+
+<!-- ============ READING ============ -->
+<div class="partbreak">
+  <p class="eyebrow">After class · about 25 minutes</p>
+  <h2>Boundaries over time</h2>
+  <p>The lecture moved one rule behind one boundary. These four short readings are about where boundaries come from, how they go wrong, how to record them, and how to move one safely. Read them before the lab.</p>
+</div>
+
+<section class="block" id="conway">
+  <div class="sechead"><span class="clock">R1</span><h2>Teams leave marks in code</h2></div>
+  <p>The Mars Climate Orbiter's broken boundary sat exactly between two organisations. Melvin Conway described that pattern in April 1968, in <em>Datamation</em>: <q>organizations which design systems (in the broad sense used here) are constrained to produce designs which are copies of the communication structures of these organizations.</q> Fred Brooks later called the idea "Conway's law" in <em>The Mythical Man-Month</em>, and the name stuck.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 330" role="img" aria-label="Left: two teams, an attendee team and a door team; people inside each team talk all day, and the teams meet once a week. Right: the system they build has two apps, an attendee app and a door app, joined by one API. An arrow in the middle says the system tends to copy the conversations.">
+        <defs>
+          <filter id="w4f7-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w4f7-r)">
+          <ellipse cx="120" cy="160" rx="90" ry="58" class="s f-pen"/>
+          <ellipse cx="330" cy="160" rx="90" ry="58" class="s f-green"/>
+          <circle cx="90" cy="160" r="16" class="s f-card"/>
+          <circle cx="150" cy="160" r="16" class="s f-card"/>
+          <circle cx="300" cy="160" r="16" class="s f-card"/>
+          <circle cx="360" cy="160" r="16" class="s f-card"/>
+          <path d="M106,156 H134 M106,164 H134" class="s s-thin"/>
+          <path d="M316,156 H344 M316,164 H344" class="s s-thin"/>
+          <path d="M166,160 H284" class="s s-thin s-dash"/>
+          <path d="M430,160 H510" class="s s-pen s-thick" marker-end="url(#w4f7-a)"/>
+          <rect x="540" y="110" width="170" height="90" rx="10" class="s f-pen"/>
+          <rect x="770" y="110" width="170" height="90" rx="10" class="s f-green"/>
+          <path d="M710,155 H770" class="s"/>
+          <rect x="722" y="141" width="36" height="28" rx="3" class="s s-thin f-mark"/>
+        </g>
+        <text x="225" y="40" text-anchor="middle" class="t-lg">who talks to whom</text>
+        <text x="120" y="92" text-anchor="middle" class="t-sm t-2">talk all day</text>
+        <text x="330" y="92" text-anchor="middle" class="t-sm t-2">talk all day</text>
+        <text x="120" y="242" text-anchor="middle">attendee team</text>
+        <text x="330" y="242" text-anchor="middle">door team</text>
+        <text x="225" y="282" text-anchor="middle" class="t-sm t-2">between the teams: one meeting a week</text>
+        <text x="470" y="140" text-anchor="middle" class="t-sm t-pen">tends to copy</text>
+        <text x="740" y="40" text-anchor="middle" class="t-lg">what they build</text>
+        <text x="625" y="150" text-anchor="middle">attendee app</text>
+        <text x="625" y="174" text-anchor="middle" class="t-sm t-2">book, My bookings</text>
+        <text x="855" y="150" text-anchor="middle">door app</text>
+        <text x="855" y="174" text-anchor="middle" class="t-sm t-2">check-in</text>
+        <text x="740" y="160" text-anchor="middle" class="t-sm t-mark">API</text>
+        <text x="740" y="242" text-anchor="middle" class="t-sm t-2">the boundary lands where</text>
+        <text x="740" y="262" text-anchor="middle" class="t-sm t-2">the conversation is thinnest</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.7</b> Conway's observation, drawn for AfterHours. Where two groups talk rarely, their parts meet through a narrow interface; where they talk all day, the code tends to blur together. Illustrative.</figcaption>
+  </figure>
+  <p>Read it both ways. If your team splits into an attendee pair and a door pair, expect an API between their code, and expect the cancellation rule to be copied on both sides unless someone owns it. And if you want a boundary somewhere, somebody has to own each side and talk to the other on purpose. Agents add a twist: each agent session starts without the team's conversations, so whatever is not written down (in <code>AGENTS.md</code>, an ADR, a docstring) does not cross that boundary at all. Week 10 returns to Conway's law with several people and agents working in parallel.</p>
+</section>
+
+<section class="block" id="wrong">
+  <div class="sechead"><span class="clock">R2</span><h2>The wrong abstraction</h2></div>
+  <p>After today, it is tempting to remove every repetition you see. Sandi Metz warns against doing that too early. In a 2016 post she repeats advice from a 2014 talk: <q>duplication is far cheaper than the wrong abstraction</q>, and so <q>prefer duplication over the wrong abstraction</q>. She describes how it happens. Someone extracts shared code into one function. A new need arrives that is almost the same, and the next programmer keeps the shared function: in her words, they <q>alter the code to take a parameter, and then add logic to conditionally do the right thing based on the value of that parameter.</q> Then: <q>Another new requirement arrives. Programmer X. Another additional parameter. Another new conditional. Loop until code becomes incomprehensible.</q></p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 440" role="img" aria-label="Four versions of one function, check_time, growing over time. Version 1 takes a row and has one path. Version 2 adds an hours parameter and has two paths. Version 3 adds a field parameter and has four paths. Version 4 adds strict and message flags and has eight paths. A dashed arrow runs from version 4 back to version 1: the fastest way forward is back.">
+        <defs>
+          <filter id="w4f8-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="8"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f8-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w4f8-r)">
+          <rect x="80" y="20" width="600" height="72" rx="8" class="s f-card"/>
+          <rect x="80" y="120" width="600" height="72" rx="8" class="s f-card"/>
+          <rect x="80" y="220" width="600" height="72" rx="8" class="s f-card"/>
+          <rect x="80" y="320" width="600" height="72" rx="8" class="s s-red f-red"/>
+          <path d="M720,56 H850" class="s s-thin"/>
+          <path d="M720,156 L850,138 M720,156 L850,174" class="s s-thin"/>
+          <path d="M720,256 L850,230 M720,256 L850,247 M720,256 L850,265 M720,256 L850,282" class="s s-thin"/>
+          <path d="M720,356 L850,322 M720,356 L850,332 M720,356 L850,342 M720,356 L850,351 M720,356 L850,361 M720,356 L850,370 M720,356 L850,380 M720,356 L850,390" class="s s-thin s-red"/>
+          <path d="M930,380 C958,300 958,110 930,40" class="s s-pen s-dash" marker-end="url(#w4f8-a)"/>
+        </g>
+        <text x="40" y="62" class="t-lg">v1</text>
+        <text x="40" y="162" class="t-lg">v2</text>
+        <text x="40" y="262" class="t-lg">v3</text>
+        <text x="40" y="362" class="t-lg t-red">v4</text>
+        <text x="96" y="50" class="t-mono">check_time(row)</text>
+        <text x="96" y="76" class="t-sm t-2">one caller: booking closes at the start</text>
+        <text x="96" y="150" class="t-mono">check_time(row, hours=0)</text>
+        <text x="96" y="176" class="t-sm t-2">cancelling needs notice: add hours</text>
+        <text x="96" y="250" class="t-mono">check_time(row, hours=0, field="starts_at")</text>
+        <text x="96" y="276" class="t-sm t-2">the door checks ends_at: add field</text>
+        <text x="96" y="350" class="t-mono">check_time(row, hours=0, field="starts_at", strict=True, message=None)</text>
+        <text x="96" y="376" class="t-sm t-2">the door includes the edge, the messages differ: add flags</text>
+        <text x="866" y="61" class="t-sm t-2">1 path</text>
+        <text x="866" y="161" class="t-sm t-2">2 paths</text>
+        <text x="866" y="261" class="t-sm t-2">4 paths</text>
+        <text x="866" y="361" class="t-sm t-red">8 paths</text>
+        <text x="480" y="428" text-anchor="middle" class="t-sm t-pen">the fastest way forward is back: inline it into each caller, then re-extract by decision</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.8</b> How a wrong abstraction grows (illustrative code, not from the kit). Each new need adds a parameter and a branch. The number of paths through one function doubles, and every caller must still know which flags to pass: a shallow module with a growing interface.</figcaption>
+  </figure>
+  <p>Her way out: <q>When dealing with the wrong abstraction, <em>the fastest way forward is back</em>.</q> Inline the shared code back into each caller, delete what each caller does not need, and look again.</p>
+  <p>So how is today's <code>policy.py</code> different from <code>check_time</code>? It groups code by <strong>what changes together and who changes it</strong> (the organisers' time rules), not by what looks alike. <code>check_time</code> merged three rules because all three compared times. When booking, cancelling and the door change for different reasons, a shared function has to bend three ways at once. Parnas's question is the test: which decision does this module hide, and would one likely change stay inside it?</p>
+</section>
+
+<section class="block" id="adr-example">
+  <div class="sechead"><span class="clock">R3</span><h2>An ADR from AfterHours</h2></div>
+  <p>This is the full record behind the card in class. It is the reference ADR for the lab (<code>solutions/core/docs/adr/0001-cancellation-rule-in-policy-module.md</code>). Notice what it keeps that the code cannot: why, what else was tried, and what got worse.</p>
+  <div class="callout">
+    <span class="label">0001. The cancellation rule lives in one policy module</span>
+    <p><strong>Status:</strong> accepted · <strong>Date:</strong> 2026-10-01 · <strong>Decided by:</strong> Ana (product lead this week), with Jo (implementer) and Wei (verifier)</p>
+    <p><strong>Context.</strong> The organisers asked for cancellations to close 24 hours before an event starts, instead of at the start. They have changed time rules before (the door opening time) and said they may want a longer notice for workshops next year. Today's rule is written down in seven places in three files: the check and its message in the cancel route, the deadline in the booking confirmation, two SQL expressions in the My-bookings query, the help text on the attendee page, and <code>AGENTS.md</code>. Making the change in place needed 8 edits in 3 files, in Python, SQL, HTML and Markdown. One tempting SQL shortcut, SQLite's <code>datetime(starts_at, '-24 hours')</code>, returns <code>2026-10-08 20:00:00</code> (a space, not a <code>T</code>), and comparing that text with our stored format gives the wrong answer whenever the deadline and "now" fall on the same day.</p>
+    <p><strong>Decision.</strong> We will keep the cancellation rule in <code>app/policy.py</code>, behind one function: <code>cancellation(starts_at, now) -&gt; Cancellation(allowed, deadline, reason)</code>. Callers pass festival local time as naive <code>datetime</code> objects; they parse stored strings first and never compare times for this rule themselves, in Python, SQL or HTML. The deadline is <code>starts_at − 24 hours</code> and is exclusive: cancelling is allowed while <code>now &lt; deadline</code>. The API reports it as <code>cancel_until</code> in the same text format as <code>starts_at</code>, and the page shows that value instead of describing the rule in words. We made the move first as a refactor with no behaviour change, then changed the rule in a second commit.</p>
+    <p><strong>Alternatives considered.</strong> <em>Edit the rule where it is.</em> Rejected: cheapest today, but the next change costs the same again, and the SQL, the page and the docs can drift apart unnoticed. <em>Store the notice period per event in the database.</em> Rejected for now: the organisers want one festival-wide rule; revisit if they ask for per-event notice (a schema change and an interface change). <em>Read the notice period from an environment variable.</em> Rejected: a rule change would not show up in a code review or a test diff, and each server could run a different rule.</p>
+    <p><strong>Consequences.</strong> Changing the notice period is now a two-line change in one file, with fast unit tests. A different <em>kind</em> of rule (48 hours for workshops only) needs information the interface does not take today, so it will change the interface and its three callers. One more module to learn, and callers must parse <code>starts_at</code> first. My bookings decides <code>can_cancel</code> in Python, row by row, which is fine at festival scale. The tests that pinned the old rule were retired in the rule-change commit, on purpose. Not addressed: the door page's "expected" count still includes cancelled reservations; it needs its own decision.</p>
+  </div>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 310" role="img" aria-label="A timeline of four ADRs: 0001 cancellation rule in policy.py, October 2026, later superseded by 0007; 0002 SQLite stays with one writer, November 2026; 0004 door window in policy.py, January 2027; 0007 notice period per event type, March 2027, which supersedes 0001. An arc from 0007 points back to 0001.">
+        <defs>
+          <filter id="w4f9-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="12"/><feDisplacementMap in="SourceGraphic" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-penink"/></marker>
+        </defs>
+        <g filter="url(#w4f9-r)">
+          <rect x="30" y="92" width="190" height="104" rx="6" class="s s-dash f-card"/>
+          <rect x="265" y="92" width="190" height="104" rx="6" class="s f-card"/>
+          <rect x="500" y="92" width="190" height="104" rx="6" class="s f-card"/>
+          <rect x="735" y="92" width="190" height="104" rx="6" class="s s-pen f-pen"/>
+          <path d="M830,88 C830,16 125,16 125,84" class="s s-pen s-dash" marker-end="url(#w4f9-a)"/>
+          <path d="M30,236 H930" class="s s-thin"/>
+          <path d="M125,230 V242 M360,230 V242 M595,230 V242 M830,230 V242" class="s s-thin"/>
+        </g>
+        <text x="480" y="70" text-anchor="middle" class="t-sm t-pen">0007 supersedes 0001; 0001 stays in the log</text>
+        <text x="125" y="118" text-anchor="middle" class="t-mono">0001</text>
+        <text x="125" y="142" text-anchor="middle" class="t-sm">cancellation rule</text>
+        <text x="125" y="162" text-anchor="middle" class="t-sm">in policy.py</text>
+        <text x="125" y="186" text-anchor="middle" class="t-sm t-red">superseded by 0007</text>
+        <text x="360" y="118" text-anchor="middle" class="t-mono">0002</text>
+        <text x="360" y="142" text-anchor="middle" class="t-sm">SQLite stays,</text>
+        <text x="360" y="162" text-anchor="middle" class="t-sm">one writer at a time</text>
+        <text x="360" y="186" text-anchor="middle" class="t-sm t-green">accepted</text>
+        <text x="595" y="118" text-anchor="middle" class="t-mono">0004</text>
+        <text x="595" y="142" text-anchor="middle" class="t-sm">door window</text>
+        <text x="595" y="162" text-anchor="middle" class="t-sm">in policy.py</text>
+        <text x="595" y="186" text-anchor="middle" class="t-sm t-green">accepted</text>
+        <text x="830" y="118" text-anchor="middle" class="t-mono">0007</text>
+        <text x="830" y="142" text-anchor="middle" class="t-sm">notice period</text>
+        <text x="830" y="162" text-anchor="middle" class="t-sm">per event type</text>
+        <text x="830" y="186" text-anchor="middle" class="t-sm t-green">accepted</text>
+        <text x="125" y="262" text-anchor="middle" class="t-mono t-2">Oct 2026</text>
+        <text x="360" y="262" text-anchor="middle" class="t-mono t-2">Nov 2026</text>
+        <text x="595" y="262" text-anchor="middle" class="t-mono t-2">Jan 2027</text>
+        <text x="830" y="262" text-anchor="middle" class="t-mono t-2">Mar 2027</text>
+        <text x="480" y="296" text-anchor="middle" class="t-sm t-2">illustrative: only ADR 0001 exists in the lab's reference solution</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.9</b> ADRs form a log. Nobody edits an old decision. A new ADR supersedes it and the old one stays, marked, because it is <q>still relevant to know that it <em>was</em> the decision</q>, as Nygard put it. The later ADRs here are invented to show the pattern.</figcaption>
+  </figure>
+  <p>Three habits make ADRs useful. Write one when a decision is expensive to reverse or will surprise the next reader, not for every choice. Name a person who owns it, as the course rule asks for every consequential decision. And point to the ADR from the code it explains (the reference solution's <code>policy.py</code> names ADR 0001 next to the rule), so a reader, or an agent reading the file, finds the reason where the question arises.</p>
+</section>
+
+<section class="block" id="easy">
+  <div class="sechead"><span class="clock">R4</span><h2>Make the change easy, then make the easy change</h2></div>
+  <p>On 25 September 2012 Kent Beck posted: <q>for each desired change, make the change easy (warning: this may be hard), then make the easy change</q>. It is the plan for Part A of the lab, and it has a precise meaning in terms of tests.</p>
+  <p><strong>Step 1, make the change easy</strong>, is a <strong>refactor</strong>: it changes the structure of the code without changing its behaviour. You move the rule into <code>policy.py</code> and route every caller through it, and the rule stays exactly what it was. The evidence is that every existing test still passes <em>and none of them was edited</em>. It is evidence, not proof: tests only see what they check, so you also read the diff for behaviour no test covers. The kit's characterization tests record what the app does today, right or wrong. Michael Feathers puts their purpose as <q>to document your system's actual behavior, not check for the behavior you wish your system had.</q></p>
+  <p>We learned the limit of that evidence on this very lab. An independent review of an earlier draft created an event starting at <code>20:00:30</code>. The kit echoed that time back as the cancellation deadline; our reference refactor rounded it to <code>20:00</code>, and all 37 tests stayed green because none of them used seconds. We fixed the kit rather than the test count: event times must now be whole minutes (a characterization test pins that), so the refactor is exact for every time the app accepts.</p>
+  <p><strong>Step 2, make the easy change</strong>, changes behaviour on purpose. Now some tests <em>should</em> fail: the ones that pinned the old rule. You retire them in the same commit as the change, and the new-rule tests go green. A reviewer reading that commit sees the rule change and the test change side by side.</p>
+  <figure class="sketch">
+    <div class="canvas">
+      <svg class="sk min" viewBox="0 0 960 380" role="img" aria-label="Three commits: the kit as handed out, the refactor, and the change. Under each, three bars drawn to scale by number of tests. Kit: 33 characterization tests pass, 4 old-rule tests pass, 8 new-rule tests fail. Refactor: the same, with 4 app files and no test files changed. Change: 33 pass, the old-rule tests are retired, 8 new-rule tests pass, with one app file changed by two lines.">
+        <defs>
+          <filter id="w4f10-r" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="w4f10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-ink"/></marker>
+        </defs>
+        <g filter="url(#w4f10-r)">
+          <path d="M250,110 H928" class="s s-thin s-2"/>
+          <circle cx="350" cy="110" r="10" class="s f-card"/>
+          <circle cx="590" cy="110" r="10" class="s f-pen"/>
+          <circle cx="830" cy="110" r="10" class="s f-pen"/>
+          <path d="M362,110 H574" class="s" marker-end="url(#w4f10-a)"/>
+          <path d="M602,110 H814" class="s" marker-end="url(#w4f10-a)"/>
+          <rect x="250" y="182" width="198" height="22" class="s s-thin s-green f-green"/>
+          <rect x="250" y="222" width="24" height="22" class="s s-thin s-green f-green"/>
+          <rect x="250" y="262" width="48" height="22" class="s s-thin s-red f-red"/>
+          <rect x="490" y="182" width="198" height="22" class="s s-thin s-green f-green"/>
+          <rect x="490" y="222" width="24" height="22" class="s s-thin s-green f-green"/>
+          <rect x="490" y="262" width="48" height="22" class="s s-thin s-red f-red"/>
+          <rect x="730" y="182" width="198" height="22" class="s s-thin s-green f-green"/>
+          <rect x="730" y="222" width="24" height="22" class="s s-thin s-dash s-2"/>
+          <rect x="730" y="262" width="48" height="22" class="s s-thin s-green f-green"/>
+          <rect x="300" y="336" width="16" height="16" class="s s-thin s-green f-green"/>
+          <rect x="420" y="336" width="16" height="16" class="s s-thin s-red f-red"/>
+        </g>
+        <text x="350" y="56" text-anchor="middle">kit as handed out</text>
+        <text x="590" y="56" text-anchor="middle">1 · refactor</text>
+        <text x="590" y="76" text-anchor="middle" class="t-sm t-2">rule moved into policy.py</text>
+        <text x="830" y="56" text-anchor="middle">2 · change</text>
+        <text x="830" y="76" text-anchor="middle" class="t-sm t-2">24-hour rule</text>
+        <text x="590" y="146" text-anchor="middle" class="t-mono t-2">4 files · 0 test files</text>
+        <text x="830" y="146" text-anchor="middle" class="t-mono t-2">1 app file, 2 lines</text>
+        <text x="20" y="198" class="t-sm">characterization (33)</text>
+        <text x="20" y="238" class="t-sm">old rule (4)</text>
+        <text x="20" y="278" class="t-sm">new rule (8)</text>
+        <text x="349" y="198" text-anchor="middle" class="t-sm">33 pass</text>
+        <text x="589" y="198" text-anchor="middle" class="t-sm">33 pass</text>
+        <text x="829" y="198" text-anchor="middle" class="t-sm">33 pass</text>
+        <text x="282" y="238" class="t-sm t-green">4 pass</text>
+        <text x="522" y="238" class="t-sm t-green">4 pass</text>
+        <text x="762" y="238" class="t-sm t-2">retired in this commit</text>
+        <text x="306" y="278" class="t-sm t-red">8 fail</text>
+        <text x="546" y="278" class="t-sm t-red">8 fail</text>
+        <text x="786" y="278" class="t-sm t-green">8 pass</text>
+        <text x="322" y="349" class="t-sm">passes</text>
+        <text x="442" y="349" class="t-sm">fails</text>
+        <text x="520" y="349" class="t-sm t-2">bar length = number of tests</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 4.10</b> The lab's reference solution as two commits, drawn to scale from the runs in <code>verification.md</code>. The refactor edits four files (three in the app, plus <code>AGENTS.md</code>) and no test, and every suite stays as it was. The change edits two lines of one app file, turns the new-rule tests green, and retires the four tests that pinned the old rule.</figcaption>
+  </figure>
+  <p>Beck's warning in brackets is real. In the lab, step 1 is most of the work: finding seven places and routing them through one function without changing what any of them does. Step 2 takes a minute. That is the point: the hard part happens once, under the protection of tests that do not move, and the next rule change is cheap.</p>
+  <p>Keep the two steps in separate commits, and ask the same of an agent. "Refactor with no test changes, show me the green run; then change the rule" is a task contract you can check from the diff alone.</p>
+</section>
+
+<section class="block" id="words">
+  <div class="sechead"><span class="clock">W</span><h2>Words from today</h2></div>
+  <dl class="glossary">
+    <dt>Module</dt><dd>A part of a program that others use only through its interface, so its insides can change without them.</dd>
+    <dt>Interface</dt><dd>Everything a caller must know to use a module: names and types, and also units, time zones, formats and edge cases.</dd>
+    <dt>Information hiding</dt><dd>Parnas's criterion: give each module one design decision that is likely to change, and hide it from the others.</dd>
+    <dt>Deep module</dt><dd>A module whose interface is much smaller than the work it does for its callers (Ousterhout). A shallow one asks you to learn almost as much as it saves you.</dd>
+    <dt>Change amplification</dt><dd>When a seemingly simple change needs edits in many places. The symptom behind today's hook.</dd>
+    <dt>Seam</dt><dd>In Feathers's words, "a place where you can alter behavior in your program without editing in that place". In the lab, <code>policy.cancellation()</code> is the seam for the rule.</dd>
+    <dt>Characterization test</dt><dd>A test that records what the code does now, right or wrong, so a refactor can show that the behaviour it covers did not change.</dd>
+    <dt>Refactor</dt><dd>A change to the structure of code that keeps its behaviour. In this lab it may not edit the supplied characterization or old-rule tests. (Elsewhere, moving an internal interface can mean adapting unit tests that call it; tests of outside behaviour should stay as they are.)</dd>
+    <dt>ADR</dt><dd>Architecture decision record: a short file in the repository with the title, context, decision, status and consequences of one decision (Nygard), plus, in this course, the alternatives rejected.</dd>
+    <dt>Conway's law</dt><dd>Systems tend to copy the communication structure of the organisations that design them.</dd>
+  </dl>
+</section>
+
+<section class="block" id="refs">
+  <div class="sechead"><span class="clock">Refs</span><h2>Sources</h2></div>
+  <ol class="refs">
+    <li>D. L. Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", <em>Communications of the ACM</em> 15(12), pp. 1053–1058, December 1972. <a href="https://doi.org/10.1145/361598.361623">doi:10.1145/361598.361623</a> · <a href="https://www.win.tue.nl/~wstomv/edu/2ip30/references/criteria_for_modularization.pdf">PDF</a></li>
+    <li>John Ousterhout, <em>A Philosophy of Software Design</em>, Yaknyam Press, 2018 (second edition 2021); chapter 2 (change amplification) and chapter 4, "Modules Should Be Deep". <a href="https://web.stanford.edu/~ouster/cgi-bin/aposd.php">Author's page</a></li>
+    <li>Mars Climate Orbiter Mishap Investigation Board, <em>Phase I Report</em>, NASA, 10 November 1999. <a href="https://llis.nasa.gov/llis_lib/pdf/1009464main1_0641-mr.pdf">PDF</a></li>
+    <li>Michael Nygard, "Documenting Architecture Decisions", 15 November 2011. <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">cognitect.com</a></li>
+    <li>Melvin E. Conway, "How Do Committees Invent?", <em>Datamation</em>, April 1968. <a href="https://www.melconway.com/Home/Committees_Paper.html">melconway.com</a> · on the name "Conway's law": <a href="https://www.melconway.com/Home/Conways_Law.html">melconway.com</a></li>
+    <li>Sandi Metz, "The Wrong Abstraction", 20 January 2016. <a href="https://sandimetz.com/blog/2016/1/20/the-wrong-abstraction">sandimetz.com</a></li>
+    <li>Kent Beck, post on X, 25 September 2012. <a href="https://x.com/KentBeck/status/250733358307500032">x.com/KentBeck</a></li>
+    <li>Michael Feathers, <em>Working Effectively with Legacy Code</em>, Pearson, 2004; chapter 4, "The Seam Model" (<a href="https://www.informit.com/content/images/0131177052/samplechapter/0131177052_ch04.pdf">publisher's sample</a>) · "Characterization Testing", 8 August 2016. <a href="https://michaelfeathers.silvrback.com/characterization-testing">michaelfeathers.silvrback.com</a></li>
+    <li>SQLite, "Date And Time Functions" (the text format <code>datetime()</code> returns). <a href="https://www.sqlite.org/lang_datefunc.html">sqlite.org</a></li>
+    <li>This course, the agent observation for section 5: prompt, commands, diffs and final answers of four Codex runs, 27 September 2026. <code>lectures/04-boundaries/demo/agent-observation/</code></li>
+  </ol>
+</section>
+
+</main>
+</div>
+</div>
+
+<footer class="pagefoot">
+  <a href="../index.html">← Course home</a>
+  <a href="03-inside-the-agent.html">← Lecture 3: Inside the Agent</a>
+  <span>Build It. Prove It. Own It. · Lecture 4</span>
+  <a href="05-independent-tests.html">Lecture 5: Tests Need an Independent Source of Truth →</a>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("projector");
+  function apply(on) {
+    if (on) root.setAttribute("data-mode", "projector"); else root.removeAttribute("data-mode");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("bipo-projector") === "1"; } catch (e) {}
+  apply(saved);
+  button.addEventListener("click", function () {
+    var on = root.getAttribute("data-mode") !== "projector";
+    apply(on);
+    try { localStorage.setItem("bipo-projector", on ? "1" : "0"); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

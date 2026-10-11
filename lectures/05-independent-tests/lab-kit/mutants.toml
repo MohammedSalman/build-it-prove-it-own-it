@@ -1,0 +1,82 @@
+# Mutants for Lab 5: small, deliberate mistakes that a real change could introduce.
+# mutants.py applies each one, on its own, to a fresh copy of this folder and runs the tests.
+# A good test suite fails on (catches) every mutant that changes behaviour.
+#
+# Each [[mutant]] replaces ONE line fragment:
+#   file     the file to change, relative to this folder
+#   find     text that must appear exactly once in that file ('...' strings keep quotes as typed)
+#   replace  what to put there instead
+#   why      what the mistake would mean for a real person at the festival
+#
+# The two bugs planted in the kit are not listed: you find those in Parts A1 and A2.
+# For your own product (Part B), copy mutants.py and write a mutants.toml like this one.
+
+[[mutant]]
+id = "M1"
+file = "app/checkin.py"
+find = 'opens_at <= now'
+replace = 'opens_at < now'
+why = "The door opens a moment late: someone scanned at 19:30:00 exactly is turned away."
+
+[[mutant]]
+id = "M2"
+file = "app/checkin.py"
+find = 'timedelta(minutes=30)'
+replace = 'timedelta(minutes=15)'
+why = "Check-in opens 15 minutes before the start instead of 30."
+
+[[mutant]]
+id = "M3"
+file = "app/checkin.py"
+find = 'if row["status"] != "confirmed":'
+replace = 'if False:'
+why = "A cancelled reservation can still be checked in at the door."
+
+[[mutant]]
+id = "M4"
+file = "app/checkin.py"
+find = 'if row["checked_in_at"] is not None:'
+replace = 'if False:'
+why = "The same reservation can be checked in twice (a screenshot shared with a friend)."
+
+[[mutant]]
+id = "M5"
+file = "app/reservations.py"
+find = 'places_left = places_left + 1'
+replace = 'places_left = places_left + 2'
+why = "One cancellation gives back two places."
+
+[[mutant]]
+id = "M6"
+file = "app/reservations.py"
+find = "SET status = 'cancelled'"
+replace = "SET status = 'confirmed'"
+why = "Cancel says 'cancelled' but the reservation stays confirmed and keeps its place."
+
+[[mutant]]
+id = "M7"
+file = "app/reservations.py"
+find = "WHERE event_id = ? AND status = 'confirmed'"
+replace = "WHERE event_id = ?"
+why = "The capacity check counts cancelled reservations too, so freed places can't be booked."
+
+[[mutant]]
+id = "M8"
+file = "app/reservations.py"
+find = 'if taken_now >= event["capacity"]:'
+replace = 'if taken_now > event["capacity"]:'
+why = "The re-check inside the transaction lets one extra person in when two press at once."
+
+[[mutant]]
+id = "M9"
+file = "app/reservations.py"
+find = 'if taken >= event["capacity"]:'
+replace = 'if taken > event["capacity"]:'
+why = "The first check lets one extra person through to payment; the re-check still refuses them."
+
+[[mutant]]
+id = "M10"
+file = "app/reservations.py"
+find = 'places_left = places_left - 1'
+replace = 'places_left = places_left - 0'
+why = "A reservation doesn't use up a place on the programme page."

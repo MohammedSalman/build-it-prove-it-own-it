@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterHours Festival</title>
+<style>
+  :root {
+    --night: #14112a;
+    --panel: #1f1a3d;
+    --line: #342c63;
+    --text: #f3f0ff;
+    --muted: #b3aad9;
+    --glow: #ffb547;
+    --full: #ff6b8b;
+    --ok: #5fe0b0;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #3a2470 0%, transparent 60%), var(--night);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: clamp(2rem, 6vw, 3.2rem); margin: 0; letter-spacing: -0.02em; }
+  header h1 span { color: var(--glow); }
+  header p { color: var(--muted); margin: 4px 0 24px; }
+  .who { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+  .who label { color: var(--muted); }
+  .who input {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font: inherit; min-width: 0; flex: 1 1 200px; max-width: 320px;
+  }
+  .events { display: grid; gap: 14px; }
+  .event {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center;
+  }
+  .event h2 { margin: 0; font-size: 1.15rem; }
+  .meta { color: var(--muted); font-size: 0.92rem; }
+  .meter { grid-column: 1 / -1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--glow); }
+  .left { font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+  .left.last { color: var(--glow); font-weight: 600; }
+  .left.none { color: var(--full); }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 18px;
+    background: var(--glow); color: #2a1a00; cursor: pointer; grid-row: 1 / span 2; grid-column: 2;
+  }
+  button:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ok); color: #062a1d; padding: 12px 18px; border-radius: 12px;
+    font-weight: 600; max-width: calc(100% - 32px);
+  }
+  #toast.bad { background: var(--full); color: #3a0010; }
+  .mine { margin-top: 36px; }
+  .mine h2 { font-size: 1.3rem; margin: 0 0 4px; }
+  .mine .hint { color: var(--muted); margin: 0 0 14px; }
+  .booking {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px;
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; align-items: center; margin-bottom: 10px;
+  }
+  .booking .meta { grid-column: 1; }
+  .booking .state { grid-column: 2; grid-row: 1 / span 2; color: var(--muted); font-size: 0.92rem; }
+  .booking button { grid-row: 1 / span 2; }
+  .booking.cancelled h3 { text-decoration: line-through; color: var(--muted); }
+  .booking h3 { margin: 0; font-size: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>After<span>Hours</span> Festival</h1>
+    <p>Three nights of games, music and making. Places are limited.</p>
+  </header>
+
+  <div class="who">
+    <label for="attendee">Your name</label>
+    <input id="attendee" autocomplete="name" placeholder="e.g. Maya Chen">
+  </div>
+
+  <section class="events" id="events" aria-live="polite"></section>
+
+  <section class="mine" aria-labelledby="mine-title">
+    <h2 id="mine-title">My bookings</h2>
+    <p class="hint">Plans changed? You can cancel any time before an event starts, and your place goes to someone else.</p>
+    <div id="bookings" aria-live="polite"></div>
+  </section>
+</main>
+<div id="toast" role="status" hidden></div>
+
+<script>
+const eventsEl = document.getElementById("events");
+const toastEl = document.getElementById("toast");
+
+function when(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function toast(text, bad = false) {
+  toastEl.textContent = text;
+  toastEl.className = bad ? "bad" : "";
+  toastEl.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (toastEl.hidden = true), 3500);
+}
+
+async function load() {
+  const events = await (await fetch("/api/events")).json();
+  eventsEl.replaceChildren(...events.map(render));
+}
+
+function render(ev) {
+  const card = document.createElement("article");
+  card.className = "event";
+  const left = ev.places_left;
+  const leftText = !ev.booking_open ? "Started" : left <= 0 ? "Full" : left === 1 ? "1 place left!" : `${left} places left`;
+  const leftClass = !ev.booking_open || left <= 0 ? "none" : left === 1 ? "last" : "";
+  const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+  card.innerHTML = `
+    <h2></h2>
+    <div class="meta"></div>
+    <div class="left ${leftClass}">${leftText}</div>
+    <div class="meter" aria-hidden="true"><i style="width:${pct}%"></i></div>
+    <button type="button">Reserve</button>`;
+  card.querySelector("h2").textContent = ev.title;
+  card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+  const button = card.querySelector("button");
+  button.disabled = left <= 0 || !ev.booking_open;
+  button.addEventListener("click", () => reserve(ev, button));
+  return card;
+}
+
+async function reserve(ev, button) {
+  const attendee = document.getElementById("attendee").value.trim();
+  if (!attendee) {
+    toast("Type your name first, then press Reserve.", true);
+    document.getElementById("attendee").focus();
+    return;
+  }
+  const res = await fetch(`/api/events/${ev.id}/reservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attendee }),
+  });
+  if (res.status === 201) {
+    const r = await res.json();
+    toast(`You're in! Reservation #${r.id} for ${ev.title}. Free cancellation until ${when(r.cancel_until)}.`);
+  } else if (res.status === 409) {
+    const body = await res.json();
+    toast(body.detail || "Sorry, that event just filled up.", true);
+  } else {
+    toast("Something went wrong. Please try again.", true);
+  }
+  await load();
+  await loadBookings();
+}
+
+async function loadBookings() {
+  const attendee = document.getElementById("attendee").value.trim();
+  const list = document.getElementById("bookings");
+  if (!attendee) {
+    list.replaceChildren();
+    return;
+  }
+  const rows = await (await fetch(`/api/my-reservations?attendee=${encodeURIComponent(attendee)}`)).json();
+  if (rows.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "No bookings yet.";
+    list.replaceChildren(p);
+    return;
+  }
+  list.replaceChildren(...rows.map(renderBooking));
+}
+
+function renderBooking(r) {
+  const item = document.createElement("article");
+  item.className = "booking" + (r.status === "cancelled" ? " cancelled" : "");
+  item.innerHTML = `<h3></h3><div class="meta"></div>`;
+  item.querySelector("h3").textContent = r.title;
+  item.querySelector(".meta").textContent = `${when(r.starts_at)} · ${r.venue} · #${r.id}`;
+  if (r.can_cancel) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Cancel";
+    button.addEventListener("click", () => cancel(r, button));
+    item.append(button);
+  } else {
+    const state = document.createElement("span");
+    state.className = "state";
+    state.textContent = r.status === "cancelled" ? "Cancelled" : "Can no longer cancel";
+    item.append(state);
+  }
+  return item;
+}
+
+async function cancel(r, button) {
+  button.disabled = true;
+  const res = await fetch(`/api/reservations/${r.id}/cancel`, { method: "POST" });
+  if (res.ok) {
+    toast(`Cancelled. Your place at ${r.title} is free for someone else.`);
+  } else {
+    const body = await res.json().catch(() => ({}));
+    toast(body.detail || "Something went wrong. Please try again.", true);
+  }
+  await load();
+  await loadBookings();
+}
+
+document.getElementById("attendee").addEventListener("change", loadBookings);
+load();
+</script>
+</body>
+</html>

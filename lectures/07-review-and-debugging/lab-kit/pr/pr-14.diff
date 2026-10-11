@@ -1,0 +1,630 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 1443df9..70b9f68 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -15,8 +15,10 @@ booking confirmations. Python 3.11+, FastAPI, SQLite, pytest. One app, one datab
+ - `app/main.py`: HTTP routes
+ - `app/reservations.py`: the reservation rule
+ - `app/notify.py`: booking confirmations (rows in the `outbox` table; nothing is emailed)
++- `app/waitlist.py`: joining the waitlist of a full event
+ - `app/db.py`: connections, schema, seed data
+ - `app/logs.py`: log setup; every line carries the request id
++- `app/settings.py`: settings, each overridable by an environment variable
+ - `app/payments.py`: payment simulation (never charges anything)
+ - `app/static/index.html`: the whole web UI
+ - `tests/helpers.py`: helpers for tests where people act at the same time
+diff --git a/README.md b/README.md
+index 40cfc07..29251d2 100644
+--- a/README.md
++++ b/README.md
+@@ -51,3 +51,6 @@ To follow one booking through the log, search the log for its id.
+ | `AFTERHOURS_DB` | `afterhours.db` | Path to the SQLite file |
+ | `AFTERHOURS_PAYMENT_DELAY` | `0.3` | Seconds the simulated payment check takes. Nothing is ever charged |
+ | `AFTERHOURS_CLASSROOM_GATE` | `0` | Set to `2` for live demos: the first request waits (up to 3 s) at the payment step for a second one |
++
++Settings that belong to the app itself live in `app/settings.py`; each can be overridden
++with an environment variable of the same name.
+diff --git a/app/main.py b/app/main.py
+index bf0dc6a..4c5e67e 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -13,11 +13,11 @@ from fastapi import FastAPI, HTTPException, Request
+ from fastapi.responses import FileResponse
+ from pydantic import BaseModel, Field
+ 
+-from . import db, logs, reservations
++from . import db, logs, reservations, settings, waitlist
+ 
+ STATIC = Path(__file__).with_name("static")
+ 
+-log = logs.setup(logging.INFO)
++log = logs.setup(settings.AFTERHOURS_LOG_LEVEL)
+ 
+ 
+ class NewEvent(BaseModel):
+@@ -80,20 +80,27 @@ def create_app() -> FastAPI:
+         conn = db.connect()
+         try:
+             rows = conn.execute(EVENT_SQL + " GROUP BY e.id ORDER BY e.starts_at").fetchall()
++            events = []
++            for row in rows:
++                event = _event_json(row)
++                event["waitlist"] = waitlist.waiting(conn, row["id"])
++                events.append(event)
+         finally:
+             conn.close()
+-        return [_event_json(r) for r in rows]
++        return events
+ 
+     @app.get("/api/events/{event_id}")
+     def get_event(event_id: int):
+         conn = db.connect()
+         try:
+             row = db.query_one(conn, EVENT_SQL + " WHERE e.id = ? GROUP BY e.id", (event_id,))
++            if row is None:
++                raise HTTPException(404, "No such event")
++            event = _event_json(row)
++            event["waitlist"] = waitlist.waiting(conn, event_id)
+         finally:
+             conn.close()
+-        if row is None:
+-            raise HTTPException(404, "No such event")
+-        return _event_json(row)
++        return event
+ 
+     @app.post("/api/events", status_code=201)
+     def create_event(body: NewEvent):
+@@ -116,6 +123,15 @@ def create_app() -> FastAPI:
+         except reservations.SoldOut:
+             raise HTTPException(409, "Sorry, this event is full")
+ 
++    @app.post("/api/events/{event_id}/waitlist", status_code=201)
++    def join_waitlist(event_id: int, body: ReservationRequest):
++        try:
++            return waitlist.join(event_id, body.attendee, body.email)
++        except reservations.EventNotFound:
++            raise HTTPException(404, "No such event")
++        except waitlist.NotFull:
++            raise HTTPException(409, "This event still has places: reserve one instead")
++
+     @app.delete("/api/reservations/{reservation_id}", status_code=204)
+     def cancel(reservation_id: int):
+         try:
+diff --git a/app/notify.py b/app/notify.py
+index 6adc2a8..f35270c 100644
+--- a/app/notify.py
++++ b/app/notify.py
+@@ -6,6 +6,10 @@ outbox is the end of the line, so you can always see exactly what "was sent".
+ """
+ 
+ from datetime import datetime
++from email import utils
++from email.message import EmailMessage
++
++from . import settings
+ 
+ 
+ def when(starts_at: str) -> str:
+@@ -26,15 +30,44 @@ def render_confirmation(attendee: str, event: dict) -> tuple[str, str]:
+     return subject, body
+ 
+ 
+-def queue_confirmation(conn, attendee: str, email: str, event: dict) -> int:
+-    """Put a booking confirmation in the outbox and return its id.
++def build_message(attendee: str, email: str, subject: str, body: str) -> EmailMessage:
++    """A standard email message (RFC 5322 headers), ready for the mail relay."""
++    msg = EmailMessage()
++    msg["From"] = settings.AFTERHOURS_MAIL_FROM
++    msg["To"] = utils.format_address((attendee, email))
++    msg["Subject"] = subject
++    msg.set_content(body)
++    return msg
+ 
+-    Call this inside the booking's transaction, so that the booking and its
+-    confirmation are saved together or not at all.
+-    """
+-    subject, body = render_confirmation(attendee, event)
++
++def queue_message(conn, msg: EmailMessage) -> int:
++    """Put a message in the outbox and return its id."""
+     cur = conn.execute(
+         "INSERT INTO outbox (recipient, subject, body) VALUES (?, ?, ?)",
+-        (email, subject, body),
++        (str(msg["To"]), str(msg["Subject"]), msg.as_string()),
+     )
+     return cur.lastrowid
++
++
++def queue_confirmation(conn, attendee: str, email: str, event: dict) -> int:
++    """Put a booking confirmation in the outbox and return its id."""
++    subject, body = render_confirmation(attendee, event)
++    return queue_message(conn, build_message(attendee, email, subject, body))
++
++
++def render_promotion(attendee: str, event: dict) -> tuple[str, str]:
++    """The subject and body of the message sent when a waitlisted person gets a place."""
++    subject = f"A place opened up: {event['title']}"
++    body = (
++        f"Hi {attendee},\n\n"
++        f"good news: a place at {event['title']} opened up and it is yours.\n"
++        f"It starts {when(event['starts_at'])} at {event['venue']}.\n\n"
++        "See you there!\nAfterHours Festival\n"
++    )
++    return subject, body
++
++
++def queue_promotion(conn, attendee: str, email: str, event: dict) -> int:
++    """Put a waitlist-promotion notice in the outbox and return its id."""
++    subject, body = render_promotion(attendee, event)
++    return queue_message(conn, build_message(attendee, email, subject, body))
+diff --git a/app/reservations.py b/app/reservations.py
+index e494c57..97bf781 100644
+--- a/app/reservations.py
++++ b/app/reservations.py
+@@ -57,27 +57,75 @@ def reserve(event_id: int, attendee: str, email: str) -> dict:
+                 "INSERT INTO reservations (event_id, attendee, email) VALUES (?, ?, ?)",
+                 (event_id, attendee, email),
+             )
+-            # Same transaction: the booking and its confirmation are saved together.
+-            outbox_id = notify.queue_confirmation(conn, attendee, email, dict(event))
+             conn.execute("COMMIT")
+         except BaseException:
+             if conn.in_transaction:
+                 conn.execute("ROLLBACK")
+             raise
+         log.info("[%s] reservation #%d saved", attendee, cur.lastrowid)
+-        log.info("[%s] confirmation #%d queued for %s", attendee, outbox_id, email)
++
++        # Queue the confirmation only after the booking has committed, so that a
++        # problem in the notification step can never block or roll back a booking.
++        try:
++            outbox_id = notify.queue_confirmation(conn, attendee, email, dict(event))
++            log.info("[%s] confirmation #%d queued for %s", attendee, outbox_id, email)
++        except Exception as exc:
++            log.debug("[%s] confirmation not queued: %s", attendee, exc)
++
+         return {"id": cur.lastrowid, "event_id": event_id, "attendee": attendee}
+     finally:
+         conn.close()
+ 
+ 
+-def cancel(reservation_id: int) -> None:
+-    """Cancel a reservation, which frees its place. Raises ReservationNotFound."""
++def cancel(reservation_id: int) -> dict | None:
++    """Cancel a reservation, which frees its place.
++
++    If anyone is waiting for the event, the first person on the waitlist gets the freed
++    place straight away and is notified. Returns their new reservation, or None.
++    Raises ReservationNotFound.
++    """
+     conn = db.connect()
+     try:
+-        cur = conn.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
+-        if cur.rowcount == 0:
+-            raise ReservationNotFound(reservation_id)
++        conn.execute("BEGIN IMMEDIATE")
++        try:
++            row = db.query_one(
++                conn, "SELECT event_id FROM reservations WHERE id = ?", (reservation_id,)
++            )
++            if row is None:
++                raise ReservationNotFound(reservation_id)
++            event_id = row["event_id"]
++            conn.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
++            promoted = None
++            first = db.query_one(
++                conn,
++                "SELECT id, attendee, email FROM waitlist WHERE event_id = ? ORDER BY id LIMIT 1",
++                (event_id,),
++            )
++            if first is not None:
++                cur = conn.execute(
++                    "INSERT INTO reservations (event_id, attendee, email) VALUES (?, ?, ?)",
++                    (event_id, first["attendee"], first["email"]),
++                )
++                conn.execute("DELETE FROM waitlist WHERE id = ?", (first["id"],))
++                promoted = {"id": cur.lastrowid, "event_id": event_id,
++                            "attendee": first["attendee"], "email": first["email"]}
++            conn.execute("COMMIT")
++        except BaseException:
++            if conn.in_transaction:
++                conn.execute("ROLLBACK")
++            raise
+         log.info("reservation #%d cancelled", reservation_id)
++
++        if promoted is not None:
++            log.info("[%s] promoted from the waitlist: reservation #%d",
++                     promoted["attendee"], promoted["id"])
++            try:
++                event = db.query_one(
++                    conn, "SELECT id, title, starts_at, venue FROM events WHERE id = ?", (event_id,)
++                )
++                notify.queue_promotion(conn, promoted["attendee"], promoted["email"], dict(event))
++            except Exception as exc:
++                log.debug("[%s] promotion notice not queued: %s", promoted["attendee"], exc)
++        return promoted
+     finally:
+         conn.close()
+diff --git a/app/schema.sql b/app/schema.sql
+index 96faa06..e136567 100644
+--- a/app/schema.sql
++++ b/app/schema.sql
+@@ -25,3 +25,12 @@ CREATE TABLE IF NOT EXISTS outbox (
+     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+     sent_at    TEXT
+ );
++
++-- People waiting for a place at a full event, first come first served (lowest id first).
++CREATE TABLE IF NOT EXISTS waitlist (
++    id         INTEGER PRIMARY KEY,
++    event_id   INTEGER NOT NULL REFERENCES events(id),
++    attendee   TEXT    NOT NULL,
++    email      TEXT    NOT NULL,
++    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
++);
+diff --git a/app/settings.py b/app/settings.py
+new file mode 100644
+index 0000000..3820c70
+--- /dev/null
++++ b/app/settings.py
+@@ -0,0 +1,16 @@
++"""Settings for AfterHours, read once at start-up. Override any of them with an
++environment variable of the same name."""
++
++import os
++
++# Log level for the "afterhours" logger: DEBUG, INFO, WARNING or ERROR.
++AFTERHOURS_LOG_LEVEL = os.environ.get("AFTERHOURS_LOG_LEVEL", "WARNING")
++
++# Sender shown on every message in the outbox.
++AFTERHOURS_MAIL_FROM = os.environ.get(
++    "AFTERHOURS_MAIL_FROM", "AfterHours Festival <tickets@afterhours.example>"
++)
++
++# Mail relay that will drain the outbox in production (deployed next sprint).
++AFTERHOURS_RELAY_URL = os.environ.get("AFTERHOURS_RELAY_URL", "https://relay.afterhours.example/v1/send")
++AFTERHOURS_RELAY_TOKEN = os.environ.get("AFTERHOURS_RELAY_TOKEN", "rly_live_5f3c9a71e04b2d86c1a7")
+diff --git a/app/static/index.html b/app/static/index.html
+index 80a454c..331db4d 100644
+--- a/app/static/index.html
++++ b/app/static/index.html
+@@ -51,6 +51,7 @@
+     background: var(--glow); color: #2a1a00; cursor: pointer; grid-row: 1 / span 2; grid-column: 2;
+   }
+   button:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
++  button.wait { background: transparent; color: var(--glow); border: 1px solid var(--glow); }
+   button:focus-visible, input:focus-visible { outline: 3px solid var(--ok); outline-offset: 2px; }
+   #toast {
+     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+@@ -113,7 +114,10 @@ function render(ev) {
+   const card = document.createElement("article");
+   card.className = "event";
+   const left = ev.places_left;
+-  const leftText = left <= 0 ? "Full" : left === 1 ? "1 place left!" : `${left} places left`;
++  const waiting = ev.waitlist || 0;
++  const leftText = left <= 0
++    ? (waiting ? `Full · ${waiting} waiting` : "Full")
++    : left === 1 ? "1 place left!" : `${left} places left`;
+   const leftClass = left <= 0 ? "none" : left === 1 ? "last" : "";
+   const pct = Math.min(100, Math.round((ev.reserved / ev.capacity) * 100));
+   card.innerHTML = `
+@@ -125,11 +129,51 @@ function render(ev) {
+   card.querySelector("h2").textContent = ev.title;
+   card.querySelector(".meta").textContent = `${when(ev.starts_at)} · ${ev.venue}`;
+   const button = card.querySelector("button");
+-  button.disabled = left <= 0;
+-  button.addEventListener("click", () => reserve(ev, button));
++  if (left <= 0) {
++    button.textContent = "Join waitlist";
++    button.classList.add("wait");
++    button.addEventListener("click", () => joinWaitlist(ev, button));
++  } else {
++    button.addEventListener("click", () => reserve(ev, button));
++  }
+   return card;
+ }
+ 
++function whoIsAsking() {
++  const attendee = document.getElementById("attendee").value.trim();
++  const email = document.getElementById("email").value.trim();
++  if (!attendee || !email) {
++    toast("Type your name and email first.", true);
++    document.getElementById(attendee ? "email" : "attendee").focus();
++    return null;
++  }
++  return { attendee, email };
++}
++
++async function joinWaitlist(ev, button) {
++  const who = whoIsAsking();
++  if (!who) return;
++  button.disabled = true;
++  try {
++    const res = await fetch(`/api/events/${ev.id}/waitlist`, {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify(who),
++    });
++    if (res.status === 201) {
++      const w = await res.json();
++      toast(`You're number ${w.position} on the waitlist for ${ev.title}. We'll email you if a place opens.`);
++    } else if (res.status === 409) {
++      toast("A place just opened up: press Reserve instead.", true);
++    } else {
++      toast("Something went wrong. Please try again.", true);
++    }
++  } finally {
++    button.disabled = false;
++    await load();
++  }
++}
++
+ async function reserve(ev, button) {
+   const attendee = document.getElementById("attendee").value.trim();
+   const email = document.getElementById("email").value.trim();
+diff --git a/app/waitlist.py b/app/waitlist.py
+new file mode 100644
+index 0000000..4580c5e
+--- /dev/null
++++ b/app/waitlist.py
+@@ -0,0 +1,56 @@
++"""The waitlist: when an event is full, people can queue for a place."""
++
++import logging
++
++from . import db
++from .reservations import EventNotFound
++
++log = logging.getLogger("afterhours")
++
++
++class NotFull(Exception):
++    """The event still has places, so there is nothing to wait for."""
++
++
++def join(event_id: int, attendee: str, email: str) -> dict:
++    """Put `attendee` at the end of the event's waitlist.
++
++    Returns the waitlist entry with its position (1 = next in line).
++    Raises EventNotFound, or NotFull if the event still has places.
++    """
++    conn = db.connect()
++    try:
++        conn.execute("BEGIN IMMEDIATE")
++        try:
++            event = db.query_one(conn, "SELECT id, capacity FROM events WHERE id = ?", (event_id,))
++            if event is None:
++                raise EventNotFound(event_id)
++            taken = db.query_one(
++                conn, "SELECT COUNT(*) AS n FROM reservations WHERE event_id = ?", (event_id,)
++            )["n"]
++            if taken < event["capacity"]:
++                raise NotFull(event_id)
++            cur = conn.execute(
++                "INSERT INTO waitlist (event_id, attendee, email) VALUES (?, ?, ?)",
++                (event_id, attendee, email),
++            )
++            position = db.query_one(
++                conn, "SELECT COUNT(*) AS n FROM waitlist WHERE event_id = ? AND id <= ?",
++                (event_id, cur.lastrowid),
++            )["n"]
++            conn.execute("COMMIT")
++        except BaseException:
++            if conn.in_transaction:
++                conn.execute("ROLLBACK")
++            raise
++        log.info("[%s] joined the waitlist for event %d at position %d", attendee, event_id, position)
++        return {"id": cur.lastrowid, "event_id": event_id, "attendee": attendee, "position": position}
++    finally:
++        conn.close()
++
++
++def waiting(conn, event_id: int) -> int:
++    """How many people are waiting for this event."""
++    return db.query_one(
++        conn, "SELECT COUNT(*) AS n FROM waitlist WHERE event_id = ?", (event_id,)
++    )["n"]
+diff --git a/docs/waitlist.md b/docs/waitlist.md
+new file mode 100644
+index 0000000..49f89a6
+--- /dev/null
++++ b/docs/waitlist.md
+@@ -0,0 +1,44 @@
++# Waitlist: design notes
++
++## What it does
++
++When an event is full, the **Reserve** button becomes **Join waitlist**. People on the
++waitlist are served in the order they joined. When someone cancels, the first person
++waiting gets the freed place straight away, and a notice goes to the outbox.
++
++## API
++
++| Method | Path | Body | Answers |
++|---|---|---|---|
++| POST | `/api/events/{id}/waitlist` | `{"attendee": ..., "email": ...}` | 201 with `position`; 404 unknown event; 409 the event still has places; 422 bad input |
++| DELETE | `/api/reservations/{id}` | none | 204; if anyone is waiting, the first of them gets the place |
++| GET | `/api/events`, `/api/events/{id}` | none | every event now includes `waitlist`: how many people are waiting |
++
++## Data
++
++One new table, `waitlist` (`id`, `event_id`, `attendee`, `email`, `created_at`). The
++order of the queue is the order of `id`. Nothing else in the schema changes.
++
++## Decisions
++
++- **Promotion is immediate.** There is no "hold this place for 2 hours" step. The person
++  promoted has a reservation at once and gets a notice.
++- **Promotion happens in the cancellation's transaction.** The freed place goes to the
++  first person waiting before anyone else can book it.
++- **Notifications never block bookings.** Messages are queued after the booking commits.
++  If queuing fails, the booking still succeeds and the failure is logged.
++- **Same message path for everything.** Booking confirmations and promotion notices are
++  built and queued by the same functions in `app/notify.py`.
++
++## Not in this change
++
++- Leaving the waitlist.
++- A limit on how many people can wait.
++- Payment for promoted people: they pay at the door, as for walk-ins.
++
++## How to try it
++
++1. Start the app and book the last place at the escape room.
++2. With a different name, press **Join waitlist** on the escape room.
++3. Cancel the first booking: `curl -X DELETE http://127.0.0.1:8000/api/reservations/<id>`.
++4. The event is still full, and the waitlist is one shorter.
+diff --git a/tests/test_confirmations.py b/tests/test_confirmations.py
+deleted file mode 100644
+index d6e3ed9..0000000
+--- a/tests/test_confirmations.py
++++ /dev/null
+@@ -1,32 +0,0 @@
+-from .conftest import event_by_title, outbox_messages
+-
+-BOARD_GAMES = "Board Game Night"                      # plenty of places
+-WORKSHOP = "Maker Workshop: Solder Your Own Badge"    # seeded full
+-
+-
+-def test_a_booking_puts_one_confirmation_in_the_outbox(client):
+-    event = event_by_title(client, BOARD_GAMES)
+-    res = client.post(f"/api/events/{event['id']}/reservations",
+-                      json={"attendee": "Maya", "email": "maya@example.org"})
+-    assert res.status_code == 201
+-    messages = outbox_messages()
+-    assert len(messages) == 1
+-    assert "maya@example.org" in messages[0]["recipient"]
+-    assert BOARD_GAMES in messages[0]["subject"]
+-
+-
+-def test_the_confirmation_says_when_and_where(client):
+-    event = event_by_title(client, BOARD_GAMES)
+-    client.post(f"/api/events/{event['id']}/reservations",
+-                json={"attendee": "Lee", "email": "lee@example.org"})
+-    body = outbox_messages()[0]["body"]
+-    assert "Sat 10 Oct, 18:00" in body
+-    assert "Student Union, Hall B" in body
+-
+-
+-def test_a_refused_booking_sends_nothing(client):
+-    event = event_by_title(client, WORKSHOP)
+-    res = client.post(f"/api/events/{event['id']}/reservations",
+-                      json={"attendee": "Sam", "email": "sam@example.org"})
+-    assert res.status_code == 409
+-    assert outbox_messages() == []
+diff --git a/tests/test_notify.py b/tests/test_notify.py
+new file mode 100644
+index 0000000..00d7658
+--- /dev/null
++++ b/tests/test_notify.py
+@@ -0,0 +1,26 @@
++from app import notify
++
++BOARD_GAMES = {"title": "Board Game Night", "starts_at": "2026-10-10T18:00",
++               "venue": "Student Union, Hall B"}
++
++
++def test_the_confirmation_subject_names_the_event():
++    subject, _ = notify.render_confirmation("Maya", BOARD_GAMES)
++    assert subject == "You're in: Board Game Night"
++
++
++def test_the_confirmation_greets_the_attendee():
++    _, body = notify.render_confirmation("Maya", BOARD_GAMES)
++    assert body.startswith("Hi Maya,")
++
++
++def test_the_confirmation_says_when_and_where():
++    _, body = notify.render_confirmation("Maya", BOARD_GAMES)
++    assert "Sat 10 Oct, 18:00" in body
++    assert "Student Union, Hall B" in body
++
++
++def test_the_promotion_notice_says_the_place_is_yours():
++    subject, body = notify.render_promotion("Lee", BOARD_GAMES)
++    assert subject == "A place opened up: Board Game Night"
++    assert "it is yours" in body
+diff --git a/tests/test_waitlist.py b/tests/test_waitlist.py
+new file mode 100644
+index 0000000..e9b1fe3
+--- /dev/null
++++ b/tests/test_waitlist.py
+@@ -0,0 +1,78 @@
++from .conftest import event_by_title
++
++WORKSHOP = "Maker Workshop: Solder Your Own Badge"   # seeded full (12 of 12)
++BOARD_GAMES = "Board Game Night"                     # plenty of places
++
++LEE = {"attendee": "Lee", "email": "lee@example.org"}
++PRIYA = {"attendee": "Priya", "email": "priya@example.org"}
++
++
++def test_people_can_join_the_waitlist_of_a_full_event(client):
++    event = event_by_title(client, WORKSHOP)
++    res = client.post(f"/api/events/{event['id']}/waitlist", json=LEE)
++    assert res.status_code == 201
++    assert res.json()["position"] == 1
++
++
++def test_the_waitlist_keeps_the_order_people_joined_in(client):
++    event = event_by_title(client, WORKSHOP)
++    client.post(f"/api/events/{event['id']}/waitlist", json=LEE)
++    res = client.post(f"/api/events/{event['id']}/waitlist", json=PRIYA)
++    assert res.json()["position"] == 2
++
++
++def test_you_cannot_wait_for_an_event_with_free_places(client):
++    event = event_by_title(client, BOARD_GAMES)
++    res = client.post(f"/api/events/{event['id']}/waitlist", json=LEE)
++    assert res.status_code == 409
++
++
++def test_the_waitlist_of_an_unknown_event_is_404(client):
++    res = client.post("/api/events/9999/waitlist", json=LEE)
++    assert res.status_code == 404
++
++
++def test_the_waitlist_needs_a_name_and_a_valid_email(client):
++    event = event_by_title(client, WORKSHOP)
++    assert client.post(f"/api/events/{event['id']}/waitlist",
++                       json={"attendee": "", "email": "lee@example.org"}).status_code == 422
++    assert client.post(f"/api/events/{event['id']}/waitlist",
++                       json={"attendee": "Lee", "email": "lee"}).status_code == 422
++
++
++def test_the_programme_shows_how_many_people_are_waiting(client):
++    event = event_by_title(client, WORKSHOP)
++    client.post(f"/api/events/{event['id']}/waitlist", json=LEE)
++    client.post(f"/api/events/{event['id']}/waitlist", json=PRIYA)
++    assert event_by_title(client, WORKSHOP)["waitlist"] == 2
++    assert client.get(f"/api/events/{event['id']}").json()["waitlist"] == 2
++
++
++def test_a_cancellation_gives_the_place_to_the_first_person_waiting(client):
++    event = event_by_title(client, WORKSHOP)
++    client.post(f"/api/events/{event['id']}/waitlist", json=LEE)
++    client.post(f"/api/events/{event['id']}/waitlist", json=PRIYA)
++
++    first_guest = _first_reservation_id(event["id"])
++    assert client.delete(f"/api/reservations/{first_guest}").status_code == 204
++
++    after = event_by_title(client, WORKSHOP)
++    assert after["reserved"] == 12        # still full: Lee took the freed place
++    assert after["waitlist"] == 1         # only Priya is still waiting
++
++
++def test_cancelling_with_nobody_waiting_just_frees_the_place(client):
++    event = event_by_title(client, WORKSHOP)
++    first_guest = _first_reservation_id(event["id"])
++    client.delete(f"/api/reservations/{first_guest}")
++    assert event_by_title(client, WORKSHOP)["places_left"] == 1
++
++
++def _first_reservation_id(event_id):
++    from app import db
++    conn = db.connect()
++    try:
++        return db.query_one(conn, "SELECT MIN(id) AS id FROM reservations WHERE event_id = ?",
++                            (event_id,))["id"]
++    finally:
++        conn.close()
